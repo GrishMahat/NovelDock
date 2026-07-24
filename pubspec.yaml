@@ -1,0 +1,85 @@
+name: quicknovel
+description: "QuickNovel - Multi-platform novel reader and downloader"
+publish_to: 'none'
+version: 1.0.0+1
+
+environment:
+  sdk: ^3.12.2
+
+dependencies:
+  flutter:
+    sdk: flutter
+
+  # State Management (Riverpod 3.x - manual providers, no codegen)
+  flutter_riverpod: ^3.3.2
+
+  # Navigation
+  go_router: ^17.3.0
+
+  # Database (Drift)
+  drift: ^2.34.2
+  sqlite3_flutter_libs: ^0.5.42
+  path_provider: ^2.1.5
+  sqlite3: ^3.5.0
+
+  # Networking
+  dio: ^5.8.0
+  cookie_jar: ^4.0.9
+  dio_cookie_manager: ^3.1.2
+  connectivity_plus: ^7.3.1
+
+  # Models & Codegen
+  freezed_annotation: ^3.1.0
+  json_annotation: ^4.12.0
+
+  # JS Engine
+  flutter_js: ^0.8.7
+
+  # Content Rendering
+  flutter_widget_from_html: ^0.17.2
+  epubx: ^4.0.0
+  pdfx: ^2.9.2
+  scrollable_positioned_list: ^0.3.8
+
+  # UI Components
+  shimmer: ^3.0.0
+  infinite_scroll_pagination: ^5.1.1
+  flutter_slidable: ^4.0.3
+  flex_color_scheme: ^8.1.1
+  flutter_animate: ^4.5.2
+  cached_network_image: ^3.4.1
+  flutter_staggered_grid_view: ^0.7.0
+
+  # Platform Features
+  flutter_tts: ^4.2.4
+  webview_flutter: ^4.12.0
+  google_mlkit_translation: ^0.14.0
+  flutter_local_notifications: ^22.1.0
+  permission_handler: ^12.0.3
+  file_picker: ^12.0.0-beta.7
+  share_plus: ^13.3.0
+  url_launcher: ^6.3.1
+  wakelock_plus: ^1.7.0
+  package_info_plus: ^10.2.1
+
+  # Utilities
+  collection: ^1.19.1
+  intl: ^0.20.3
+  path: ^1.9.1
+
+  # Cupertino icons
+  cupertino_icons: ^1.0.8
+
+dev_dependencies:
+  flutter_test:
+    sdk: flutter
+  flutter_lints: ^6.0.0
+  build_runner: ^2.5.4
+  drift_dev: 2.34.0
+  freezed: ^3.2.5
+  json_serializable: ^6.14.0
+
+flutter:
+  uses-material-design: true
+  assets:
+    - assets/providers/

@@ -1,0 +1,13 @@
+targets:
+  $default:
+    builders:
+      drift_dev:
+        options:
+          generate_connect_constructor: true
+      freezed:
+        options:
+          enabled: true
+      json_serializable:
+        options:
+          explicit_to_json: true
+          include_if_null: false
