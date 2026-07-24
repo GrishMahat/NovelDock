@@ -182,9 +182,36 @@ module.exports = {
   },
 
   parseChapterContent: function(html) {
-    // Content is in div.chapter-content
-    var contentMatch = html.match(/<div class="chapter-content">([\s\S]*?)<\/div>/);
-    var content = contentMatch ? contentMatch[1] : html;
+    // Content is in div.chapter-content — handle nested divs properly
+    var startTag = '<div class="chapter-content">';
+    var startIdx = html.indexOf(startTag);
+    var content = html;
+
+    if (startIdx !== -1) {
+      var contentStart = startIdx + startTag.length;
+      var depth = 1;
+      var idx = contentStart;
+
+      // Find the matching closing </div> by counting nesting depth
+      while (depth > 0 && idx < html.length) {
+        var nextOpen = html.indexOf('<div', idx);
+        var nextClose = html.indexOf('</div>', idx);
+
+        if (nextClose === -1) break;
+
+        if (nextOpen !== -1 && nextOpen < nextClose) {
+          depth++;
+          idx = nextOpen + 4;
+        } else {
+          depth--;
+          if (depth === 0) {
+            content = html.substring(contentStart, nextClose);
+          } else {
+            idx = nextClose + 6;
+          }
+        }
+      }
+    }
 
     // Remove ad placeholders
     content = content.replace(/<img[^>]*disable-blocker[^>]*>/g, '');

@@ -6,6 +6,7 @@ import 'package:scrollable_positioned_list/scrollable_positioned_list.dart';
 import '../../core/database/database.dart';
 import '../../core/providers/database_providers.dart';
 import '../../core/utils/logger.dart';
+import '../../core/utils/text_utils.dart';
 import '../../theme/app_theme.dart';
 
 /// Novel detail screen — shows novel info with tabs: Novel, Reviews, Related, Chapters.
