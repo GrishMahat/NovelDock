@@ -56,6 +56,11 @@ class _LibraryScreenState extends ConsumerState<LibraryScreen>
         title: const Text('Library'),
         actions: [
           IconButton(
+            icon: const Icon(Icons.file_upload),
+            onPressed: () => context.push('/import'),
+            tooltip: 'Import EPUB/PDF',
+          ),
+          IconButton(
             icon: Icon(_isGrid ? Icons.view_list : Icons.grid_view),
             onPressed: () => setState(() => _isGrid = !_isGrid),
           ),

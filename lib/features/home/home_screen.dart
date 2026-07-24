@@ -53,6 +53,7 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
     Log.i(_tag, '_openNovel: inserted/got novel DB id=$id');
     if (!mounted) return;
 
+    // Show loading dialog
     showDialog(
       context: context,
       barrierDismissible: false,
@@ -144,7 +145,8 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
     }
 
     if (mounted) {
-      Navigator.pop(context);
+      // Dismiss loading dialog
+      Navigator.of(context, rootNavigator: true).pop();
       Log.i(_tag, '_openNovel: navigating to /novel/$id');
       context.push('/novel/$id');
     }

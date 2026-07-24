@@ -1,11 +1,13 @@
 import 'dart:io';
 
 import 'package:drift/drift.dart' show Value;
+import 'package:epubx/epubx.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_widget_from_html/flutter_widget_from_html.dart';
 import 'package:go_router/go_router.dart';
+import 'package:pdfx/pdfx.dart';
 
 import '../../core/database/database.dart';
 import '../../core/providers/database_providers.dart';
@@ -94,13 +96,21 @@ class _ReaderScreenState extends ConsumerState<ReaderScreen> {
     // Save reading history
     _saveHistory();
 
-    // Load current chapter
-    await _loadChapter(_currentIndex);
+    // Check if this is an EPUB (local file)
+    final isEpub = _chapters.isNotEmpty && _chapters.first.url.startsWith('epub://');
 
-    // Pre-load next chapter in continuous mode
-    final settings = ref.read(readerSettingsProvider);
-    if (settings.scrollMode == 'continuous' && _currentIndex < _chapters.length - 1) {
-      _loadChapter(_currentIndex + 1);
+    if (isEpub) {
+      // Load ALL EPUB chapters at once (they're from a local file, fast)
+      for (var i = 0; i < _chapters.length; i++) {
+        await _loadChapter(i);
+      }
+    } else {
+      // Online: load current + next
+      await _loadChapter(_currentIndex);
+      final settings = ref.read(readerSettingsProvider);
+      if (settings.scrollMode == 'continuous' && _currentIndex < _chapters.length - 1) {
+        _loadChapter(_currentIndex + 1);
+      }
     }
 
     setState(() => _isLoading = false);
@@ -118,6 +128,117 @@ class _ReaderScreenState extends ConsumerState<ReaderScreen> {
     Log.i(_tag, 'Saved history: novel=${widget.novelId}, chapter=${chapter.id}');
   }
 
+  void _addBookmark() async {
+    if (_chapters.isEmpty) return;
+    final chapter = _chapters[_currentIndex];
+    final bookmarkDao = ref.read(bookmarkDaoProvider);
+
+    // Get current scroll position as percentage
+    double position = 0.0;
+    if (_scrollController.hasClients && _scrollController.position.hasContentDimensions) {
+      position = _scrollController.position.pixels / _scrollController.position.maxScrollExtent;
+    }
+
+    await bookmarkDao.addBookmark(BookmarksCompanion(
+      novelId: Value(widget.novelId),
+      chapterId: Value(chapter.id),
+      position: Value(position.toStringAsFixed(4)),
+      createdAt: Value(DateTime.now().millisecondsSinceEpoch),
+    ));
+
+    Log.i(_tag, 'Bookmarked: novel=${widget.novelId}, chapter=${chapter.id}, pos=$position');
+
+    if (mounted) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text('Bookmarked: ${chapter.name}'),
+          duration: const Duration(seconds: 1),
+        ),
+      );
+    }
+  }
+
+  void _showBookmarks() async {
+    final bookmarkDao = ref.read(bookmarkDaoProvider);
+    final bookmarks = await bookmarkDao.getBookmarksForNovel(widget.novelId);
+
+    if (!context.mounted) return;
+
+    if (bookmarks.isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('No bookmarks for this novel')),
+      );
+      return;
+    }
+
+    showModalBottomSheet(
+      context: context,
+      isScrollControlled: true,
+      builder: (context) => DraggableScrollableSheet(
+        initialChildSize: 0.4,
+        maxChildSize: 0.7,
+        minChildSize: 0.2,
+        expand: false,
+        builder: (context, scrollController) => Column(
+          children: [
+            const Padding(
+              padding: EdgeInsets.all(16),
+              child: Text('Bookmarks', style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
+            ),
+            const Divider(height: 1),
+            Expanded(
+              child: ListView.builder(
+                controller: scrollController,
+                itemCount: bookmarks.length,
+                itemBuilder: (context, index) {
+                  final bm = bookmarks[index];
+                  final chapter = _chapters.firstWhere(
+                    (c) => c.id == bm.chapterId,
+                    orElse: () => _chapters.first,
+                  );
+                  final time = DateTime.fromMillisecondsSinceEpoch(bm.createdAt)
+                      .toLocal().toString().split(' ')[1].substring(0, 5);
+
+                  return ListTile(
+                    leading: const Icon(Icons.bookmark, color: AppTheme.kPrimary),
+                    title: Text(chapter.name, maxLines: 1, overflow: TextOverflow.ellipsis),
+                    subtitle: Text('Position: ${(double.tryParse(bm.position ?? '0') ?? 0 * 100).round()}% · $time',
+                        style: const TextStyle(fontSize: 12)),
+                    trailing: IconButton(
+                      icon: const Icon(Icons.delete_outline, size: 20),
+                      onPressed: () async {
+                        await bookmarkDao.removeBookmark(bm.id);
+                        if (context.mounted) {
+                          Navigator.pop(context);
+                          _showBookmarks();
+                        }
+                      },
+                    ),
+                    onTap: () {
+                      Navigator.pop(context);
+                      // Jump to chapter
+                      final chIdx = _chapters.indexWhere((c) => c.id == bm.chapterId);
+                      if (chIdx >= 0) {
+                        _jumpToChapter(chIdx);
+                        // Scroll to position
+                        final pos = double.tryParse(bm.position ?? '0') ?? 0;
+                        WidgetsBinding.instance.addPostFrameCallback((_) {
+                          if (_scrollController.hasClients && _scrollController.position.hasContentDimensions) {
+                            _scrollController.jumpTo(pos * _scrollController.position.maxScrollExtent);
+                          }
+                        });
+                      }
+                    },
+                  );
+                },
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
   Future<void> _loadChapter(int index) async {
     if (index < 0 || index >= _chapters.length) return;
     if (_chapterCache.containsKey(_chapters[index].id)) return;
@@ -125,6 +246,72 @@ class _ReaderScreenState extends ConsumerState<ReaderScreen> {
     final chapter = _chapters[index];
     Log.i(_tag, 'Loading chapter ${index + 1}: ${chapter.name}');
 
+    try {
+      if (chapter.url.startsWith('epub://')) {
+        await _loadEpubChapter(chapter, index);
+      } else if (chapter.url.startsWith('pdf://')) {
+        await _loadPdfChapter(chapter, index);
+      } else {
+        await _loadRemoteChapter(chapter, index);
+      }
+    } catch (e) {
+      Log.e(_tag, 'Failed to load chapter ${index + 1}', e);
+    }
+  }
+
+  Future<void> _loadEpubChapter(Chapter chapter, int index) async {
+    final url = chapter.url;
+    final filePath = url.replaceFirst('epub://', '').split('#').first;
+
+    Log.i(_tag, 'Loading EPUB chapter from: $filePath');
+
+    final file = File(filePath);
+    if (!await file.exists()) {
+      Log.e(_tag, 'EPUB file not found: $filePath');
+      return;
+    }
+
+    final bytes = await file.readAsBytes();
+    final book = await EpubReader.readBook(bytes);
+
+    if (book.Chapters == null || book.Chapters!.isEmpty) {
+      Log.e(_tag, 'No chapters in EPUB');
+      return;
+    }
+
+    // Use index to match chapter (more reliable than title matching)
+    final chIndex = index.clamp(0, book.Chapters!.length - 1);
+    final ch = book.Chapters![chIndex];
+    final html = ch.HtmlContent ?? '';
+    final cleanHtml = HtmlPreprocessor.clean(html);
+    _chapterCache[chapter.id] = _LoadedChapter(chapter: chapter, html: cleanHtml);
+    Log.ok(_tag, 'EPUB chapter ${chIndex + 1} loaded: ${cleanHtml.length} chars');
+    setState(() {});
+  }
+
+  Future<void> _loadPdfChapter(Chapter chapter, int index) async {
+    // PDF chapters are rendered as page images, store the file path for PdfView
+    final url = chapter.url;
+    final filePath = url.replaceFirst('pdf://', '').split('#').first;
+
+    Log.i(_tag, 'Loading PDF page from: $filePath');
+
+    final file = File(filePath);
+    if (!await file.exists()) {
+      Log.e(_tag, 'PDF file not found: $filePath');
+      return;
+    }
+
+    // Store a marker so the UI knows to render with PdfView
+    _chapterCache[chapter.id] = _LoadedChapter(
+      chapter: chapter,
+      html: 'PDF:$filePath',
+    );
+    Log.ok(_tag, 'PDF chapter ${index + 1} marked for PDF rendering');
+    setState(() {});
+  }
+
+  Future<void> _loadRemoteChapter(Chapter chapter, int index) async {
     try {
       final registry = await ref.read(registryManagerProvider.future);
       final engine = ref.read(providerEngineProvider);
@@ -135,7 +322,10 @@ class _ReaderScreenState extends ConsumerState<ReaderScreen> {
       if (novel == null) return;
 
       final jsSource = await registry.loadCachedProviderJs(novel.providerId);
-      if (jsSource == null) return;
+      if (jsSource == null) {
+        Log.w(_tag, 'No provider for ${novel.providerId}');
+        return;
+      }
 
       final instance = await engine.loadProvider(jsSource);
       final contentUrl = await instance.getChapterContentUrl(chapter.url);
@@ -148,11 +338,11 @@ class _ReaderScreenState extends ConsumerState<ReaderScreen> {
       if (content != null) {
         final cleanHtml = HtmlPreprocessor.clean(content.html);
         _chapterCache[chapter.id] = _LoadedChapter(chapter: chapter, html: cleanHtml);
-        Log.ok(_tag, 'Chapter ${index + 1} loaded: ${cleanHtml.length} chars');
+        Log.ok(_tag, 'Chapter loaded: ${cleanHtml.length} chars');
         setState(() {});
       }
     } catch (e) {
-      Log.e(_tag, 'Failed to load chapter ${index + 1}', e);
+      Log.e(_tag, 'Failed to load chapter', e);
     }
   }
 
@@ -167,9 +357,8 @@ class _ReaderScreenState extends ConsumerState<ReaderScreen> {
   void _goToPreviousChapter() {
     if (_currentIndex > 0) {
       setState(() => _currentIndex--);
-      _scrollController.jumpTo(0);
+      if (_scrollController.hasClients) _scrollController.jumpTo(0);
       _loadChapter(_currentIndex);
-      // Pre-load previous
       if (_currentIndex > 0) _loadChapter(_currentIndex - 1);
     }
   }
@@ -177,20 +366,33 @@ class _ReaderScreenState extends ConsumerState<ReaderScreen> {
   void _goToNextChapter() {
     if (_currentIndex < _chapters.length - 1) {
       setState(() => _currentIndex++);
-      _scrollController.jumpTo(0);
+      if (_scrollController.hasClients) _scrollController.jumpTo(0);
       _loadChapter(_currentIndex);
-      // Pre-load next
       if (_currentIndex < _chapters.length - 1) _loadChapter(_currentIndex + 1);
     }
   }
 
   void _jumpToChapter(int index) {
     setState(() => _currentIndex = index);
-    _scrollController.jumpTo(0);
+    if (_scrollController.hasClients) _scrollController.jumpTo(0);
     _loadChapter(index);
     // Pre-load neighbors
     if (index > 0) _loadChapter(index - 1);
     if (index < _chapters.length - 1) _loadChapter(index + 1);
+  }
+
+  void _handleTap(TapUpDetails details) {
+    final screenWidth = MediaQuery.of(context).size.width;
+    final tapX = details.localPosition.dx;
+    final third = screenWidth / 3;
+
+    if (tapX < third) {
+      _goToPreviousChapter();
+    } else if (tapX > screenWidth - third) {
+      _goToNextChapter();
+    } else {
+      setState(() => _showControls = !_showControls);
+    }
   }
 
   // ─── Bottom Sheets ────────────────────────────────────────
@@ -263,7 +465,7 @@ class _ReaderScreenState extends ConsumerState<ReaderScreen> {
     return Scaffold(
       backgroundColor: settings.bgColor,
       body: GestureDetector(
-        onTap: () => setState(() => _showControls = !_showControls),
+        onTapUp: (details) => _handleTap(details),
         child: Stack(
           children: [
             if (_isLoading)
@@ -312,6 +514,53 @@ class _ReaderScreenState extends ConsumerState<ReaderScreen> {
     return null;
   }
 
+  Widget _buildChapterContent(_LoadedChapter loaded, ReaderSettings settings, TextStyle textStyle) {
+    // PDF chapter
+    if (loaded.html.startsWith('PDF:')) {
+      final filePath = loaded.html.replaceFirst('PDF:', '');
+
+      // pdfx doesn't support Linux — show a message
+      if (Platform.isLinux) {
+        return Center(
+          child: Column(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              Icon(Icons.picture_as_pdf, size: 64, color: settings.textColor.withValues(alpha: 0.5)),
+              const SizedBox(height: 16),
+              Text(
+                'PDF viewing not supported on Linux',
+                style: TextStyle(color: settings.textColor),
+              ),
+              const SizedBox(height: 8),
+              Text(
+                'File: ${filePath.split('/').last}',
+                style: TextStyle(color: settings.textColor.withValues(alpha: 0.5), fontSize: 12),
+              ),
+            ],
+          ),
+        );
+      }
+
+      // On supported platforms, render with PdfView
+      return SizedBox(
+        height: 500,
+        child: PdfView(
+          controller: PdfController(
+            document: PdfDocument.openFile(filePath),
+          ),
+        ),
+      );
+    }
+
+    // HTML/EPUB chapter
+    return HtmlWidget(
+      loaded.html,
+      key: ValueKey('$_settingsVersion-${settings.textAlignment}-${settings.fontSize}-${settings.fontFamily}'),
+      textStyle: textStyle,
+      customStylesBuilder: (element) => _alignmentStyles(settings),
+    );
+  }
+
   // Key to force HtmlWidget rebuild when settings change
   int _settingsVersion = 0;
 
@@ -342,8 +591,9 @@ class _ReaderScreenState extends ConsumerState<ReaderScreen> {
           return const SizedBox.shrink();
         }
 
-        // Chapter divider (except for first chapter)
-        if (index > 0) {
+        // Chapter divider — only for online chapters, not EPUBs
+        final isEpub = loaded.chapter.url.startsWith('epub://');
+        if (index > 0 && !isEpub) {
           return Column(
             children: [
               const SizedBox(height: 64),
@@ -388,14 +638,14 @@ class _ReaderScreenState extends ConsumerState<ReaderScreen> {
                 ),
               ),
               const SizedBox(height: 48),
-              // Chapter content
-              HtmlWidget(loaded.html, key: ValueKey('$_settingsVersion-${settings.textAlignment}-${settings.fontSize}-${settings.fontFamily}'), textStyle: textStyle, customStylesBuilder: (element) => _alignmentStyles(settings)),
+              // Chapter content — HTML or PDF
+              _buildChapterContent(loaded, settings, textStyle),
             ],
           );
         }
 
         // First chapter — no divider
-        return HtmlWidget(loaded.html, textStyle: textStyle, customStylesBuilder: (element) => _alignmentStyles(settings));
+        return _buildChapterContent(loaded, settings, textStyle);
       },
     );
   }
@@ -445,7 +695,7 @@ class _ReaderScreenState extends ConsumerState<ReaderScreen> {
                         ),
                       ),
                     ),
-                    HtmlWidget(loaded.html, key: ValueKey('$_settingsVersion-${settings.textAlignment}-${settings.fontSize}-${settings.fontFamily}'), textStyle: textStyle, customStylesBuilder: (element) => _alignmentStyles(settings)),
+                    _buildChapterContent(loaded, settings, textStyle),
                   ],
                 ),
               );
@@ -511,6 +761,14 @@ class _ReaderScreenState extends ConsumerState<ReaderScreen> {
                     style: const TextStyle(color: Colors.white, fontSize: 16, fontWeight: FontWeight.w500),
                     maxLines: 1, overflow: TextOverflow.ellipsis,
                   ),
+                ),
+                IconButton(
+                  icon: const Icon(Icons.bookmark_border, color: Colors.white),
+                  onPressed: _addBookmark,
+                ),
+                IconButton(
+                  icon: const Icon(Icons.bookmarks, color: Colors.white),
+                  onPressed: _showBookmarks,
                 ),
               ],
             ),
