@@ -2,6 +2,7 @@ import 'dart:async';
 import 'dart:io';
 import 'dart:typed_data';
 
+import 'package:audioplayers/audioplayers.dart';
 import 'package:flutter_edge_tts/flutter_edge_tts.dart';
 import 'package:path_provider/path_provider.dart';
 import 'package:path/path.dart' as p;
@@ -57,7 +58,7 @@ class MicrosoftTtsProvider {
   String? _tempDir;
   bool _speaking = false;
   bool _paused = false;
-  Process? _playProcess;
+  AudioPlayer? _player;
   bool _stopRequested = false;
 
   bool get isSpeaking => _speaking;
@@ -118,7 +119,6 @@ class MicrosoftTtsProvider {
       }
     }
 
-    // Combine audio bytes
     final builder = BytesBuilder();
     for (final chunk in audioChunks) {
       builder.add(chunk);
@@ -138,17 +138,6 @@ class MicrosoftTtsProvider {
   static const _lookAheadCount = 10;
 
   /// Speak multiple text chunks with look-ahead synthesis and streaming playback.
-  ///
-  /// Flow:
-  /// 1. Synthesize chunk 0 synchronously (fast start)
-  /// 2. Kick off background synthesis for chunks 1.._lookAheadCount
-  /// 3. Play chunk 0 while background synthesis runs
-  /// 4. When chunk 0 finishes, chunk 1 is already synthesized — play it
-  /// 5. Kick off synthesis for chunk 1+_lookAheadCount, etc.
-  /// 6. Audio starts in ~3s, no gaps between chunks
-  ///
-  /// [onLineStart] fires when a chunk begins playing.
-  /// [onWordStart] fires for each word boundary during playback.
   Future<void> speakAll(
     List<String> lines, {
     double speed = 1.0,
@@ -164,12 +153,9 @@ class MicrosoftTtsProvider {
 
     await init();
 
-    // Buffer of pre-synthesized results (background synthesis fills this).
     final buffer = <int, _SynthResult>{};
-    // Indices we've already kicked off synthesis for (avoid duplicates).
     final synthesizing = <int>{};
 
-    /// Kick off background synthesis for chunks [start..end).
     void fillBuffer(int start, int end) {
       for (int j = start; j < end && j < lines.length; j++) {
         if (synthesizing.contains(j) || buffer.containsKey(j)) continue;
@@ -183,11 +169,9 @@ class MicrosoftTtsProvider {
       }
     }
 
-    // Pre-fill: synthesize chunks 1.._lookAheadCount in background
     fillBuffer(1, _lookAheadCount);
 
     for (int i = 0; i < lines.length && !_stopRequested; i++) {
-      // Get from buffer or synthesize on demand (fallback)
       _SynthResult? result = buffer.remove(i);
       if (result == null) {
         Log.d(_tag, 'Chunk $i not in buffer, synthesizing on demand');
@@ -201,17 +185,13 @@ class MicrosoftTtsProvider {
 
       if (_stopRequested) break;
 
-      // Fill buffer ahead for upcoming chunks
       fillBuffer(i + 1, i + 1 + _lookAheadCount);
 
-      // Write audio to temp file
       final audioPath = p.join(_tempDir!, 'tts_chunk_$i.mp3');
       await File(audioPath).writeAsBytes(result.audioBytes);
 
-      // Fire line-start callback (maps to paragraph for display)
       onLineStart?.call(i);
 
-      // Play this chunk and track word position
       await _playChunkAndWait(audioPath, result, onWordStart);
     }
 
@@ -225,91 +205,52 @@ class MicrosoftTtsProvider {
     _SynthResult result,
     void Function(int lineIndex, int wordIndex)? onWordStart,
   ) async {
-    Process? proc;
+    final player = AudioPlayer();
+    _player = player;
     try {
-      if (Platform.isLinux) {
-        proc = await Process.start('mpv', [
-          '--no-video', '--no-terminal', '--really-quiet', audioPath,
-        ]);
-      } else if (Platform.isMacOS) {
-        proc = await Process.start('afplay', [audioPath]);
-      } else if (Platform.isWindows) {
-        proc = await Process.start('powershell', [
-          '-Command', '(New-Object Media.SoundPlayer "$audioPath").PlaySync()',
-        ]);
-      }
-      _playProcess = proc;
+      await player.setSourceDeviceFile(audioPath);
 
-      if (proc != null) {
-        final stopwatch = Stopwatch()..start();
-        int lastWordIndex = -1;
+      final completer = Completer<void>();
+      player.onPlayerComplete.listen((_) {
+        if (!completer.isCompleted) completer.complete();
+      });
 
-        while (_playProcess != null && !_stopRequested) {
-          if (_paused) {
-            if (stopwatch.isRunning) stopwatch.stop();
-            await Future.delayed(const Duration(milliseconds: 50));
-            continue;
-          }
-          if (!stopwatch.isRunning) stopwatch.start();
+      await player.resume();
 
-          final exitCode = await proc.exitCode.timeout(
-            const Duration(milliseconds: 50),
-            onTimeout: () => -1,
-          );
-          if (exitCode != -1) break;
+      final stopwatch = Stopwatch()..start();
+      int lastWordIndex = -1;
 
-          // Track word position within this chunk
-          final elapsed = stopwatch.elapsed;
-          int currentWord = -1;
-          for (int wi = result.wordTimings.length - 1; wi >= 0; wi--) {
-            if (elapsed >= result.wordTimings[wi].offset) {
-              currentWord = wi;
-              break;
-            }
-          }
+      while (!completer.isCompleted && !_stopRequested) {
+        if (_paused) {
+          if (stopwatch.isRunning) stopwatch.stop();
+          await Future.delayed(const Duration(milliseconds: 50));
+          continue;
+        }
+        if (!stopwatch.isRunning) stopwatch.start();
 
-          if (currentWord != -1 && currentWord != lastWordIndex) {
-            lastWordIndex = currentWord;
-            onWordStart?.call(result.lineIndex, currentWord);
+        await Future.delayed(const Duration(milliseconds: 50));
+
+        final elapsed = stopwatch.elapsed;
+        int currentWord = -1;
+        for (int wi = result.wordTimings.length - 1; wi >= 0; wi--) {
+          if (elapsed >= result.wordTimings[wi].offset) {
+            currentWord = wi;
+            break;
           }
         }
-        stopwatch.stop();
-      } else {
-        await _playFile(audioPath);
+
+        if (currentWord != -1 && currentWord != lastWordIndex) {
+          lastWordIndex = currentWord;
+          onWordStart?.call(result.lineIndex, currentWord);
+        }
       }
-    } on ProcessException catch (e) {
-      final tool = Platform.isLinux ? 'mpv' : Platform.isMacOS ? 'afplay' : 'PowerShell';
-      Log.e(_tag, '$tool not found. Please install $tool to use TTS. Error: $e');
-      await _playFile(audioPath);
+
+      stopwatch.stop();
     } catch (e) {
       Log.e(_tag, 'Chunk playback failed: $e');
-      await _playFile(audioPath);
-    }
-  }
-
-  Future<void> _playFile(String path) async {
-    try {
-      if (Platform.isLinux) {
-        _playProcess = await Process.start('mpv', [
-          '--no-video', '--no-terminal', '--really-quiet', path,
-        ]);
-        await _playProcess!.exitCode;
-      } else if (Platform.isMacOS) {
-        _playProcess = await Process.start('afplay', [path]);
-        await _playProcess!.exitCode;
-      } else if (Platform.isWindows) {
-        _playProcess = await Process.start('powershell', [
-          '-Command', '(New-Object Media.SoundPlayer "$path").PlaySync()',
-        ]);
-        await _playProcess!.exitCode;
-      } else {
-        Log.w(_tag, 'Audio playback not supported on this platform');
-      }
-    } on ProcessException catch (e) {
-      final tool = Platform.isLinux ? 'mpv' : Platform.isMacOS ? 'afplay' : 'PowerShell';
-      Log.e(_tag, '$tool not found. Please install $tool to use TTS. Error: $e');
-    } catch (e) {
-      Log.e(_tag, 'Playback failed: $e');
+    } finally {
+      await player.dispose();
+      _player = null;
     }
   }
 
@@ -328,27 +269,31 @@ class MicrosoftTtsProvider {
 
   Future<void> _stopPlayback() async {
     _stopRequested = true;
-    if (_playProcess != null) {
-      try { _playProcess!.kill(ProcessSignal.sigterm); } catch (_) {}
-      _playProcess = null;
+    final player = _player;
+    if (player != null) {
+      try { await player.stop(); } catch (_) {}
+      try { await player.dispose(); } catch (_) {}
+      _player = null;
     }
     _speaking = false;
     _paused = false;
   }
 
   Future<void> pause() async {
-    if (_playProcess != null) {
+    final player = _player;
+    if (player != null) {
       try {
-        _playProcess!.kill(ProcessSignal.sigstop);
+        await player.pause();
         _paused = true;
       } catch (_) {}
     }
   }
 
   Future<void> resume() async {
-    if (_playProcess != null) {
+    final player = _player;
+    if (player != null) {
       try {
-        _playProcess!.kill(ProcessSignal.sigcont);
+        await player.resume();
         _paused = false;
       } catch (_) {}
     }
@@ -391,7 +336,19 @@ class MicrosoftTtsProvider {
 
       _speaking = true;
       _paused = false;
-      await _playFile(audioPath);
+
+      final player = AudioPlayer();
+      _player = player;
+      await player.setSourceDeviceFile(audioPath);
+      final completer = Completer<void>();
+      player.onPlayerComplete.listen((_) {
+        if (!completer.isCompleted) completer.complete();
+      });
+      await player.resume();
+      await completer.future;
+      await player.dispose();
+      _player = null;
+
       _speaking = false;
     } catch (e) {
       Log.e(_tag, 'Failed to speak', e);
