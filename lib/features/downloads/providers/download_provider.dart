@@ -15,6 +15,7 @@ import '../../../core/providers/engine.dart';
 import '../../../core/providers/registry.dart';
 import '../../../core/network/client.dart';
 import '../../../core/utils/logger.dart';
+import '../background_service.dart';
 import 'download_notification.dart';
 
 const _tag = 'Download';
@@ -115,12 +116,16 @@ class DownloadNotifier extends StateNotifier<Map<int, NovelDownloadProgress>> {
     if (_isProcessing) return;
     _isProcessing = true;
 
+    // Start background service for Android (keeps downloads running when app is backgrounded)
+    BackgroundDownloadService.start();
+
     try {
       final downloadDao = ref.read(downloadDaoProvider);
       final pending = await downloadDao.getPendingDownloads();
 
       if (pending.isEmpty) {
         _isProcessing = false;
+        BackgroundDownloadService.stop();
         return;
       }
 
@@ -129,6 +134,7 @@ class DownloadNotifier extends StateNotifier<Map<int, NovelDownloadProgress>> {
       }
     } finally {
       _isProcessing = false;
+      BackgroundDownloadService.stop();
     }
   }
 
@@ -320,10 +326,16 @@ class DownloadNotifier extends StateNotifier<Map<int, NovelDownloadProgress>> {
     if (isDownloading) {
       final novelDao = ref.read(novelDaoProvider);
       final novel = await novelDao.getNovelById(novelId);
+      final title = novel?.title ?? 'Unknown';
       DownloadNotification.showProgress(
-        novelTitle: novel?.title ?? 'Unknown',
+        novelTitle: title,
         completed: completed,
         total: allChapters.length,
+      );
+      // Also update background service notification
+      BackgroundDownloadService.updateNotification(
+        title: 'Downloading: $title',
+        content: '$completed/$allChapters.length chapters',
       );
     } else if (completed > 0 && !isDownloading) {
       final novelDao = ref.read(novelDaoProvider);
