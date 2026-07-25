@@ -1,4 +1,4 @@
-package com.lagradost.quicknovel.quicknovel
+package dev.grish.quicknovel
 
 import io.flutter.embedding.android.FlutterActivity
 
