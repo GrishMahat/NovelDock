@@ -99,7 +99,90 @@ class _PlainMapping {
 }
 
 /// Highlights text in HTML for TTS read-along.
+///
+/// The primary entry point for chunk-based TTS is [highlightFromWordIndex]:
+///   - Takes the chunk's raw HTML and the current word index (from EdgeTTS
+///     word boundary events, which cover the entire synthesized paragraph).
+///   - Splits the plain text into words, finds which sentence contains word N,
+///     then highlights that sentence + the specific word inside it.
 class TtsHighlighter {
+  // ─── Primary: chunk-based word-index highlighting ────────────────────────
+
+  /// Highlight the active sentence and word inside a chunk, given only the
+  /// absolute [wordIndex] within the synthesized paragraph.
+  ///
+  /// - [mode] == word   → sentence tint + bold word badge
+  /// - [mode] == sentence → sentence tint only
+  /// - [mode] == paragraph → full paragraph tint
+  static String highlightFromWordIndex(
+    String html,
+    int wordIndex,
+    TtsHighlightMode mode,
+  ) {
+    if (html.isEmpty) return html;
+    if (mode == TtsHighlightMode.paragraph) return _tintParagraph(html);
+
+    final cleanHtml = _removeHighlights(html);
+    final mapping = _PlainMapping.build(cleanHtml);
+    final plain = mapping.plainText;
+    if (plain.isEmpty) return cleanHtml;
+
+    // Collect all word positions in the plain text.
+    final wordPositions = _extractWordPositions(plain);
+    if (wordPositions.isEmpty) return cleanHtml;
+
+    final safeWordIdx = wordIndex.clamp(0, wordPositions.length - 1);
+    final (wStart, wEnd) = wordPositions[safeWordIdx];
+
+    if (mode == TtsHighlightMode.sentence) {
+      // Find the sentence span that contains this word.
+      final sentenceRange = _findSentenceContaining(plain, wStart, wEnd);
+      if (sentenceRange == null) return cleanHtml;
+      return _wrapMappingRange(cleanHtml, mapping, sentenceRange.$1, sentenceRange.$2, 'tts-highlight-sentence');
+    }
+
+    // Word mode: highlight sentence context + bold word.
+    final sentenceRange = _findSentenceContaining(plain, wStart, wEnd);
+    String result = cleanHtml;
+    if (sentenceRange != null) {
+      result = _wrapMappingRange(cleanHtml, mapping, sentenceRange.$1, sentenceRange.$2, 'tts-highlight-sentence');
+    }
+    // Now wrap the word inside the already-wrapped sentence.
+    final wordMapping = _PlainMapping.build(result);
+    return _wrapMappingRange(result, wordMapping, wStart, wEnd, 'tts-highlight-word');
+  }
+
+  /// Find the start/end of the sentence in [plain] that contains character
+  /// range [wStart..wEnd].
+  static (int, int)? _findSentenceContaining(String plain, int wStart, int wEnd) {
+    // Sentence boundaries: after .  !  ?  followed by space or end.
+    // Walk backward from wStart to find sentence start.
+    int sStart = 0;
+    for (int i = wStart - 1; i >= 1; i--) {
+      final ch = plain[i];
+      final prev = plain[i - 1];
+      if ((prev == '.' || prev == '!' || prev == '?') && ch == ' ') {
+        sStart = i + 1;
+        break;
+      }
+    }
+
+    // Walk forward from wEnd to find sentence end (inclusive of punctuation).
+    int sEnd = plain.length;
+    for (int i = wEnd; i < plain.length; i++) {
+      final ch = plain[i];
+      if (ch == '.' || ch == '!' || ch == '?') {
+        sEnd = i + 1;
+        break;
+      }
+    }
+
+    if (sStart >= sEnd) return null;
+    return (sStart, sEnd);
+  }
+
+  // ─── Legacy: text-based highlighting (kept for compatibility) ────────────
+
   static String highlight(String html, String highlightText, TtsHighlightMode mode, {int wordIndex = 0}) {
     if (highlightText.isEmpty || html.isEmpty) return html;
 
@@ -196,13 +279,19 @@ class TtsHighlighter {
 
   // ─── Paragraph Mode ───
 
+  static String _tintParagraph(String html) {
+    final cleanHtml = _removeHighlights(html);
+    // Wrap the entire HTML in a paragraph tint span.
+    return '<span class="tts-highlight-sentence">$cleanHtml</span>';
+  }
+
   static String _highlightParagraph(String html, String text) {
     final cleanHtml = _removeHighlights(html);
     final mapping = _PlainMapping.build(cleanHtml);
     final range = _findRangeInPlain(mapping.plainText, text);
     if (range == null) return cleanHtml;
 
-    final (plainStart, plainEnd) = range;
+    final (plainStart, _) = range;
     final htmlStart = mapping.htmlIndices[plainStart.clamp(0, mapping.htmlIndices.length - 1)];
 
     // Locate enclosing <p> tag in cleanHtml
@@ -348,10 +437,5 @@ class TtsHighlighter {
       }
     }
     return clean;
-  }
-
-  static String _stripTags(String html) {
-    final mapping = _PlainMapping.build(html);
-    return mapping.plainText;
   }
 }

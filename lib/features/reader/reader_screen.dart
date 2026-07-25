@@ -18,6 +18,7 @@ import '../../core/utils/logger.dart';
 import '../../theme/app_theme.dart';
 import '../../core/tts/tts_manager.dart';
 import '../../core/tts/tts_highlighter.dart';
+import '../../core/utils/html_chunker.dart';
 import '../settings/pages/reader_settings_page.dart';
 
 const _tag = 'Reader';
@@ -51,9 +52,9 @@ class _ReaderScreenState extends ConsumerState<ReaderScreen> {
   final PageController _pageController = PageController();
   double _scrollProgress = 0.0;
 
-  // GlobalKeys for each chapter content widget, so we can read their actual
-  // rendered RenderBox positions instead of estimating from HTML length.
-  final Map<int, GlobalKey> _chapterContentKeys = {};
+  // GlobalKeys for each HTML paragraph chunk widget, so we can use
+  // Scrollable.ensureVisible to scroll directly to the active chunk.
+  final Map<String, GlobalKey> _chunkKeys = {};
 
   // Maximum scroll position the user is allowed to reach while TTS is active
   // and auto-scroll is enabled. Updated each time TTS advances a sentence.
@@ -456,106 +457,23 @@ class _ReaderScreenState extends ConsumerState<ReaderScreen> {
   void _scrollToTtsHighlight(int lineIndex) {
     if (!_scrollController.hasClients) return;
     final settings = ref.read(readerSettingsProvider);
-    if (!settings.ttsAutoScroll) {
-      _ttsScrollCeiling = null;
-      return;
-    }
+    if (!settings.ttsAutoScroll) return;
     if (settings.scrollMode == 'paged') return;
 
-    // Never scroll on the very first sentence — user is already positioned there.
-    if (lineIndex == 0) {
-      // Still update the ceiling so the user can't scroll past line 0's position.
-      _updateTtsScrollCeiling(lineIndex);
-      return;
-    }
-
-    final pos = _scrollController.position;
-    if (!pos.hasContentDimensions) return;
-    final maxScroll = pos.maxScrollExtent;
-    if (maxScroll <= 0) return;
-
-    final viewportHeight = pos.viewportDimension;
-    final currentScroll = pos.pixels;
-
-    // ── Step 1: Character-offset ratio within the spoken chapter ────────────
-    final ttsManager = ref.read(ttsManagerProvider.notifier);
-    final charRatio = ttsManager.charOffsetRatioForLine(lineIndex).clamp(0.0, 1.0);
-
-    // ── Step 2: Get ACTUAL rendered position of the chapter via GlobalKey ───
+    final ttsState = ref.read(ttsManagerProvider);
     final currentChapterId = (_chapters.isNotEmpty && _currentIndex < _chapters.length)
         ? _chapters[_currentIndex].id
         : -1;
 
-    final chapterKey = _chapterContentKeys[currentChapterId];
-    final renderBox = chapterKey?.currentContext?.findRenderObject() as RenderBox?;
-
-    double chapterTop;
-    double chapterHeight;
-
-    if (renderBox != null && renderBox.hasSize) {
-      final screenPos = renderBox.localToGlobal(Offset.zero);
-      chapterTop = screenPos.dy + currentScroll;
-      chapterHeight = renderBox.size.height;
-    } else {
-      return;
+    final chunkKey = _chunkKeys['$currentChapterId-${ttsState.currentChunkIndex}'];
+    if (chunkKey?.currentContext != null) {
+      Scrollable.ensureVisible(
+        chunkKey!.currentContext!,
+        duration: const Duration(milliseconds: 400),
+        curve: Curves.easeInOutCubic,
+        alignment: 0.25, // Smoothly center active paragraph at 25% down the viewport
+      );
     }
-
-    // ── Step 3: Compute estimated sentence pixel position within chapter ─────
-    final sentencePixelOffset = chapterTop + (charRatio * chapterHeight);
-
-    // Update the scroll ceiling to this sentence's position.
-    // User can't scroll past here while TTS is active.
-    _ttsScrollCeiling = sentencePixelOffset.clamp(0.0, maxScroll);
-
-    // ── Step 4: Viewport comfort zone ────────────────────────────────────────
-    final relativeToViewport = sentencePixelOffset - currentScroll;
-    final zoneTop = viewportHeight * 0.10;
-    final zoneBottom = viewportHeight * 0.65;
-
-    if (relativeToViewport >= zoneTop && relativeToViewport <= zoneBottom) {
-      return; // Sentence is comfortably in view — no scroll needed.
-    }
-
-    // ── Step 5: Scroll to place sentence at 25% down the viewport ────────────
-    final rawTarget = sentencePixelOffset - viewportHeight * 0.25;
-    final targetScroll = rawTarget
-        .clamp(chapterTop, chapterTop + chapterHeight)
-        .clamp(0.0, maxScroll);
-
-    // TTS reads forward — never scroll backward.
-    if (targetScroll <= currentScroll) return;
-
-    // Skip micro-scrolls under 40px to avoid jitter.
-    if (targetScroll - currentScroll < 40) return;
-
-    _scrollController.animateTo(
-      targetScroll,
-      duration: const Duration(milliseconds: 400),
-      curve: Curves.easeOutCubic,
-    );
-  }
-
-  /// Computes the sentence pixel offset for [lineIndex] and updates
-  /// [_ttsScrollCeiling] without triggering a scroll.
-  void _updateTtsScrollCeiling(int lineIndex) {
-    if (!_scrollController.hasClients) return;
-    final pos = _scrollController.position;
-    if (!pos.hasContentDimensions) return;
-
-    final ttsManager = ref.read(ttsManagerProvider.notifier);
-    final charRatio = ttsManager.charOffsetRatioForLine(lineIndex).clamp(0.0, 1.0);
-
-    final currentChapterId = (_chapters.isNotEmpty && _currentIndex < _chapters.length)
-        ? _chapters[_currentIndex].id
-        : -1;
-    final chapterKey = _chapterContentKeys[currentChapterId];
-    final renderBox = chapterKey?.currentContext?.findRenderObject() as RenderBox?;
-    if (renderBox == null || !renderBox.hasSize) return;
-
-    final screenPos = renderBox.localToGlobal(Offset.zero);
-    final chapterTop = screenPos.dy + pos.pixels;
-    final chapterHeight = renderBox.size.height;
-    _ttsScrollCeiling = (chapterTop + charRatio * chapterHeight).clamp(0.0, pos.maxScrollExtent);
   }
 
   // ─── Bottom Sheets ────────────────────────────────────────
@@ -735,46 +653,68 @@ class _ReaderScreenState extends ConsumerState<ReaderScreen> {
       );
     }
 
-    // HTML/EPUB chapter — apply TTS highlighting if active
+    // HTML/EPUB chapter — chunk and render paragraph by paragraph
     final ttsState = ref.watch(ttsManagerProvider);
-    var html = loaded.html;
-    if (ttsState.isSpeaking && ttsState.currentText.isNotEmpty) {
-      html = TtsHighlighter.highlight(
-        html, ttsState.currentText, ttsState.highlightMode,
-        wordIndex: ttsState.currentWordIndex,
-      );
-    }
+    final currentChapterId = (_chapters.isNotEmpty && _currentIndex < _chapters.length)
+        ? _chapters[_currentIndex].id
+        : -1;
+    final isCurrentChapter = loaded.chapter.id == currentChapterId;
 
-    // Include currentWordIndex in key so widget rebuilds on word change
-    final highlightKey = ttsState.isSpeaking ? '-${ttsState.currentLineIndex}-${ttsState.currentWordIndex}' : '';
+    final chunks = HtmlChunker.chunkHtml(loaded.html);
+    final highlightKey = ttsState.isSpeaking ? '-${ttsState.currentChunkIndex}-${ttsState.currentWordIndex}' : '';
 
-    return HtmlWidget(
-      html,
-      key: ValueKey('$_settingsVersion-${settings.textAlignment}-${settings.fontSize}-${settings.fontFamily}$highlightKey'),
-      textStyle: textStyle,
-      customStylesBuilder: (element) {
-        final styles = _alignmentStyles(settings);
-        if (element.localName == 'span') {
-          final cls = element.attributes['class'] ?? '';
-          if (cls.contains('tts-highlight-word')) {
-            // Active word (child): bold filled background chip (pure inline TextSpan)
-            return <String, String>{
-              'background-color': 'rgba(61, 80, 250, 0.75)',
-              'color': '#ffffff',
-              'font-weight': 'bold',
-            };
-          } else if (cls.contains('tts-highlight')) {
-            // Sentence context (parent): soft inline background tint (pure inline TextSpan)
-            // NO border-radius/padding so flutter_widget_from_html keeps it inline
-            // without creating full-width box containers or breaking text wrapping!
-            return <String, String>{
-              'background-color': 'rgba(61, 80, 250, 0.22)',
-              'color': 'inherit',
-            };
-          }
-        }
-        return styles;
-      },
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        for (final chunk in chunks) ...[
+          Builder(
+            builder: (context) {
+              final isCurrentChunk = isCurrentChapter &&
+                  ttsState.isSpeaking &&
+                  chunk.index == ttsState.currentChunkIndex;
+
+              var chunkHtml = chunk.rawHtml;
+              if (isCurrentChunk) {
+                // Use word-index-based highlighting: one synthesis per chunk,
+                // word index covers the entire paragraph.
+                chunkHtml = TtsHighlighter.highlightFromWordIndex(
+                  chunk.rawHtml,
+                  ttsState.currentWordIndex,
+                  ttsState.highlightMode,
+                );
+              }
+
+              return KeyedSubtree(
+                key: _chunkKeys.putIfAbsent('${loaded.chapter.id}-${chunk.index}', () => GlobalKey()),
+                child: HtmlWidget(
+                  chunkHtml,
+                  key: ValueKey('$_settingsVersion-${settings.textAlignment}-${settings.fontSize}-${settings.fontFamily}${isCurrentChunk ? highlightKey : ''}'),
+                  textStyle: textStyle,
+                  customStylesBuilder: (element) {
+                    final styles = _alignmentStyles(settings);
+                    if (element.localName == 'span') {
+                      final cls = element.attributes['class'] ?? '';
+                      if (cls.contains('tts-highlight-word')) {
+                        return <String, String>{
+                          'background-color': 'rgba(61, 80, 250, 0.75)',
+                          'color': '#ffffff',
+                          'font-weight': 'bold',
+                        };
+                      } else if (cls.contains('tts-highlight')) {
+                        return <String, String>{
+                          'background-color': 'rgba(61, 80, 250, 0.22)',
+                          'color': 'inherit',
+                        };
+                      }
+                    }
+                    return styles;
+                  },
+                ),
+              );
+            },
+          ),
+        ],
+      ],
     );
   }
 
@@ -856,19 +796,13 @@ class _ReaderScreenState extends ConsumerState<ReaderScreen> {
               ),
               const SizedBox(height: 48),
               // Chapter content — HTML or PDF
-              KeyedSubtree(
-                key: _chapterContentKeys.putIfAbsent(_chapters[index].id, () => GlobalKey()),
-                child: _buildChapterContent(loaded, settings, textStyle),
-              ),
+              _buildChapterContent(loaded, settings, textStyle),
             ],
           );
         }
 
         // First chapter — no divider
-        return KeyedSubtree(
-          key: _chapterContentKeys.putIfAbsent(_chapters[index].id, () => GlobalKey()),
-          child: _buildChapterContent(loaded, settings, textStyle),
-        );
+        return _buildChapterContent(loaded, settings, textStyle);
       },
     );
   }
@@ -1032,8 +966,8 @@ class _ReaderScreenState extends ConsumerState<ReaderScreen> {
 
   /// TTS controls — same style as the normal bottom bar.
   Widget _buildTtsFloatingPlayer(TtsManagerState ttsState) {
-    final progress = ttsState.totalLines > 0
-        ? ttsState.currentLineIndex / ttsState.totalLines
+    final progress = ttsState.totalChunks > 0
+        ? ttsState.currentChunkIndex / ttsState.totalChunks
         : 0.0;
 
     return Positioned(

@@ -5,19 +5,23 @@ import 'package:shared_preferences/shared_preferences.dart';
 import 'microsoft_tts_provider.dart';
 import 'tts_notification.dart';
 import 'tts_mpris.dart';
+import '../utils/html_chunker.dart';
 
 enum TtsHighlightMode { paragraph, sentence, word }
 
 class TtsManagerState {
   final bool isSpeaking;
   final bool isPaused;
-  final int currentLineIndex;
+  /// Index of the current chunk (paragraph) being synthesized/played.
+  final int currentChunkIndex;
+  /// Word index within the current chunk's audio (from EdgeTTS word boundary).
   final int currentWordIndex;
-  final int totalLines;
+  final int totalChunks;
   final double speed;
   final double pitch;
   final String voice;
   final String language;
+  /// Plain text of the current chunk — used only for notifications.
   final String currentText;
   final String novelTitle;
   final String novelAuthor;
@@ -27,9 +31,9 @@ class TtsManagerState {
   const TtsManagerState({
     this.isSpeaking = false,
     this.isPaused = false,
-    this.currentLineIndex = 0,
+    this.currentChunkIndex = 0,
     this.currentWordIndex = 0,
-    this.totalLines = 0,
+    this.totalChunks = 0,
     this.speed = 1.0,
     this.pitch = 1.0,
     this.voice = '',
@@ -41,12 +45,15 @@ class TtsManagerState {
     this.totalDuration = Duration.zero,
   });
 
+  // Keep legacy alias for any code that reads currentLineIndex
+  int get currentLineIndex => currentChunkIndex;
+
   TtsManagerState copyWith({
     bool? isSpeaking,
     bool? isPaused,
-    int? currentLineIndex,
+    int? currentChunkIndex,
     int? currentWordIndex,
-    int? totalLines,
+    int? totalChunks,
     double? speed,
     double? pitch,
     String? voice,
@@ -60,9 +67,9 @@ class TtsManagerState {
     return TtsManagerState(
       isSpeaking: isSpeaking ?? this.isSpeaking,
       isPaused: isPaused ?? this.isPaused,
-      currentLineIndex: currentLineIndex ?? this.currentLineIndex,
+      currentChunkIndex: currentChunkIndex ?? this.currentChunkIndex,
       currentWordIndex: currentWordIndex ?? this.currentWordIndex,
-      totalLines: totalLines ?? this.totalLines,
+      totalChunks: totalChunks ?? this.totalChunks,
       speed: speed ?? this.speed,
       pitch: pitch ?? this.pitch,
       voice: voice ?? this.voice,
@@ -79,22 +86,12 @@ class TtsManagerState {
 class TtsManager extends StateNotifier<TtsManagerState> {
   final Ref ref;
   MicrosoftTtsProvider? _provider;
-  List<String> _lines = [];
-  int _currentLine = 0;
-  List<int> _lineCharOffsets = []; // cumulative char offset of each line's start
 
-  List<String> get lines => _lines;
+  /// Plain texts for each chunk — one entry per paragraph chunk.
+  List<String> _chunkTexts = [];
+  int _currentChunk = 0;
 
-  /// Returns a 0.0–1.0 fraction representing where [lineIndex] sits
-  /// within the full chapter plain text, by actual character count.
-  /// Much more accurate than lineIndex / totalLines for scroll purposes.
-  double charOffsetRatioForLine(int lineIndex) {
-    if (_lineCharOffsets.isEmpty || _lines.isEmpty) return 0.0;
-    final totalChars = _lineCharOffsets.last + (_lines.last.length);
-    if (totalChars <= 0) return 0.0;
-    final clampedIndex = lineIndex.clamp(0, _lineCharOffsets.length - 1);
-    return _lineCharOffsets[clampedIndex] / totalChars;
-  }
+  List<String> get lines => _chunkTexts;
 
   TtsManager(this.ref) : super(const TtsManagerState()) {
     _loadSettings();
@@ -129,18 +126,16 @@ class TtsManager extends StateNotifier<TtsManagerState> {
     final author = state.novelAuthor.isNotEmpty ? state.novelAuthor : 'QuickNovel';
     final currentText = state.currentText.isNotEmpty ? state.currentText : 'Reading...';
 
-    // Android notification
     TtsNotification.show(
       chapterName: currentText,
-      currentLine: state.currentLineIndex + 1,
-      totalLines: state.totalLines,
+      currentLine: state.currentChunkIndex + 1,
+      totalLines: state.totalChunks,
       isPaused: state.isPaused,
       novelTitle: novelTitle,
     );
 
-    // MPRIS / media session — title = novel title, artist = author
-    final position = state.totalLines > 0
-        ? Duration(seconds: (state.totalDuration.inSeconds * state.currentLineIndex / state.totalLines).round())
+    final position = state.totalChunks > 0
+        ? Duration(seconds: (state.totalDuration.inSeconds * state.currentChunkIndex / state.totalChunks).round())
         : Duration.zero;
 
     TtsMpris.updateState(
@@ -178,141 +173,83 @@ class TtsManager extends StateNotifier<TtsManagerState> {
     return _provider!;
   }
 
-  /// Extract plain text paragraphs and sentences from HTML for highlighting.
-  /// Returns (paragraphs, sentences) where each is a list of trimmed text.
-  static List<String> extractParagraphs(String html) {
-    final text = html.replaceAll(RegExp(r'<[^>]*>'), '\n').replaceAll(RegExp(r'\s+'), ' ').trim();
-    final paragraphs = <String>[];
-    for (final p in text.split(RegExp(r'\n\s*\n|\n'))) {
-      final trimmed = p.trim();
-      if (trimmed.isNotEmpty) paragraphs.add(trimmed);
-    }
-    return paragraphs;
-  }
+  /// Start TTS from raw chapter HTML.
+  ///
+  /// Each paragraph/block chunk becomes ONE synthesis request to EdgeTTS.
+  /// Word boundary events within that synthesis give word-level timing for
+  /// the ENTIRE paragraph — so `currentWordIndex` tracks progress through
+  /// the whole paragraph, not just one sentence.
+  Future<void> startFromHtml(
+    String html, {
+    int startChunk = 0,
+    String? coverUrl,
+    String? novelTitle,
+    String? novelAuthor,
+  }) async {
+    final chunks = HtmlChunker.chunkHtml(html);
+    if (chunks.isEmpty) return;
 
-  static List<String> extractSentences(String text) {
-    final sentences = <String>[];
-    for (final s in text.split(RegExp(r'(?<=[.!?])\s+'))) {
-      if (s.trim().isNotEmpty) sentences.add(s.trim());
-    }
-    return sentences;
-  }
+    // One entry per chunk: the full plain text of the paragraph.
+    _chunkTexts = chunks.map((c) => c.plainText).toList();
+    _currentChunk = startChunk.clamp(0, _chunkTexts.length - 1);
 
-  Future<void> startFromHtml(String html, {int startLine = 0, String? coverUrl, String? novelTitle, String? novelAuthor}) async {
-    // Decode common typographic entities BEFORE stripping tags, so the resulting
-    // plain text matches what _PlainMapping produces when the highlighter runs.
-    // Without this, smart quotes like &ldquo; stay as "&ldquo;" in the TTS text
-    // but appear as “ in the HTML mapping, causing sentence matching to fail.
-    final decoded = html
-        .replaceAll('&ldquo;', '\u201C').replaceAll('&rdquo;', '\u201D')
-        .replaceAll('&lsquo;', '\u2018').replaceAll('&rsquo;', '\u2019')
-        .replaceAll('&mdash;', '\u2014').replaceAll('&ndash;', '\u2013')
-        .replaceAll('&hellip;', '\u2026').replaceAll('&amp;', '&')
-        .replaceAll('&lt;', '<').replaceAll('&gt;', '>')
-        .replaceAll('&quot;', '"').replaceAll('&apos;', "'")
-        .replaceAll('&nbsp;', ' ').replaceAll('&#160;', ' ')
-        // Normalize unicode typographic quotes/dashes to ASCII equivalents
-        // so TTS reads them correctly and matching is consistent.
-        .replaceAll('\u201C', '"').replaceAll('\u201D', '"')
-        .replaceAll('\u2018', "'").replaceAll('\u2019', "'")
-        .replaceAll('\u2014', ' - ').replaceAll('\u2013', '-')
-        .replaceAll('\u2026', '...');
-    final text = decoded.replaceAll(RegExp(r'<[^>]*>'), ' ').replaceAll(RegExp(r'\s+'), ' ').trim();
-    // Split into sentences — each sentence becomes one TTS line
-    final lines = <String>[];
-    for (var s in text.split(RegExp(r'(?<=[.!?])\s+'))) {
-      final trimmed = s.trim();
-      if (trimmed.isEmpty) continue;
-
-      // If a sentence is very long (>300 chars), split further at commas/semicolons
-      // to prevent TTS engine from choking on huge chunks
-      if (trimmed.length > 300) {
-        final subParts = trimmed.split(RegExp(r'(?<=[,;])\s+'));
-        String buffer = '';
-        for (final part in subParts) {
-          if (buffer.length + part.length > 280) {
-            if (buffer.isNotEmpty) lines.add(buffer.trim());
-            buffer = part;
-          } else {
-            buffer = buffer.isEmpty ? part : '$buffer $part';
-          }
-        }
-        if (buffer.isNotEmpty) lines.add(buffer.trim());
-      } else {
-        lines.add(trimmed);
-      }
-    }
-    if (lines.isEmpty) return;
-
-    _lines = lines;
-    _currentLine = startLine;
-
-    // Build cumulative character offset table for pixel-accurate scroll
-    _lineCharOffsets = [];
-    int offset = 0;
-    for (final line in lines) {
-      _lineCharOffsets.add(offset);
-      offset += line.length + 1; // +1 for the space/newline between sentences
-    }
-
-    // Estimate total duration: ~15 chars/second at 1x speed, adjusted by speed setting
-    final totalChars = lines.fold(0, (sum, l) => sum + l.length);
+    final totalChars = _chunkTexts.fold(0, (s, t) => s + t.length);
     final estimatedSeconds = (totalChars / 15.0 / state.speed).round();
 
     state = state.copyWith(
       isSpeaking: true,
       isPaused: false,
-      currentLineIndex: startLine,
-      totalLines: lines.length,
-      currentText: lines[startLine],
+      currentChunkIndex: _currentChunk,
+      currentWordIndex: 0,
+      totalChunks: _chunkTexts.length,
+      currentText: _chunkTexts[_currentChunk],
       novelTitle: novelTitle ?? '',
       novelAuthor: novelAuthor ?? '',
       totalDuration: Duration(seconds: estimatedSeconds),
     );
 
-    // Speak ALL lines as one continuous audio (no gaps)
     final provider = _getProvider();
     await provider.init();
 
-    // Set cover art for media controls (await download)
     if (coverUrl != null) {
       await TtsNotification.setCoverArt(coverUrl);
       await TtsMpris.setCoverArt(coverUrl);
-      // Re-send notification/MPRIS with cover art after download
-      _updateNotification();
     }
-
     _updateNotification();
+
+    // speakAll receives one entry per chunk.
+    // Each chunk = one synthesis call to EdgeTTS.
+    // onLineStart fires when a chunk begins playing.
+    // onWordStart fires for every word boundary within that chunk.
     await provider.speakAll(
-      lines.sublist(startLine),
+      _chunkTexts.sublist(_currentChunk),
       speed: state.speed,
       pitch: state.pitch,
       onLineStart: (lineIndex) {
         if (!state.isSpeaking || state.isPaused) return;
-        final actualIndex = startLine + lineIndex;
-        _currentLine = actualIndex;
-        if (actualIndex < _lines.length) {
+        final actualChunk = _currentChunk + lineIndex;
+        _currentChunk = actualChunk;
+        if (actualChunk < _chunkTexts.length) {
           state = state.copyWith(
-            currentLineIndex: actualIndex,
+            currentChunkIndex: actualChunk,
             currentWordIndex: 0,
-            currentText: _lines[actualIndex],
+            currentText: _chunkTexts[actualChunk],
           );
           _updateNotification();
         }
       },
       onWordStart: (lineIndex, wordIndex) {
         if (!state.isSpeaking || state.isPaused) return;
-        final actualIndex = startLine + lineIndex;
-        if (actualIndex < _lines.length) {
+        final actualChunk = _currentChunk + lineIndex;
+        if (actualChunk < _chunkTexts.length) {
           state = state.copyWith(
-            currentLineIndex: actualIndex,
-            currentText: _lines[actualIndex],
+            currentChunkIndex: actualChunk,
             currentWordIndex: wordIndex,
           );
         }
       },
     );
-    // Finished
+
     if (state.isSpeaking) {
       state = state.copyWith(isSpeaking: false);
     }
@@ -341,65 +278,69 @@ class TtsManager extends StateNotifier<TtsManagerState> {
 
   Future<void> stop() async {
     await _getProvider().stop();
-    state = state.copyWith(isSpeaking: false, isPaused: false, currentLineIndex: 0, currentText: '');
-    _lines = [];
-    _currentLine = 0;
+    state = state.copyWith(isSpeaking: false, isPaused: false, currentChunkIndex: 0, currentText: '');
+    _chunkTexts = [];
+    _currentChunk = 0;
     TtsNotification.hide();
   }
 
   Future<void> skipForward() async {
-    if (_currentLine < _lines.length - 1) {
+    if (_currentChunk < _chunkTexts.length - 1) {
       await _getProvider().stop();
-      _currentLine++;
-      await _resumeFromLine(_currentLine);
+      _currentChunk++;
+      await _resumeFromChunk(_currentChunk);
     }
   }
 
   Future<void> skipBackward() async {
-    if (_currentLine > 0) {
+    if (_currentChunk > 0) {
       await _getProvider().stop();
-      _currentLine--;
-      await _resumeFromLine(_currentLine);
+      _currentChunk--;
+      await _resumeFromChunk(_currentChunk);
     }
   }
 
-  /// Resume TTS playback from a specific line index.
-  Future<void> _resumeFromLine(int startLine) async {
-    if (startLine < 0 || startLine >= _lines.length) return;
+  Future<void> _resumeFromChunk(int startChunk) async {
+    if (startChunk < 0 || startChunk >= _chunkTexts.length) return;
 
-    final remaining = _lines.sublist(startLine);
     state = state.copyWith(
       isSpeaking: true,
       isPaused: false,
-      currentLineIndex: startLine,
-      currentText: _lines[startLine],
+      currentChunkIndex: startChunk,
       currentWordIndex: 0,
+      currentText: _chunkTexts[startChunk],
     );
     _updateNotification();
 
     final provider = _getProvider();
     await provider.init();
     await provider.speakAll(
-      remaining,
+      _chunkTexts.sublist(startChunk),
       speed: state.speed,
       pitch: state.pitch,
       onLineStart: (lineIndex) {
-        final actualIndex = startLine + lineIndex;
-        _currentLine = actualIndex;
-        if (actualIndex < _lines.length) {
+        final actualChunk = startChunk + lineIndex;
+        _currentChunk = actualChunk;
+        if (actualChunk < _chunkTexts.length) {
           state = state.copyWith(
-            currentLineIndex: actualIndex,
+            currentChunkIndex: actualChunk,
             currentWordIndex: 0,
-            currentText: _lines[actualIndex],
+            currentText: _chunkTexts[actualChunk],
           );
           _updateNotification();
         }
       },
       onWordStart: (lineIndex, wordIndex) {
-        state = state.copyWith(currentWordIndex: wordIndex);
+        final actualChunk = startChunk + lineIndex;
+        if (actualChunk < _chunkTexts.length) {
+          state = state.copyWith(
+            currentChunkIndex: actualChunk,
+            currentWordIndex: wordIndex,
+          );
+        }
       },
     );
-    // Finished
+
     if (state.isSpeaking) {
       state = state.copyWith(isSpeaking: false);
     }
