@@ -22,22 +22,16 @@ class SettingsScreen extends StatelessWidget {
             _SettingsTile(
               icon: Icons.download,
               title: 'Downloads',
-              subtitle: 'Download path and limits',
-              onTap: () {},
+              subtitle: 'View download queue',
+              onTap: () => context.push('/downloads'),
             ),
           ]),
           _buildSection(context, 'Reader', [
             _SettingsTile(
               icon: Icons.text_fields,
-              title: 'Reader',
-              subtitle: 'Font, size, scroll mode, tap zones',
+              title: 'Reader & TTS',
+              subtitle: 'Font, size, scroll mode, TTS engine & voice',
               onTap: () => context.push('/settings/reader'),
-            ),
-            _SettingsTile(
-              icon: Icons.record_voice_over,
-              title: 'TTS',
-              subtitle: 'Voice, speed, auto-advance',
-              onTap: () => context.push('/settings/tts'),
             ),
           ]),
           _buildSection(context, 'Appearance', [
@@ -59,7 +53,7 @@ class SettingsScreen extends StatelessWidget {
               icon: Icons.translate,
               title: 'Translation',
               subtitle: 'Translation language and cache',
-              onTap: () {},
+              onTap: () => context.push('/settings/translation'),
             ),
           ]),
           _buildSection(context, 'About', [
@@ -67,7 +61,7 @@ class SettingsScreen extends StatelessWidget {
               icon: Icons.info_outline,
               title: 'About',
               subtitle: 'Version and licenses',
-              onTap: () {},
+              onTap: () => context.push('/settings/about'),
             ),
           ]),
           const SizedBox(height: 32),

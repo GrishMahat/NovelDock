@@ -4,6 +4,7 @@ import 'package:go_router/go_router.dart';
 
 import 'router/app_router.dart';
 import 'theme/app_theme.dart';
+import 'widgets/tts_mini_player.dart';
 
 class QuickNovelApp extends ConsumerWidget {
   const QuickNovelApp({super.key});
@@ -55,7 +56,12 @@ class _MainShellState extends State<MainShell> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      body: widget.child,
+      body: Column(
+        children: [
+          const TtsMiniPlayer(),
+          Expanded(child: widget.child),
+        ],
+      ),
       bottomNavigationBar: NavigationBar(
         selectedIndex: _currentIndex,
         onDestinationSelected: _onTap,

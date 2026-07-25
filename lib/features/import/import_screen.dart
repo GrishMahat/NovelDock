@@ -162,6 +162,8 @@ class _ImportScreenState extends ConsumerState<ImportScreen> {
 
       // Add chapters
       final chapterDao = ref.read(chapterDaoProvider);
+      // Delete existing chapters before re-inserting to prevent duplicates
+      await chapterDao.deleteChaptersForNovel(novelId);
       if (book.Chapters != null) {
         for (var i = 0; i < book.Chapters!.length; i++) {
           final ch = book.Chapters![i];

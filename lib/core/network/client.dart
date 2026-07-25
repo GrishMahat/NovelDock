@@ -5,6 +5,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../config/app_config.dart';
 import '../utils/logger.dart';
+import 'cloudflare.dart';
 
 const _tag = 'Network';
 
@@ -45,6 +46,14 @@ final dioProvider = FutureProvider<Dio>((ref) async {
     },
     onError: (error, handler) async {
       Log.w(_tag, 'HTTP error: ${error.type} ${error.requestOptions.uri}');
+
+      // Check for Cloudflare challenge
+      if (error.response != null && CloudflareHandler.isCloudflareChallenge(error.response!)) {
+        Log.w(_tag, 'Cloudflare challenge detected for: ${error.requestOptions.uri}');
+        // Store the error info so callers can trigger WebView bypass
+        error.requestOptions.extra['cloudflare'] = true;
+      }
+
       if (_shouldRetry(error)) {
         final retries = error.requestOptions.extra['retries'] ?? 0;
         if (retries < 3) {
@@ -74,10 +83,11 @@ bool _shouldRetry(DioException error) {
 
 extension CloudflareCheck on Response {
   bool get isCloudflareChallenge {
-    final body = data?.toString() ?? '';
-    return statusCode == 403 &&
-        (body.contains('__cf_chl_f_tk') ||
-            body.contains('cf-browser-verification') ||
-            body.contains('cdn-cgi/challenge-platform'));
+    return CloudflareHandler.isCloudflareChallenge(this);
   }
 }
+
+/// Provider for Cloudflare bypass handler
+final cloudflareProvider = Provider<CloudflareHandler>((ref) {
+  return CloudflareHandler();
+});

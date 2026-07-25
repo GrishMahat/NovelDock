@@ -67,6 +67,12 @@ class ChapterDao extends DatabaseAccessor<AppDatabase> with _$ChapterDaoMixin {
             downloaded: const Value(true), downloadedPath: Value(path)));
   }
 
+  Future<void> markNotDownloaded(int chapterId) {
+    return (update(chapters)..where((t) => t.id.equals(chapterId))).write(
+        const ChaptersCompanion(
+            downloaded: Value(false), downloadedPath: Value(null)));
+  }
+
   Future<void> toggleBookmark(int chapterId, bool bookmarked) {
     return (update(chapters)..where((t) => t.id.equals(chapterId))).write(
         ChaptersCompanion(bookmarked: Value(bookmarked)));

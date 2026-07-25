@@ -181,7 +181,35 @@ class _LibraryScreenState extends ConsumerState<LibraryScreen>
           crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
             Expanded(
-              child: _buildCover(novel.coverUrl, double.infinity, double.infinity),
+              child: Stack(
+                fit: StackFit.expand,
+                children: [
+                  _buildCover(novel.coverUrl, double.infinity, double.infinity),
+                  // Play button overlay (bottom-right corner)
+                  Positioned(
+                    right: 4,
+                    bottom: 4,
+                    child: GestureDetector(
+                      onTap: () => _playNovel(novel.id),
+                      child: Container(
+                        width: 32,
+                        height: 32,
+                        decoration: BoxDecoration(
+                          color: AppTheme.kPrimary,
+                          shape: BoxShape.circle,
+                          boxShadow: [
+                            BoxShadow(
+                              color: Colors.black.withValues(alpha: 0.4),
+                              blurRadius: 4,
+                            ),
+                          ],
+                        ),
+                        child: const Icon(Icons.play_arrow, color: Colors.white, size: 20),
+                      ),
+                    ),
+                  ),
+                ],
+              ),
             ),
             Padding(
               padding: const EdgeInsets.all(6),
@@ -214,9 +242,40 @@ class _LibraryScreenState extends ConsumerState<LibraryScreen>
         maxLines: 1,
         overflow: TextOverflow.ellipsis,
       ),
+      trailing: IconButton(
+        icon: const Icon(Icons.play_circle_outline, size: 28),
+        color: AppTheme.kPrimary,
+        onPressed: () => _playNovel(novel.id),
+      ),
       onTap: () => context.push('/novel/${novel.id}'),
       onLongPress: () => _showStatusMenu(novel),
     );
+  }
+
+  void _playNovel(int novelId) async {
+    final chapterDao = ref.read(chapterDaoProvider);
+    final historyDao = ref.read(historyDaoProvider);
+
+    // Try to find the last read chapter
+    final latest = await historyDao.getLatestHistoryForNovel(novelId);
+    if (latest != null && mounted) {
+      context.push('/reader/$novelId/${latest.chapterId}');
+      return;
+    }
+
+    // Fallback: open first chapter
+    final chapters = await chapterDao.getChaptersForNovel(novelId);
+    if (chapters.isEmpty) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('No chapters available')),
+        );
+      }
+      return;
+    }
+    if (mounted) {
+      context.push('/reader/$novelId/${chapters.first.id}');
+    }
   }
 
   void _showStatusMenu(Novel novel) {

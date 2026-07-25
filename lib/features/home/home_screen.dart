@@ -92,6 +92,8 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
             ));
             final bookId = item.url.split('/').last.split('.').first;
             Log.i(_tag, '_openNovel: info.chapters=${info.chapters.length}, bookId=$bookId');
+            // Delete existing chapters before re-inserting to prevent duplicates
+            await chapterDao.deleteChaptersForNovel(id);
             if (info.chapters.isEmpty && bookId.isNotEmpty) {
               Log.i(_tag, '_openNovel: loading chapters via AJAX for bookId=$bookId');
               var page = 0;

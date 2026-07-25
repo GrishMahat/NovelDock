@@ -237,6 +237,8 @@ class _ProviderScreenState extends ConsumerState<ProviderScreen> {
               addedAt: Value(DateTime.now().millisecondsSinceEpoch),
             ));
             final bookId = item.url.split('/').last.split('.').first;
+            // Delete existing chapters before re-inserting to prevent duplicates
+            await chapterDao.deleteChaptersForNovel(id);
             if (info.chapters.isEmpty && bookId.isNotEmpty) {
               var page = 0;
               var chapterIndex = 0;

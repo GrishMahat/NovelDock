@@ -14,7 +14,8 @@ import '../features/history/history_screen.dart';
 import '../features/settings/settings_screen.dart';
 import '../features/settings/pages/provider_management_page.dart';
 import '../features/settings/pages/reader_settings_page.dart';
-import '../features/settings/pages/tts_settings_page.dart';
+import '../features/settings/pages/translation_settings_page.dart';
+import '../features/settings/pages/about_page.dart';
 import '../features/import/import_screen.dart';
 
 final GlobalKey<NavigatorState> _rootNavigatorKey = GlobalKey<NavigatorState>();
@@ -114,10 +115,16 @@ final routerProvider = Provider<GoRouter>((ref) {
         builder: (context, state) => const ReaderSettingsPage(),
       ),
       GoRoute(
-        path: '/settings/tts',
-        name: 'ttsSettings',
+        path: '/settings/translation',
+        name: 'translationSettings',
         parentNavigatorKey: _rootNavigatorKey,
-        builder: (context, state) => const TTSSettingsPage(),
+        builder: (context, state) => const TranslationSettingsPage(),
+      ),
+      GoRoute(
+        path: '/settings/about',
+        name: 'about',
+        parentNavigatorKey: _rootNavigatorKey,
+        builder: (context, state) => const AboutPage(),
       ),
       GoRoute(
         path: '/import',

@@ -25,6 +25,12 @@ class Chapters extends Table {
   BoolColumn get read => boolean().withDefault(const Constant(false))();
   BoolColumn get bookmarked => boolean().withDefault(const Constant(false))();
   TextColumn get downloadedPath => text().nullable()();
+
+  @override
+  Set<Column> get primaryKey => {id};
+
+  @override
+  List<Set<Column>> get uniqueKeys => [{novelId, url}];
 }
 
 // ─── library ──────────────────────────────────────────────
