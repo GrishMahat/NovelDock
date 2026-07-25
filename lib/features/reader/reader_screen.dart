@@ -105,10 +105,16 @@ class _ReaderScreenState extends ConsumerState<ReaderScreen> {
     final progress = pos.pixels / pos.maxScrollExtent;
     setState(() => _scrollProgress = progress.clamp(0.0, 1.0));
 
-    // Auto-load next chapter when near bottom (continuous mode)
+    // Auto-load next chapters when near bottom (continuous mode)
     final settings = ref.read(readerSettingsProvider);
-    if (settings.scrollMode == 'continuous' && progress > 0.9) {
-      _loadNextChapter();
+    if (settings.scrollMode == 'continuous' && progress > 0.85) {
+      // Find the first unloaded chapter ahead of the current viewport
+      final firstVisible = (pos.pixels / MediaQuery.of(context).size.height).floor();
+      final start = _currentIndex + 1;
+      final end = (firstVisible + 5).clamp(start, _chapters.length);
+      for (var i = start; i < end; i++) {
+        _loadChapter(i);
+      }
     }
 
     // TTS scroll ceiling: when auto-scroll is on and TTS is active,
@@ -126,34 +132,44 @@ class _ReaderScreenState extends ConsumerState<ReaderScreen> {
   // ─── Chapter Loading ──────────────────────────────────────
 
   Future<void> _loadChapters() async {
-    final chapterDao = ref.read(chapterDaoProvider);
-    _chapters = await chapterDao.getChaptersForNovel(widget.novelId);
-    _currentIndex = _chapters.indexWhere((c) => c.id == widget.chapterId);
-    if (_currentIndex < 0) _currentIndex = 0;
+    try {
+      final chapterDao = ref.read(chapterDaoProvider);
+      _chapters = await chapterDao.getChaptersForNovel(widget.novelId);
+      _currentIndex = _chapters.indexWhere((c) => c.id == widget.chapterId);
+      if (_currentIndex < 0) _currentIndex = 0;
 
-    Log.i(_tag, 'Loaded ${_chapters.length} chapters, starting at index $_currentIndex');
+      Log.i(_tag, 'Loaded ${_chapters.length} chapters, starting at index $_currentIndex');
 
-    // Save reading history
-    _saveHistory();
+      // Save reading history
+      _saveHistory();
 
-    // Check if this is an EPUB (local file)
-    final isEpub = _chapters.isNotEmpty && _chapters.first.url.startsWith('epub://');
+      // Check if this is an EPUB (local file)
+      final isEpub = _chapters.isNotEmpty && _chapters.first.url.startsWith('epub://');
 
-    if (isEpub) {
-      // Load ALL EPUB chapters at once (they're from a local file, fast)
-      for (var i = 0; i < _chapters.length; i++) {
-        await _loadChapter(i);
+      if (isEpub) {
+        // Load ALL EPUB chapters at once (they're from a local file, fast)
+        for (var i = 0; i < _chapters.length; i++) {
+          await _loadChapter(i);
+        }
+      } else {
+        // Online: load current + preload ahead in background
+        await _loadChapter(_currentIndex);
+        final settings = ref.read(readerSettingsProvider);
+        if (settings.scrollMode == 'continuous') {
+          // Preload next few chapters so the user doesn't hit spinners when scrolling
+          for (var i = 1; i <= 3 && _currentIndex + i < _chapters.length; i++) {
+            _loadChapter(_currentIndex + i);
+          }
+        } else if (_currentIndex < _chapters.length - 1) {
+          _loadChapter(_currentIndex + 1);
+        }
       }
-    } else {
-      // Online: load current + next
-      await _loadChapter(_currentIndex);
-      final settings = ref.read(readerSettingsProvider);
-      if (settings.scrollMode == 'continuous' && _currentIndex < _chapters.length - 1) {
-        _loadChapter(_currentIndex + 1);
-      }
+    } catch (e) {
+      Log.e(_tag, 'Failed to load chapters', e);
+      _error = 'Failed to load chapters. Check your connection and try again.';
+    } finally {
+      if (mounted) setState(() => _isLoading = false);
     }
-
-    setState(() => _isLoading = false);
 
     // Restore scroll position from history
     _restoreReadingPosition();
@@ -315,6 +331,10 @@ class _ReaderScreenState extends ConsumerState<ReaderScreen> {
       }
     } catch (e) {
       Log.e(_tag, 'Failed to load chapter ${index + 1}', e);
+      if (_currentIndex == index && _chapterCache[_chapters[index].id] == null) {
+        _error = 'Failed to load chapter "${chapter.name}". Check your connection and try again.';
+        if (mounted) setState(() {});
+      }
     }
   }
 
@@ -378,36 +398,65 @@ class _ReaderScreenState extends ConsumerState<ReaderScreen> {
 
       final novelDao = ref.read(novelDaoProvider);
       final novel = await novelDao.getNovelById(widget.novelId);
-      if (novel == null) return;
+      if (novel == null) {
+        Log.w(_tag, 'Novel not found for id ${widget.novelId}');
+        if (_currentIndex == index) {
+          _error = 'Novel data not found. Try re-adding the novel.';
+          if (mounted) setState(() {});
+        }
+        return;
+      }
 
       final jsSource = await registry.loadCachedProviderJs(novel.providerId);
       if (jsSource == null) {
-        Log.w(_tag, 'No provider for ${novel.providerId}');
+        Log.w(_tag, 'No provider cached for ${novel.providerId}');
+        if (_currentIndex == index) {
+          _error = 'Provider not available. Please sync providers in settings.';
+          if (mounted) setState(() {});
+        }
         return;
       }
 
       final instance = await engine.loadProvider(jsSource);
       final contentUrl = await instance.getChapterContentUrl(chapter.url);
-      if (contentUrl == null) return;
+      if (contentUrl == null) {
+        Log.w(_tag, 'No content URL for chapter');
+        if (_currentIndex == index) {
+          _error = 'Could not determine chapter URL.';
+          if (mounted) setState(() {});
+        }
+        return;
+      }
 
       final response = await dio.get(contentUrl);
       final html = response.data.toString();
       final content = await instance.parseChapterContent(html);
 
-      if (content != null) {
+      if (content != null && content.html.isNotEmpty) {
         final cleanHtml = HtmlPreprocessor.clean(content.html);
         _chapterCache[chapter.id] = _LoadedChapter(chapter: chapter, html: cleanHtml);
         Log.ok(_tag, 'Chapter loaded: ${cleanHtml.length} chars');
         setState(() {});
+        return;
+      }
+      Log.w(_tag, 'Empty content for chapter ${index + 1}');
+      if (_currentIndex == index) {
+        _error = 'Failed to load chapter "${chapter.name}" — no content returned.';
+        if (mounted) setState(() {});
       }
     } catch (e) {
       Log.e(_tag, 'Failed to load chapter', e);
+      if (_currentIndex == index && _chapterCache[_chapters[index].id] == null) {
+        _error = 'Failed to load chapter "${chapter.name}". Check your connection and try again.';
+        if (mounted) setState(() {});
+      }
     }
   }
 
-  Future<void> _loadNextChapter() async {
-    if (_currentIndex < _chapters.length - 1) {
-      await _loadChapter(_currentIndex + 1);
+  void _preloadSurrounding() {
+    for (var i = 1; i <= 3; i++) {
+      if (_currentIndex - i >= 0) _loadChapter(_currentIndex - i);
+      if (_currentIndex + i < _chapters.length) _loadChapter(_currentIndex + i);
     }
   }
 
@@ -418,7 +467,7 @@ class _ReaderScreenState extends ConsumerState<ReaderScreen> {
       setState(() => _currentIndex--);
       if (_scrollController.hasClients) _scrollController.jumpTo(0);
       _loadChapter(_currentIndex);
-      if (_currentIndex > 0) _loadChapter(_currentIndex - 1);
+      _preloadSurrounding();
     }
   }
 
@@ -427,7 +476,7 @@ class _ReaderScreenState extends ConsumerState<ReaderScreen> {
       setState(() => _currentIndex++);
       if (_scrollController.hasClients) _scrollController.jumpTo(0);
       _loadChapter(_currentIndex);
-      if (_currentIndex < _chapters.length - 1) _loadChapter(_currentIndex + 1);
+      _preloadSurrounding();
     }
   }
 
@@ -435,9 +484,7 @@ class _ReaderScreenState extends ConsumerState<ReaderScreen> {
     setState(() => _currentIndex = index);
     if (_scrollController.hasClients) _scrollController.jumpTo(0);
     _loadChapter(index);
-    // Pre-load neighbors
-    if (index > 0) _loadChapter(index - 1);
-    if (index < _chapters.length - 1) _loadChapter(index + 1);
+    _preloadSurrounding();
   }
 
   void _handleTap(TapUpDetails details) {
@@ -739,13 +786,20 @@ class _ReaderScreenState extends ConsumerState<ReaderScreen> {
         // Show loading indicator for chapters not yet loaded
         final loaded = _chapterCache[_chapters[index].id];
         if (loaded == null) {
-          if (index > _currentIndex) {
+          // Preload future chapters so they fill in as the user scrolls
+          if (index <= _currentIndex + 3) {
+            _loadChapter(index);
+          }
+          if (index == _currentIndex + 1) {
+            // Immediate next chapter — show a loading spinner
             return const Padding(
               padding: EdgeInsets.symmetric(vertical: 32),
               child: Center(child: CircularProgressIndicator()),
             );
           }
-          return const SizedBox.shrink();
+          // Chapters further ahead — provide a placeholder so the
+          // list stays scrollable and triggers onScroll preloading.
+          return const SizedBox(height: 300);
         }
 
         // Chapter divider — only for online chapters, not EPUBs

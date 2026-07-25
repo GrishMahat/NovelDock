@@ -103,6 +103,10 @@ static gboolean my_application_local_command_line(GApplication* application,
 static void my_application_startup(GApplication* application) {
   // MyApplication* self = MY_APPLICATION(object);
 
+  // Ensure glycin SVG loader is disabled even if the env var was cleared.
+  // The glycin sandbox crashes when bwrap cannot fork on many Linux setups.
+  g_setenv("GDK_DISABLE_GLYCIN", "1", FALSE);
+
   // Perform any actions required at application startup.
 
   G_APPLICATION_CLASS(my_application_parent_class)->startup(application);

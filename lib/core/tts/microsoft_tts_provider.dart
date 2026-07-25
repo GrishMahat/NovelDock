@@ -1,6 +1,5 @@
 import 'dart:async';
 import 'dart:io';
-import 'dart:collection';
 import 'dart:typed_data';
 
 import 'package:flutter_edge_tts/flutter_edge_tts.dart';
@@ -10,7 +9,6 @@ import 'package:path/path.dart' as p;
 import '../../core/utils/logger.dart';
 
 const _tag = 'EdgeTTS';
-const _bufferSize = 15;
 
 class EdgeTtsVoice {
   final String id;
@@ -21,7 +19,7 @@ class EdgeTtsVoice {
   const EdgeTtsVoice({required this.id, required this.name, required this.language, this.gender});
 }
 
-/// Timing info for one word within a synthesized line.
+/// Timing info for one word within a synthesized chunk.
 class WordTiming {
   final String text;
   final Duration offset;
@@ -32,21 +30,28 @@ class WordTiming {
   Duration get end => offset + duration;
 }
 
-/// Per-line timing data: audio file path + word timings.
-class SynthesizedLine {
+/// Result of synthesizing one chunk: audio bytes + word timings + duration.
+class _SynthResult {
   final int lineIndex;
-  final String audioPath;
+  final Uint8List audioBytes;
   final List<WordTiming> wordTimings;
-  final Duration totalDuration;
+  final Duration duration;
 
-  const SynthesizedLine({
+  const _SynthResult({
     required this.lineIndex,
-    required this.audioPath,
+    required this.audioBytes,
     required this.wordTimings,
-    required this.totalDuration,
+    required this.duration,
   });
 }
 
+/// TTS provider using Microsoft Edge's Read Aloud API via flutter_edge_tts.
+///
+/// Architecture (streaming, inspired by the Chrome edge-tts-extension):
+/// - Text is split into sentence-level chunks by the caller
+/// - Each chunk is synthesized and played one at a time (streaming)
+/// - Audio starts in ~3s instead of waiting for all chunks to synthesize
+/// - Word boundary timings are tracked per-chunk via Stopwatch
 class MicrosoftTtsProvider {
   String _currentVoice = 'en-US-BrianMultilingualNeural';
   String? _tempDir;
@@ -68,8 +73,8 @@ class MicrosoftTtsProvider {
     await stop();
   }
 
-  /// Synthesize one line, returning audio file path + word timings.
-  Future<SynthesizedLine> _synthesizeLine(String text, int index, double speed, double pitch) async {
+  /// Synthesize one text chunk, returning audio bytes + word timings.
+  Future<_SynthResult> _synthesizeChunk(String text, int index, double speed, double pitch) async {
     await init();
 
     final tts = FlutterEdgeTts(
@@ -99,11 +104,11 @@ class MicrosoftTtsProvider {
       } else if (event is EdgeTtsMetadataEvent) {
         for (final item in event.metadata.items) {
           if (item.type == 'WordBoundary') {
-            final offsetMs = item.data.offset ~/ 10000; // Convert from 100ns to ms
+            final offsetMs = item.data.offset ~/ 10000;
             final durationMs = item.data.duration ~/ 10000;
-            final text = item.data.text?.text ?? '';
+            final txt = item.data.text?.text ?? '';
             wordTimings.add(WordTiming(
-              text: text,
+              text: txt,
               offset: Duration(milliseconds: offsetMs),
               duration: Duration(milliseconds: durationMs),
             ));
@@ -113,26 +118,37 @@ class MicrosoftTtsProvider {
       }
     }
 
-    // Write audio to file
-    final audioPath = p.join(_tempDir!, 'tts_${index}.mp3');
-    final file = File(audioPath);
-    final allBytes = BytesBuilder();
+    // Combine audio bytes
+    final builder = BytesBuilder();
     for (final chunk in audioChunks) {
-      allBytes.add(chunk);
+      builder.add(chunk);
     }
-    await file.writeAsBytes(allBytes.toBytes());
 
-    Log.d(_tag, 'Synthesized line $index: ${wordTimings.length} words, ${totalDuration.inMilliseconds}ms');
+    Log.d(_tag, 'Synthesized chunk $index: ${wordTimings.length} words, ${totalDuration.inMilliseconds}ms');
 
-    return SynthesizedLine(
+    return _SynthResult(
       lineIndex: index,
-      audioPath: audioPath,
+      audioBytes: builder.toBytes(),
       wordTimings: wordTimings,
-      totalDuration: totalDuration,
+      duration: totalDuration,
     );
   }
 
-  /// Speak multiple lines with pre-buffering and word-level timing.
+  /// Maximum number of chunks to synthesize ahead in the background.
+  static const _lookAheadCount = 10;
+
+  /// Speak multiple text chunks with look-ahead synthesis and streaming playback.
+  ///
+  /// Flow:
+  /// 1. Synthesize chunk 0 synchronously (fast start)
+  /// 2. Kick off background synthesis for chunks 1.._lookAheadCount
+  /// 3. Play chunk 0 while background synthesis runs
+  /// 4. When chunk 0 finishes, chunk 1 is already synthesized — play it
+  /// 5. Kick off synthesis for chunk 1+_lookAheadCount, etc.
+  /// 6. Audio starts in ~3s, no gaps between chunks
+  ///
+  /// [onLineStart] fires when a chunk begins playing.
+  /// [onWordStart] fires for each word boundary during playback.
   Future<void> speakAll(
     List<String> lines, {
     double speed = 1.0,
@@ -146,99 +162,80 @@ class MicrosoftTtsProvider {
     _speaking = true;
     _paused = false;
 
-    // Queue of synthesized lines (with timing data)
-    final audioQueue = Queue<SynthesizedLine>();
-    final completer = Completer<void>();
+    await init();
 
-    // Background synthesis task
-    synthesisTask() async {
-      int nextToSynth = 0;
-      while (nextToSynth < lines.length && !_stopRequested) {
-        while (audioQueue.length >= _bufferSize && !_stopRequested) {
-          await Future.delayed(const Duration(milliseconds: 100));
-        }
-        if (_stopRequested) break;
+    // Buffer of pre-synthesized results (background synthesis fills this).
+    final buffer = <int, _SynthResult>{};
+    // Indices we've already kicked off synthesis for (avoid duplicates).
+    final synthesizing = <int>{};
 
+    /// Kick off background synthesis for chunks [start..end).
+    void fillBuffer(int start, int end) {
+      for (int j = start; j < end && j < lines.length; j++) {
+        if (synthesizing.contains(j) || buffer.containsKey(j)) continue;
+        synthesizing.add(j);
+        final idx = j;
+        _synthesizeChunk(lines[idx], idx, speed, pitch).then((result) {
+          if (!_stopRequested) buffer[idx] = result;
+        }).catchError((e) {
+          Log.e(_tag, 'Background synthesis failed for chunk $idx', e);
+        });
+      }
+    }
+
+    // Pre-fill: synthesize chunks 1.._lookAheadCount in background
+    fillBuffer(1, _lookAheadCount);
+
+    for (int i = 0; i < lines.length && !_stopRequested; i++) {
+      // Get from buffer or synthesize on demand (fallback)
+      _SynthResult? result = buffer.remove(i);
+      if (result == null) {
+        Log.d(_tag, 'Chunk $i not in buffer, synthesizing on demand');
         try {
-          final synthesized = await _synthesizeLine(lines[nextToSynth], nextToSynth, speed, pitch);
-          audioQueue.add(synthesized);
+          result = await _synthesizeChunk(lines[i], i, speed, pitch);
         } catch (e) {
-          Log.e(_tag, 'Synthesis failed for line $nextToSynth', e);
-          // Push dummy item to maintain 1-to-1 queue mapping
-          audioQueue.add(SynthesizedLine(
-            lineIndex: nextToSynth,
-            audioPath: '',
-            wordTimings: const [],
-            totalDuration: Duration.zero,
-          ));
+          Log.e(_tag, 'Synthesis failed for chunk $i', e);
+          continue;
         }
-        nextToSynth++;
-      }
-    }
-
-    final synthFuture = synthesisTask();
-
-    // Playback loop
-    playbackTask() async {
-      for (int i = 0; i < lines.length && !_stopRequested; i++) {
-        while (audioQueue.isEmpty && !_stopRequested) {
-          await Future.delayed(const Duration(milliseconds: 50));
-        }
-        if (_stopRequested || audioQueue.isEmpty) break;
-
-        final synthesized = audioQueue.removeFirst();
-        onLineStart?.call(synthesized.lineIndex);
-
-        if (synthesized.audioPath.isEmpty) continue; // Skip failed lines safely
-
-        // Wait for file
-        final file = File(synthesized.audioPath);
-        for (int w = 0; w < 30 && !_stopRequested; w++) {
-          if (await file.exists() && await file.length() > 0) break;
-          await Future.delayed(const Duration(milliseconds: 100));
-        }
-        if (_stopRequested) break;
-
-        // Play and track word position
-        await _playFileTracked(synthesized, onWordStart, synthesized.lineIndex);
-
-        try { await file.delete(); } catch (_) {}
       }
 
-      _speaking = false;
-      if (!completer.isCompleted) completer.complete();
+      if (_stopRequested) break;
+
+      // Fill buffer ahead for upcoming chunks
+      fillBuffer(i + 1, i + 1 + _lookAheadCount);
+
+      // Write audio to temp file
+      final audioPath = p.join(_tempDir!, 'tts_chunk_$i.mp3');
+      await File(audioPath).writeAsBytes(result.audioBytes);
+
+      // Fire line-start callback (maps to paragraph for display)
+      onLineStart?.call(i);
+
+      // Play this chunk and track word position
+      await _playChunkAndWait(audioPath, result, onWordStart);
     }
 
-    playbackTask();
-    await synthFuture;
-    await completer.future;
+    _speaking = false;
     _cleanupTempFiles();
   }
 
-  /// Play a synthesized line and call onWordStart as each word begins.
-  Future<void> _playFileTracked(
-    SynthesizedLine line,
+  /// Play a single chunk's audio file and track word position via Stopwatch.
+  Future<void> _playChunkAndWait(
+    String audioPath,
+    _SynthResult result,
     void Function(int lineIndex, int wordIndex)? onWordStart,
-    int lineIndex,
   ) async {
-    if (line.audioPath.isEmpty) return;
-    if (line.wordTimings.isEmpty) {
-      // No timing data — just play
-      await _playFile(line.audioPath);
-      return;
-    }
-
     Process? proc;
     try {
       if (Platform.isLinux) {
         proc = await Process.start('mpv', [
-          '--no-video', '--no-terminal', '--really-quiet', line.audioPath,
+          '--no-video', '--no-terminal', '--really-quiet', audioPath,
         ]);
       } else if (Platform.isMacOS) {
-        proc = await Process.start('afplay', [line.audioPath]);
+        proc = await Process.start('afplay', [audioPath]);
       } else if (Platform.isWindows) {
         proc = await Process.start('powershell', [
-          '-Command', '(New-Object Media.SoundPlayer "${line.audioPath}").PlaySync()',
+          '-Command', '(New-Object Media.SoundPlayer "$audioPath").PlaySync()',
         ]);
       }
       _playProcess = proc;
@@ -261,10 +258,11 @@ class MicrosoftTtsProvider {
           );
           if (exitCode != -1) break;
 
+          // Track word position within this chunk
           final elapsed = stopwatch.elapsed;
           int currentWord = -1;
-          for (int wi = line.wordTimings.length - 1; wi >= 0; wi--) {
-            if (elapsed >= line.wordTimings[wi].offset) {
+          for (int wi = result.wordTimings.length - 1; wi >= 0; wi--) {
+            if (elapsed >= result.wordTimings[wi].offset) {
               currentWord = wi;
               break;
             }
@@ -272,20 +270,20 @@ class MicrosoftTtsProvider {
 
           if (currentWord != -1 && currentWord != lastWordIndex) {
             lastWordIndex = currentWord;
-            onWordStart?.call(lineIndex, currentWord);
+            onWordStart?.call(result.lineIndex, currentWord);
           }
         }
         stopwatch.stop();
       } else {
-        await _playFile(line.audioPath);
+        await _playFile(audioPath);
       }
     } on ProcessException catch (e) {
       final tool = Platform.isLinux ? 'mpv' : Platform.isMacOS ? 'afplay' : 'PowerShell';
       Log.e(_tag, '$tool not found. Please install $tool to use TTS. Error: $e');
-      await _playFile(line.audioPath);
+      await _playFile(audioPath);
     } catch (e) {
-      Log.e(_tag, 'Tracked playback failed: $e');
-      await _playFile(line.audioPath);
+      Log.e(_tag, 'Chunk playback failed: $e');
+      await _playFile(audioPath);
     }
   }
 
@@ -341,7 +339,6 @@ class MicrosoftTtsProvider {
   Future<void> pause() async {
     if (_playProcess != null) {
       try {
-        // SIGSTOP/SIGCONT work on Linux and macOS (POSIX signals)
         _playProcess!.kill(ProcessSignal.sigstop);
         _paused = true;
       } catch (_) {}
@@ -362,7 +359,7 @@ class MicrosoftTtsProvider {
     _cleanupTempFiles();
   }
 
-  /// Single text speak (for voice samples)
+  /// Single text speak (for voice samples).
   Future<void> speak(String text, {double speed = 1.0, double pitch = 1.0}) async {
     await init();
     try {
@@ -382,7 +379,7 @@ class MicrosoftTtsProvider {
       await tts.synthesizeToFile(
         text,
         audioFilePath: audioPath,
-        metadataFilePath: '${audioPath}.json',
+        metadataFilePath: '$audioPath.json',
         prosody: EdgeTtsProsody(rate: rateStr, pitch: pitchStr, volume: '100'),
       );
 
@@ -427,8 +424,5 @@ class MicrosoftTtsProvider {
 
   Future<void> setLanguage(String language) async {
     // Only change the language — don't override the user's voice selection.
-    // If the current voice doesn't match the new language, the Edge TTS API
-    // will still use the specified voice (it supports cross-language synthesis).
-    // The user can manually pick a voice for the new language if desired.
   }
 }

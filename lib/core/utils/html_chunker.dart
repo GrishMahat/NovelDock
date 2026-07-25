@@ -109,3 +109,85 @@ class HtmlChunker {
     return sentences;
   }
 }
+
+// ─── Sentence-level TTS chunking ────────────────────────────────
+
+/// A sentence-level text chunk for TTS synthesis, mapped back to its
+/// source paragraph for display highlighting.
+class TtsChunk {
+  /// Flat index in the TTS chunk list.
+  final int index;
+
+  /// Source paragraph index (for display mapping in the reader).
+  final int paragraphIndex;
+
+  /// Plain text to synthesize.
+  final String text;
+
+  /// Word offset within the paragraph (how many words precede this
+  /// chunk's text inside the paragraph's plain text).
+  final int paragraphWordOffset;
+
+  const TtsChunk({
+    required this.index,
+    required this.paragraphIndex,
+    required this.text,
+    this.paragraphWordOffset = 0,
+  });
+}
+
+/// Splits HTML into sentence-level TTS chunks.
+///
+/// Unlike [HtmlChunker] which produces paragraph-level chunks for display,
+/// this produces smaller sentence-grouped chunks optimized for TTS synthesis.
+/// Each [TtsChunk] knows which paragraph it came from so the manager can map
+/// TTS progress back to paragraph-level highlighting.
+class TtsTextChunker {
+  /// Target characters per TTS chunk. Chunks are split at sentence boundaries,
+  /// so actual size varies but stays near this target.
+  static const _targetChunkSize = 1200;
+
+  static List<TtsChunk> chunkForTts(String html) {
+    final paragraphs = HtmlChunker.chunkHtml(html);
+    final result = <TtsChunk>[];
+    int chunkIndex = 0;
+
+    for (final para in paragraphs) {
+      final sentences = para.sentences;
+      String buffer = '';
+      int paragraphWordOffset = 0;
+
+      for (final sentence in sentences) {
+        // If adding this sentence would exceed target and buffer is non-empty,
+        // flush the buffer as a chunk first.
+        if (buffer.length + sentence.length > _targetChunkSize &&
+            buffer.isNotEmpty) {
+          result.add(TtsChunk(
+            index: chunkIndex++,
+            paragraphIndex: para.index,
+            text: buffer.trim(),
+            paragraphWordOffset: paragraphWordOffset,
+          ));
+          paragraphWordOffset += _countWords(buffer);
+          buffer = '';
+        }
+        buffer += (buffer.isEmpty ? '' : ' ') + sentence;
+      }
+
+      if (buffer.trim().isNotEmpty) {
+        result.add(TtsChunk(
+          index: chunkIndex++,
+          paragraphIndex: para.index,
+          text: buffer.trim(),
+          paragraphWordOffset: paragraphWordOffset,
+        ));
+      }
+    }
+
+    return result;
+  }
+
+  static int _countWords(String text) {
+    return RegExp(r'\S+').allMatches(text).length;
+  }
+}

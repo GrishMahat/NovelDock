@@ -12,16 +12,16 @@ enum TtsHighlightMode { paragraph, sentence, word }
 class TtsManagerState {
   final bool isSpeaking;
   final bool isPaused;
-  /// Index of the current chunk (paragraph) being synthesized/played.
+  /// Paragraph index being synthesized/played (for display mapping).
   final int currentChunkIndex;
-  /// Word index within the current chunk's audio (from EdgeTTS word boundary).
+  /// Word index within the current paragraph's plain text (for highlighting).
   final int currentWordIndex;
   final int totalChunks;
   final double speed;
   final double pitch;
   final String voice;
   final String language;
-  /// Plain text of the current chunk — used only for notifications.
+  /// Plain text of the current paragraph — used for notifications.
   final String currentText;
   final String novelTitle;
   final String novelAuthor;
@@ -45,8 +45,8 @@ class TtsManagerState {
     this.totalDuration = Duration.zero,
   });
 
-  // Keep legacy alias for any code that reads currentLineIndex
   int get currentLineIndex => currentChunkIndex;
+  int get totalLines => totalChunks;
 
   TtsManagerState copyWith({
     bool? isSpeaking,
@@ -87,9 +87,13 @@ class TtsManager extends StateNotifier<TtsManagerState> {
   final Ref ref;
   MicrosoftTtsProvider? _provider;
 
-  /// Plain texts for each chunk — one entry per paragraph chunk.
+  /// Paragraph-level display texts — one entry per HTML paragraph chunk.
   List<String> _chunkTexts = [];
-  int _currentChunk = 0;
+
+  /// Sentence-level TTS chunks — the actual synthesis units.
+  List<TtsChunk> _ttsChunks = [];
+
+  int _totalParagraphs = 0;
 
   List<String> get lines => _chunkTexts;
 
@@ -106,7 +110,6 @@ class TtsManager extends StateNotifier<TtsManagerState> {
     TtsNotification.onSkipForward = () => skipForward();
     TtsNotification.onSkipBackward = () => skipBackward();
 
-    // MPRIS for Linux
     await TtsMpris.init();
     TtsMpris.onPlay = () => resume();
     TtsMpris.onPause = () => pause();
@@ -173,12 +176,19 @@ class TtsManager extends StateNotifier<TtsManagerState> {
     return _provider!;
   }
 
+  /// Find the first TTS chunk index belonging to a given paragraph.
+  int _findFirstTtsChunkOfParagraph(int paragraphIndex) {
+    for (int i = 0; i < _ttsChunks.length; i++) {
+      if (_ttsChunks[i].paragraphIndex == paragraphIndex) return i;
+    }
+    return -1;
+  }
+
   /// Start TTS from raw chapter HTML.
   ///
-  /// Each paragraph/block chunk becomes ONE synthesis request to EdgeTTS.
-  /// Word boundary events within that synthesis give word-level timing for
-  /// the ENTIRE paragraph — so `currentWordIndex` tracks progress through
-  /// the whole paragraph, not just one sentence.
+  /// Each paragraph is split into sentence-level TTS chunks (~500 chars each).
+  /// All chunks are synthesized, concatenated into a single MP3, and played
+  /// with one mpv process. Word boundaries are tracked with offset compensation.
   Future<void> startFromHtml(
     String html, {
     int startChunk = 0,
@@ -186,12 +196,20 @@ class TtsManager extends StateNotifier<TtsManagerState> {
     String? novelTitle,
     String? novelAuthor,
   }) async {
-    final chunks = HtmlChunker.chunkHtml(html);
-    if (chunks.isEmpty) return;
+    // Paragraph-level chunks for display
+    final displayChunks = HtmlChunker.chunkHtml(html);
+    if (displayChunks.isEmpty) return;
 
-    // One entry per chunk: the full plain text of the paragraph.
-    _chunkTexts = chunks.map((c) => c.plainText).toList();
-    _currentChunk = startChunk.clamp(0, _chunkTexts.length - 1);
+    _chunkTexts = displayChunks.map((c) => c.plainText).toList();
+    _totalParagraphs = _chunkTexts.length;
+
+    // Sentence-level chunks for TTS synthesis
+    _ttsChunks = TtsTextChunker.chunkForTts(html);
+    if (_ttsChunks.isEmpty) return;
+
+    // Find the first TTS chunk of the starting paragraph
+    final startTtsChunk = _findFirstTtsChunkOfParagraph(startChunk.clamp(0, _totalParagraphs - 1));
+    if (startTtsChunk < 0) return;
 
     final totalChars = _chunkTexts.fold(0, (s, t) => s + t.length);
     final estimatedSeconds = (totalChars / 15.0 / state.speed).round();
@@ -199,10 +217,10 @@ class TtsManager extends StateNotifier<TtsManagerState> {
     state = state.copyWith(
       isSpeaking: true,
       isPaused: false,
-      currentChunkIndex: _currentChunk,
+      currentChunkIndex: startChunk.clamp(0, _totalParagraphs - 1),
       currentWordIndex: 0,
-      totalChunks: _chunkTexts.length,
-      currentText: _chunkTexts[_currentChunk],
+      totalChunks: _totalParagraphs,
+      currentText: _chunkTexts[state.currentChunkIndex],
       novelTitle: novelTitle ?? '',
       novelAuthor: novelAuthor ?? '',
       totalDuration: Duration(seconds: estimatedSeconds),
@@ -217,43 +235,54 @@ class TtsManager extends StateNotifier<TtsManagerState> {
     }
     _updateNotification();
 
-    // speakAll receives one entry per chunk.
-    // Each chunk = one synthesis call to EdgeTTS.
-    // onLineStart fires when a chunk begins playing.
-    // onWordStart fires for every word boundary within that chunk.
-    await provider.speakAll(
-      _chunkTexts.sublist(_currentChunk),
-      speed: state.speed,
-      pitch: state.pitch,
-      onLineStart: (lineIndex) {
-        if (!state.isSpeaking || state.isPaused) return;
-        final actualChunk = _currentChunk + lineIndex;
-        _currentChunk = actualChunk;
-        if (actualChunk < _chunkTexts.length) {
-          state = state.copyWith(
-            currentChunkIndex: actualChunk,
-            currentWordIndex: 0,
-            currentText: _chunkTexts[actualChunk],
-          );
-          _updateNotification();
-        }
-      },
-      onWordStart: (lineIndex, wordIndex) {
-        if (!state.isSpeaking || state.isPaused) return;
-        final actualChunk = _currentChunk + lineIndex;
-        if (actualChunk < _chunkTexts.length) {
-          state = state.copyWith(
-            currentChunkIndex: actualChunk,
-            currentWordIndex: wordIndex,
-          );
-        }
-      },
-    );
+    // Synthesize sentence-level chunks, map callbacks to paragraph indices
+    await _speakFromTtsChunk(startTtsChunk);
 
     if (state.isSpeaking) {
       state = state.copyWith(isSpeaking: false);
     }
     TtsNotification.hide();
+  }
+
+  /// Synthesize and play from a specific TTS chunk index.
+  Future<void> _speakFromTtsChunk(int ttsChunkStart) async {
+    if (ttsChunkStart < 0 || ttsChunkStart >= _ttsChunks.length) return;
+
+    final texts = _ttsChunks.sublist(ttsChunkStart).map((c) => c.text).toList();
+
+    final provider = _getProvider();
+    await provider.speakAll(
+      texts,
+      speed: state.speed,
+      pitch: state.pitch,
+      onLineStart: (lineIndex) {
+        if (!state.isSpeaking || state.isPaused) return;
+        final absoluteIndex = ttsChunkStart + lineIndex;
+        if (absoluteIndex < _ttsChunks.length) {
+          final ttsChunk = _ttsChunks[absoluteIndex];
+          final paraIdx = ttsChunk.paragraphIndex;
+          if (paraIdx < _chunkTexts.length) {
+            state = state.copyWith(
+              currentChunkIndex: paraIdx,
+              currentWordIndex: 0,
+              currentText: _chunkTexts[paraIdx],
+            );
+            _updateNotification();
+          }
+        }
+      },
+      onWordStart: (lineIndex, wordIndex) {
+        if (!state.isSpeaking || state.isPaused) return;
+        final absoluteIndex = ttsChunkStart + lineIndex;
+        if (absoluteIndex < _ttsChunks.length) {
+          final ttsChunk = _ttsChunks[absoluteIndex];
+          state = state.copyWith(
+            currentChunkIndex: ttsChunk.paragraphIndex,
+            currentWordIndex: ttsChunk.paragraphWordOffset + wordIndex,
+          );
+        }
+      },
+    );
   }
 
   Future<void> pause() async {
@@ -280,71 +309,53 @@ class TtsManager extends StateNotifier<TtsManagerState> {
     await _getProvider().stop();
     state = state.copyWith(isSpeaking: false, isPaused: false, currentChunkIndex: 0, currentText: '');
     _chunkTexts = [];
-    _currentChunk = 0;
+    _ttsChunks = [];
+    _totalParagraphs = 0;
     TtsNotification.hide();
   }
 
   Future<void> skipForward() async {
-    if (_currentChunk < _chunkTexts.length - 1) {
-      await _getProvider().stop();
-      _currentChunk++;
-      await _resumeFromChunk(_currentChunk);
-    }
-  }
+    final currentParagraph = state.currentChunkIndex;
+    final nextParagraph = currentParagraph + 1;
+    if (nextParagraph >= _totalParagraphs) return;
 
-  Future<void> skipBackward() async {
-    if (_currentChunk > 0) {
-      await _getProvider().stop();
-      _currentChunk--;
-      await _resumeFromChunk(_currentChunk);
-    }
-  }
+    final ttsChunkIndex = _findFirstTtsChunkOfParagraph(nextParagraph);
+    if (ttsChunkIndex < 0) return;
 
-  Future<void> _resumeFromChunk(int startChunk) async {
-    if (startChunk < 0 || startChunk >= _chunkTexts.length) return;
+    await _getProvider().stop();
 
     state = state.copyWith(
       isSpeaking: true,
       isPaused: false,
-      currentChunkIndex: startChunk,
+      currentChunkIndex: nextParagraph,
       currentWordIndex: 0,
-      currentText: _chunkTexts[startChunk],
+      currentText: _chunkTexts[nextParagraph],
     );
     _updateNotification();
 
-    final provider = _getProvider();
-    await provider.init();
-    await provider.speakAll(
-      _chunkTexts.sublist(startChunk),
-      speed: state.speed,
-      pitch: state.pitch,
-      onLineStart: (lineIndex) {
-        final actualChunk = startChunk + lineIndex;
-        _currentChunk = actualChunk;
-        if (actualChunk < _chunkTexts.length) {
-          state = state.copyWith(
-            currentChunkIndex: actualChunk,
-            currentWordIndex: 0,
-            currentText: _chunkTexts[actualChunk],
-          );
-          _updateNotification();
-        }
-      },
-      onWordStart: (lineIndex, wordIndex) {
-        final actualChunk = startChunk + lineIndex;
-        if (actualChunk < _chunkTexts.length) {
-          state = state.copyWith(
-            currentChunkIndex: actualChunk,
-            currentWordIndex: wordIndex,
-          );
-        }
-      },
-    );
+    await _speakFromTtsChunk(ttsChunkIndex);
+  }
 
-    if (state.isSpeaking) {
-      state = state.copyWith(isSpeaking: false);
-    }
-    TtsNotification.hide();
+  Future<void> skipBackward() async {
+    final currentParagraph = state.currentChunkIndex;
+    final prevParagraph = currentParagraph - 1;
+    if (prevParagraph < 0) return;
+
+    final ttsChunkIndex = _findFirstTtsChunkOfParagraph(prevParagraph);
+    if (ttsChunkIndex < 0) return;
+
+    await _getProvider().stop();
+
+    state = state.copyWith(
+      isSpeaking: true,
+      isPaused: false,
+      currentChunkIndex: prevParagraph,
+      currentWordIndex: 0,
+      currentText: _chunkTexts[prevParagraph],
+    );
+    _updateNotification();
+
+    await _speakFromTtsChunk(ttsChunkIndex);
   }
 
   Future<void> updateSpeed(double speed) async {
