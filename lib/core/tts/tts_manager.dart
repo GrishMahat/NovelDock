@@ -2,6 +2,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_riverpod/legacy.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
+import '../../main.dart';
 import 'microsoft_tts_provider.dart';
 import 'tts_notification.dart';
 import 'tts_mpris.dart';
@@ -116,12 +117,20 @@ class TtsManager extends StateNotifier<TtsManagerState> {
     TtsMpris.onStop = () => stop();
     TtsMpris.onNext = () => skipForward();
     TtsMpris.onPrevious = () => skipBackward();
+
+    // Wire audio_service (Android foreground service / media notification)
+    audioHandler.onPlay = () => resume();
+    audioHandler.onPause = () => pause();
+    audioHandler.onStop = () => stop();
+    audioHandler.onSkipNext = () => skipForward();
+    audioHandler.onSkipPrevious = () => skipBackward();
   }
 
   void _updateNotification() {
     if (!state.isSpeaking && !state.isPaused) {
       TtsNotification.hide();
       TtsMpris.hide();
+      audioHandler.stop();
       return;
     }
     final isPlaying = state.isSpeaking && !state.isPaused;
@@ -144,6 +153,15 @@ class TtsManager extends StateNotifier<TtsManagerState> {
     TtsMpris.updateState(
       title: novelTitle,
       artist: author,
+      isPlaying: isPlaying,
+      position: position,
+      duration: state.totalDuration,
+    );
+
+    // Update audio_service notification (Android foreground service / lock screen)
+    audioHandler.updateMediaInfo(
+      title: novelTitle,
+      artist: '$currentText (${state.currentChunkIndex + 1}/${state.totalChunks})',
       isPlaying: isPlaying,
       position: position,
       duration: state.totalDuration,

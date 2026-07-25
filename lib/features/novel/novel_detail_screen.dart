@@ -9,6 +9,8 @@ import '../../core/utils/logger.dart';
 import '../../core/utils/text_utils.dart';
 import '../../theme/app_theme.dart';
 import '../../core/tts/tts_manager.dart';
+import '../../core/network/cloudflare.dart';
+import '../../core/network/client.dart';
 import '../downloads/providers/download_provider.dart';
 
 /// Novel detail screen — shows novel info with tabs: Novel, Reviews, Related, Chapters.
@@ -139,6 +141,28 @@ class _NovelDetailScreenState extends ConsumerState<NovelDetailScreen>
     );
   }
 
+  void _triggerCloudflareBypass() async {
+    final novelDao = ref.read(novelDaoProvider);
+    final novel = await novelDao.getNovelById(widget.novelId);
+    if (novel == null) return;
+
+    final url = novel.url;
+    if (!mounted) return;
+
+    final handler = CloudflareHandler();
+    final success = await handler.bypass(context, url);
+
+    if (mounted) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(success
+              ? 'Cloudflare bypass successful! Try loading chapters again.'
+              : 'Cloudflare bypass failed or was skipped.'),
+        ),
+      );
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     final novelDao = ref.watch(novelDaoProvider);
@@ -160,6 +184,25 @@ class _NovelDetailScreenState extends ConsumerState<NovelDetailScreen>
               SliverAppBar(
                 expandedHeight: 200,
                 pinned: true,
+                actions: [
+                  PopupMenuButton<String>(
+                    onSelected: (value) {
+                      if (value == 'cloudflare') _triggerCloudflareBypass();
+                    },
+                    itemBuilder: (context) => [
+                      const PopupMenuItem(
+                        value: 'cloudflare',
+                        child: Row(
+                          children: [
+                            Icon(Icons.shield, size: 20),
+                            SizedBox(width: 8),
+                            Text('Cloudflare Bypass'),
+                          ],
+                        ),
+                      ),
+                    ],
+                  ),
+                ],
                 flexibleSpace: FlexibleSpaceBar(
                   title: Text(
                     novel?.title ?? 'Novel #${widget.novelId}',

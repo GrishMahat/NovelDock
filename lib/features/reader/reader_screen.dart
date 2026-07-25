@@ -6,7 +6,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_widget_from_html/flutter_widget_from_html.dart';
-import 'package:pdfx/pdfx.dart';
+import 'package:pdf_render_maintained/pdf_render_maintained.dart';
 
 import '../../core/database/database.dart';
 import '../../core/providers/database_providers.dart';
@@ -20,6 +20,8 @@ import '../../core/tts/tts_manager.dart';
 import '../../core/tts/tts_highlighter.dart';
 import '../../core/utils/html_chunker.dart';
 import '../settings/pages/reader_settings_page.dart';
+import '../../core/translation/translation_service.dart';
+import '../settings/pages/translation_settings_page.dart';
 
 const _tag = 'Reader';
 
@@ -51,6 +53,9 @@ class _ReaderScreenState extends ConsumerState<ReaderScreen> {
   final ScrollController _scrollController = ScrollController();
   final PageController _pageController = PageController();
   double _scrollProgress = 0.0;
+
+  // EPUB Table of Contents (parsed from NCX/OPF)
+  List<EpubNavigationPoint> _epubToc = [];
 
   // GlobalKeys for each HTML paragraph chunk widget, so we can use
   // Scrollable.ensureVisible to scroll directly to the active chunk.
@@ -206,7 +211,6 @@ class _ReaderScreenState extends ConsumerState<ReaderScreen> {
   void _addBookmark() async {
     if (_chapters.isEmpty) return;
     final chapter = _chapters[_currentIndex];
-    final bookmarkDao = ref.read(bookmarkDaoProvider);
 
     // Get current scroll position as percentage
     double position = 0.0;
@@ -214,10 +218,44 @@ class _ReaderScreenState extends ConsumerState<ReaderScreen> {
       position = _scrollController.position.pixels / _scrollController.position.maxScrollExtent;
     }
 
+    // Show note dialog
+    if (!context.mounted) return;
+    final noteController = TextEditingController();
+    final note = await showDialog<String>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: const Text('Add Bookmark'),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text(chapter.name, style: const TextStyle(fontSize: 13, color: AppTheme.kTextSecondaryDark)),
+            const SizedBox(height: 12),
+            TextField(
+              controller: noteController,
+              decoration: const InputDecoration(
+                hintText: 'Add a note (optional)',
+                border: OutlineInputBorder(),
+                isDense: true,
+              ),
+              maxLines: 2,
+              autofocus: true,
+            ),
+          ],
+        ),
+        actions: [
+          TextButton(onPressed: () => Navigator.pop(ctx), child: const Text('Cancel')),
+          FilledButton(onPressed: () => Navigator.pop(ctx, noteController.text), child: const Text('Save')),
+        ],
+      ),
+    );
+
+    final bookmarkDao = ref.read(bookmarkDaoProvider);
     await bookmarkDao.addBookmark(BookmarksCompanion(
       novelId: Value(widget.novelId),
       chapterId: Value(chapter.id),
       position: Value(position.toStringAsFixed(4)),
+      note: note != null && note.isNotEmpty ? Value(note) : const Value.absent(),
       createdAt: Value(DateTime.now().millisecondsSinceEpoch),
     ));
 
@@ -277,8 +315,16 @@ class _ReaderScreenState extends ConsumerState<ReaderScreen> {
                   return ListTile(
                     leading: const Icon(Icons.bookmark, color: AppTheme.kPrimary),
                     title: Text(chapter.name, maxLines: 1, overflow: TextOverflow.ellipsis),
-                    subtitle: Text('Position: ${(double.tryParse(bm.position ?? '0') ?? 0 * 100).round()}% · $time',
-                        style: const TextStyle(fontSize: 12)),
+                    subtitle: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text('Position: ${(double.tryParse(bm.position ?? '0') ?? 0 * 100).round()}% · $time',
+                            style: const TextStyle(fontSize: 12)),
+                        if (bm.note != null && bm.note!.isNotEmpty)
+                          Text(bm.note!, maxLines: 1, overflow: TextOverflow.ellipsis,
+                              style: TextStyle(fontSize: 11, color: AppTheme.kPrimary.withValues(alpha: 0.8))),
+                      ],
+                    ),
                     trailing: IconButton(
                       icon: const Icon(Icons.delete_outline, size: 20),
                       onPressed: () async {
@@ -358,11 +404,17 @@ class _ReaderScreenState extends ConsumerState<ReaderScreen> {
       return;
     }
 
+    // Extract hierarchical TOC from NCX navigation
+    if (_epubToc.isEmpty && book.Schema?.Navigation?.NavMap?.Points != null) {
+      _epubToc = book.Schema!.Navigation!.NavMap!.Points!;
+      Log.ok(_tag, 'EPUB TOC: ${_epubToc.length} top-level entries');
+    }
+
     // Use index to match chapter (more reliable than title matching)
     final chIndex = index.clamp(0, book.Chapters!.length - 1);
     final ch = book.Chapters![chIndex];
     final html = ch.HtmlContent ?? '';
-    final cleanHtml = HtmlPreprocessor.clean(html);
+    final cleanHtml = HtmlPreprocessor.clean(html, keepCss: true);
     _chapterCache[chapter.id] = _LoadedChapter(chapter: chapter, html: cleanHtml);
     Log.ok(_tag, 'EPUB chapter ${chIndex + 1} loaded: ${cleanHtml.length} chars');
     setState(() {});
@@ -488,16 +540,31 @@ class _ReaderScreenState extends ConsumerState<ReaderScreen> {
   }
 
   void _handleTap(TapUpDetails details) {
+    final settings = ref.read(readerSettingsProvider);
     final screenWidth = MediaQuery.of(context).size.width;
     final tapX = details.localPosition.dx;
     final third = screenWidth / 3;
 
+    String action;
     if (tapX < third) {
-      _goToPreviousChapter();
+      action = settings.leftTapAction;
     } else if (tapX > screenWidth - third) {
-      _goToNextChapter();
+      action = settings.rightTapAction;
     } else {
-      setState(() => _showControls = !_showControls);
+      action = settings.centerTapAction;
+    }
+
+    switch (action) {
+      case 'previous':
+        _goToPreviousChapter();
+        break;
+      case 'next':
+        _goToNextChapter();
+        break;
+      case 'menu':
+        setState(() => _showControls = !_showControls);
+        break;
+      // 'none' — do nothing
     }
   }
 
@@ -567,6 +634,156 @@ class _ReaderScreenState extends ConsumerState<ReaderScreen> {
     );
   }
 
+  void _showEpubToc() {
+    if (_epubToc.isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('No table of contents available')),
+      );
+      return;
+    }
+
+    showModalBottomSheet(
+      context: context,
+      isScrollControlled: true,
+      builder: (context) => DraggableScrollableSheet(
+        initialChildSize: 0.5,
+        maxChildSize: 0.8,
+        minChildSize: 0.2,
+        expand: false,
+        builder: (context, scrollController) => Column(
+          children: [
+            const Padding(
+              padding: EdgeInsets.all(16),
+              child: Text('Table of Contents', style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
+            ),
+            const Divider(height: 1),
+            Expanded(
+              child: ListView.builder(
+                controller: scrollController,
+                itemCount: _epubToc.length,
+                itemBuilder: (context, index) => _buildTocEntry(_epubToc[index], 0),
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildTocEntry(EpubNavigationPoint point, int depth) {
+    final title = point.NavigationLabels?.isNotEmpty == true
+        ? point.NavigationLabels!.first.Text ?? 'Untitled'
+        : 'Untitled';
+    final source = point.Content?.Source ?? '';
+
+    // Find matching chapter index by comparing source path
+    int? chapterIndex;
+    if (source.isNotEmpty) {
+      final sourceBase = source.split('#').first;
+      for (var i = 0; i < _chapters.length; i++) {
+        final chUrl = _chapters[i].url;
+        if (chUrl.contains(sourceBase) || sourceBase.contains(chUrl.split('#').last.split('/').last)) {
+          chapterIndex = i;
+          break;
+        }
+      }
+    }
+
+    final children = point.ChildNavigationPoints;
+    final hasChildren = children != null && children.isNotEmpty;
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        ListTile(
+          contentPadding: EdgeInsets.only(left: 16.0 + depth * 20.0, right: 16.0),
+          dense: true,
+          leading: hasChildren ? const Icon(Icons.folder, size: 18) : null,
+          title: Text(title, maxLines: 2, overflow: TextOverflow.ellipsis,
+              style: TextStyle(fontSize: depth == 0 ? 14 : 13, fontWeight: depth == 0 ? FontWeight.w500 : FontWeight.normal)),
+          onTap: () {
+            if (chapterIndex != null) {
+              Navigator.pop(context);
+              _jumpToChapter(chapterIndex);
+            }
+          },
+        ),
+        if (hasChildren)
+          for (final child in children!) _buildTocEntry(child, depth + 1),
+      ],
+    );
+  }
+
+  void _showPdfThumbnails(String filePath) {
+    showModalBottomSheet(
+      context: context,
+      isScrollControlled: true,
+      builder: (context) => DraggableScrollableSheet(
+        initialChildSize: 0.6,
+        maxChildSize: 0.85,
+        minChildSize: 0.3,
+        expand: false,
+        builder: (context, scrollController) => Column(
+          children: [
+            const Padding(
+              padding: EdgeInsets.all(16),
+              child: Text('Pages', style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
+            ),
+            const Divider(height: 1),
+            Expanded(
+              child: FutureBuilder<PdfDocument>(
+                future: PdfDocument.openFile(filePath),
+                builder: (context, snapshot) {
+                  if (!snapshot.hasData) {
+                    return const Center(child: CircularProgressIndicator());
+                  }
+                  final document = snapshot.data!;
+                  return GridView.builder(
+                    controller: scrollController,
+                    padding: const EdgeInsets.all(8),
+                    gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
+                      crossAxisCount: 3,
+                      childAspectRatio: 0.7,
+                      crossAxisSpacing: 8,
+                      mainAxisSpacing: 8,
+                    ),
+                    itemCount: document.pageCount,
+                    itemBuilder: (context, index) {
+                      return GestureDetector(
+                        onTap: () => Navigator.pop(context),
+                        child: Column(
+                          children: [
+                            Expanded(
+                              child: Container(
+                                decoration: BoxDecoration(
+                                  border: Border.all(color: Colors.grey.withValues(alpha: 0.3)),
+                                  borderRadius: BorderRadius.circular(4),
+                                ),
+                                child: ClipRRect(
+                                  borderRadius: BorderRadius.circular(4),
+                                  child: PdfPageView(
+                                    pdfDocument: document,
+                                    pageNumber: index + 1,
+                                  ),
+                                ),
+                              ),
+                            ),
+                            const SizedBox(height: 4),
+                            Text('${index + 1}', style: const TextStyle(fontSize: 11)),
+                          ],
+                        ),
+                      );
+                    },
+                  );
+                },
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
   void _showSettingsDialog() {
     showModalBottomSheet(
       context: context,
@@ -594,9 +811,13 @@ class _ReaderScreenState extends ConsumerState<ReaderScreen> {
       if (next.isSpeaking && prev?.currentLineIndex != next.currentLineIndex) {
         _scrollToTtsHighlight(next.currentLineIndex);
       }
-      // TTS stopped or paused — lift the scroll ceiling so user can scroll freely.
+      // TTS stopped — lift scroll ceiling and optionally auto-advance to next chapter.
       if ((prev?.isSpeaking == true) && !next.isSpeaking) {
         _ttsScrollCeiling = null;
+        final settings = ref.read(readerSettingsProvider);
+        if (settings.ttsAutoAdvance && _currentIndex < _chapters.length - 1) {
+          _autoAdvanceTts();
+        }
       }
     });
 
@@ -666,37 +887,20 @@ class _ReaderScreenState extends ConsumerState<ReaderScreen> {
     // PDF chapter
     if (loaded.html.startsWith('PDF:')) {
       final filePath = loaded.html.replaceFirst('PDF:', '');
-
-      // pdfx doesn't support Linux — show a message
-      if (Platform.isLinux) {
-        return Center(
-          child: Column(
-            mainAxisAlignment: MainAxisAlignment.center,
-            children: [
-              Icon(Icons.picture_as_pdf, size: 64, color: settings.textColor.withValues(alpha: 0.5)),
-              const SizedBox(height: 16),
-              Text(
-                'PDF viewing not supported on Linux',
-                style: TextStyle(color: settings.textColor),
-              ),
-              const SizedBox(height: 8),
-              Text(
-                'File: ${filePath.split('/').last}',
-                style: TextStyle(color: settings.textColor.withValues(alpha: 0.5), fontSize: 12),
-              ),
-            ],
+      return Stack(
+        children: [
+          PdfViewer.openFile(filePath),
+          Positioned(
+            right: 16,
+            bottom: 16,
+            child: FloatingActionButton.small(
+              heroTag: 'pdf_thumbnails',
+              backgroundColor: Colors.black54,
+              onPressed: () => _showPdfThumbnails(filePath),
+              child: const Icon(Icons.grid_view, color: Colors.white, size: 20),
+            ),
           ),
-        );
-      }
-
-      // On supported platforms, render with PdfView
-      return SizedBox(
-        height: 500,
-        child: PdfView(
-          controller: PdfController(
-            document: PdfDocument.openFile(filePath),
-          ),
-        ),
+        ],
       );
     }
 
@@ -1008,6 +1212,9 @@ class _ReaderScreenState extends ConsumerState<ReaderScreen> {
                   onPressed: () => _toggleTts(),
                 ),
                 IconButton(icon: const Icon(Icons.list, color: Colors.white), onPressed: _showChapterList),
+                if (_epubToc.isNotEmpty)
+                  IconButton(icon: const Icon(Icons.menu_book, color: Colors.white), onPressed: _showEpubToc, tooltip: 'Table of Contents'),
+                IconButton(icon: const Icon(Icons.translate, color: Colors.white), onPressed: _translateChapter, tooltip: 'Translate'),
                 IconButton(icon: const Icon(Icons.settings, color: Colors.white), onPressed: _showSettingsDialog),
                 IconButton(icon: const Icon(Icons.skip_next, color: Colors.white), onPressed: _goToNextChapter),
               ],
@@ -1059,6 +1266,11 @@ class _ReaderScreenState extends ConsumerState<ReaderScreen> {
                       icon: const Icon(Icons.skip_next, color: Colors.white),
                       onPressed: () => ref.read(ttsManagerProvider.notifier).skipForward(),
                     ),
+                    IconButton(
+                      icon: const Icon(Icons.translate, color: Colors.white),
+                      onPressed: _showTranslateDialog,
+                      tooltip: 'Translate text',
+                    ),
                   ],
                 ),
               ),
@@ -1104,6 +1316,169 @@ class _ReaderScreenState extends ConsumerState<ReaderScreen> {
       coverUrl: novel?.coverUrl,
       novelTitle: novel?.title,
       novelAuthor: novel?.author,
+    );
+  }
+
+  void _autoAdvanceTts() async {
+    if (_currentIndex >= _chapters.length - 1) return;
+
+    // Move to next chapter
+    final nextIndex = _currentIndex + 1;
+    setState(() => _currentIndex = nextIndex);
+    if (_scrollController.hasClients) _scrollController.jumpTo(0);
+    await _loadChapter(nextIndex);
+    _preloadSurrounding();
+
+    // Start TTS on the new chapter
+    final chapter = _chapters[nextIndex];
+    final loaded = _chapterCache[chapter.id];
+    if (loaded == null) return;
+
+    final novelDao = ref.read(novelDaoProvider);
+    final novel = await novelDao.getNovelById(widget.novelId);
+    final ttsNotifier = ref.read(ttsManagerProvider.notifier);
+    ttsNotifier.startFromHtml(
+      loaded.html,
+      coverUrl: novel?.coverUrl,
+      novelTitle: novel?.title,
+      novelAuthor: novel?.author,
+    );
+  }
+
+  void _translateChapter() async {
+    if (_chapters.isEmpty || _currentIndex >= _chapters.length) return;
+    final chapter = _chapters[_currentIndex];
+    final loaded = _chapterCache[chapter.id];
+    if (loaded == null) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Chapter not loaded yet')),
+      );
+      return;
+    }
+
+    final translationSettings = ref.read(translationSettingsProvider);
+    final sourceLang = translationSettings.fromLanguage;
+    final targetLang = translationSettings.toLanguage;
+
+    if (sourceLang == targetLang) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Source and target language are the same')),
+      );
+      return;
+    }
+
+    // Show loading
+    if (!mounted) return;
+    ScaffoldMessenger.of(context).showSnackBar(
+      const SnackBar(content: Text('Translating...'), duration: Duration(seconds: 3)),
+    );
+
+    try {
+      final service = ref.read(translationServiceProvider);
+
+      // Extract plain text from HTML (strip tags for translation)
+      final plainText = loaded.html
+          .replaceAll(RegExp(r'<[^>]*>'), ' ')
+          .replaceAll(RegExp(r'\s+'), ' ')
+          .trim();
+
+      final translated = await service.translate(
+        plainText,
+        sourceLang: sourceLang,
+        targetLang: targetLang,
+      );
+
+      // Replace chapter content with translation
+      final translatedHtml = '<p>$translated</p>';
+      _chapterCache[chapter.id] = _LoadedChapter(chapter: chapter, html: translatedHtml);
+      setState(() {});
+
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Translation complete')),
+        );
+      }
+    } catch (e) {
+      Log.e(_tag, 'Translation failed', e);
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Translation failed: $e')),
+        );
+      }
+    }
+  }
+
+  void _showTranslateDialog() {
+    final controller = TextEditingController();
+    String? translatedText;
+    bool isTranslating = false;
+
+    showDialog(
+      context: context,
+      builder: (ctx) => StatefulBuilder(
+        builder: (ctx, setDialogState) => AlertDialog(
+          title: const Text('Translate Text'),
+          content: SizedBox(
+            width: double.maxFinite,
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                TextField(
+                  controller: controller,
+                  maxLines: 4,
+                  decoration: const InputDecoration(
+                    hintText: 'Paste or type text to translate...',
+                    border: OutlineInputBorder(),
+                  ),
+                ),
+                if (isTranslating) ...[
+                  const SizedBox(height: 12),
+                  const LinearProgressIndicator(),
+                ],
+                if (translatedText != null) ...[
+                  const SizedBox(height: 12),
+                  Container(
+                    width: double.infinity,
+                    padding: const EdgeInsets.all(12),
+                    decoration: BoxDecoration(
+                      color: AppTheme.kSurfaceVariantDark,
+                      borderRadius: BorderRadius.circular(8),
+                    ),
+                    child: Text(translatedText!, style: const TextStyle(fontSize: 14)),
+                  ),
+                ],
+              ],
+            ),
+          ),
+          actions: [
+            TextButton(onPressed: () => Navigator.pop(ctx), child: const Text('Close')),
+            FilledButton(
+              onPressed: isTranslating
+                  ? null
+                  : () async {
+                      final text = controller.text.trim();
+                      if (text.isEmpty) return;
+
+                      setDialogState(() => isTranslating = true);
+
+                      final translationSettings = ref.read(translationSettingsProvider);
+                      final service = ref.read(translationServiceProvider);
+                      final result = await service.translate(
+                        text,
+                        sourceLang: translationSettings.fromLanguage,
+                        targetLang: translationSettings.toLanguage,
+                      );
+
+                      setDialogState(() {
+                        isTranslating = false;
+                        translatedText = result;
+                      });
+                    },
+              child: const Text('Translate'),
+            ),
+          ],
+        ),
+      ),
     );
   }
 
@@ -1188,6 +1563,7 @@ class _ReaderSettingsSheetState extends ConsumerState<_ReaderSettingsSheet> {
               const SizedBox(height: 16),
               _buildSection('Display'),
               SwitchListTile(dense: true, contentPadding: EdgeInsets.zero, title: const Text('TTS Auto-Scroll'), subtitle: const Text('Auto-scroll reader while TTS is reading'), value: settings.ttsAutoScroll, onChanged: (_) => notifier.toggleTtsAutoScroll()),
+              SwitchListTile(dense: true, contentPadding: EdgeInsets.zero, title: const Text('TTS Auto-Advance'), subtitle: const Text('Automatically start next chapter when TTS finishes'), value: settings.ttsAutoAdvance, onChanged: (_) => notifier.toggleTtsAutoAdvance()),
               SwitchListTile(dense: true, contentPadding: EdgeInsets.zero, title: const Text('Bionic Reading'), subtitle: const Text('Bold first half of each word'), value: settings.bionicReading, onChanged: (_) => notifier.toggleBionicReading()),
               SwitchListTile(dense: true, contentPadding: EdgeInsets.zero, title: const Text('Selectable Text'), value: settings.selectableText, onChanged: (_) => notifier.toggleSelectableText()),
               SwitchListTile(dense: true, contentPadding: EdgeInsets.zero, title: const Text('Show Time'), value: settings.showTime, onChanged: (_) => notifier.toggleShowTime()),
