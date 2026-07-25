@@ -1,0 +1,35 @@
+{
+  "version": 1,
+  "providers": [
+    {
+      "id": "wuxiabox",
+      "name": "WuxiaBox",
+      "lang": "en",
+      "baseUrl": "https://www.wuxiabox.com",
+      "file": "wuxiabox.js",
+      "version": "1.0.0",
+      "author": "quicknovel",
+      "repo": "https://github.com/example/quicknovel-wuxiabox"
+    },
+    {
+      "id": "examplenovel",
+      "name": "ExampleNovel",
+      "lang": "en",
+      "baseUrl": "https://www.example.com",
+      "file": "example_provider.js",
+      "version": "1.0.0",
+      "author": "quicknovel",
+      "repo": "https://github.com/example/quicknovel-example"
+    },
+    {
+      "id": "royalroad",
+      "name": "Royal Road",
+      "lang": "en",
+      "baseUrl": "https://www.royalroad.com",
+      "file": "royalroad_provider.js",
+      "version": "1.0.0",
+      "author": "quicknovel",
+      "repo": "https://github.com/example/quicknovel-royalroad"
+    }
+  ]
+}
