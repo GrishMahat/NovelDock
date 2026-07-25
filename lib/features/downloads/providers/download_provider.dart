@@ -170,22 +170,26 @@ class DownloadNotifier extends StateNotifier<Map<int, NovelDownloadProgress>> {
       final engine = ref.read(providerEngineProvider);
       final dio = await ref.read(dioProvider.future);
 
+      Log.d(_tag, 'Loading provider JS for: ${novel.providerId}');
       final jsSource = await registry.loadCachedProviderJs(novel.providerId);
       if (jsSource == null) {
-        await downloadDao.updateDownloadStatus(task.id, 'failed', error: 'Provider not found');
+        await downloadDao.updateDownloadStatus(task.id, 'failed', error: 'Provider JS not found for ${novel.providerId}');
         _updateProgress(task.novelId);
         return;
       }
 
+      Log.d(_tag, 'Loading provider instance...');
       final instance = await engine.loadProvider(jsSource);
 
-      // Get content URL
+      Log.d(_tag, 'Getting content URL for: ${chapter.url}');
       final contentUrl = await instance.getChapterContentUrl(chapter.url);
       if (contentUrl == null) {
-        await downloadDao.updateDownloadStatus(task.id, 'failed', error: 'Failed to get content URL');
+        await downloadDao.updateDownloadStatus(task.id, 'failed', error: 'getChapterContentUrl returned null');
         _updateProgress(task.novelId);
         return;
       }
+
+      Log.d(_tag, 'Downloading: $contentUrl');
 
       // Download with retries
       String? html;
@@ -221,19 +225,24 @@ class DownloadNotifier extends StateNotifier<Map<int, NovelDownloadProgress>> {
       final fileName = '${task.chapterId}.epub';
       final file = File(p.join(dir.path, fileName));
 
+      final chapterHtml = content.html;
+      final chapterTitle = chapter.name;
+      final novelTitle = novel.title ?? 'Unknown';
+      final novelAuthor = novel.author ?? '';
+
       final epubBook = EpubBook()
-        ..Title = chapter.name
-        ..Author = novel.author ?? novel.title
+        ..Title = chapterTitle
+        ..Author = novelAuthor
         ..Chapters = [
           EpubChapter()
-            ..Title = chapter.name
+            ..Title = chapterTitle
             ..ContentFileName = '${task.chapterId}.xhtml'
-            ..HtmlContent = content.html,
+            ..HtmlContent = chapterHtml,
         ]
         ..Content = (EpubContent()
           ..Html = {
             '${task.chapterId}.xhtml': (EpubTextContentFile()
-              ..Content = content.html
+              ..Content = chapterHtml
               ..ContentMimeType = 'application/xhtml+xml'),
           });
 
@@ -261,8 +270,9 @@ class DownloadNotifier extends StateNotifier<Map<int, NovelDownloadProgress>> {
       _updateProgress(task.novelId);
 
       Log.ok(_tag, 'Chapter ${chapter.name} downloaded to ${file.path}');
-    } catch (e) {
-      Log.e(_tag, 'Download failed for task ${task.id}', e);
+    } catch (e, stackTrace) {
+      Log.e(_tag, 'Download failed for task ${task.id}: $e');
+      Log.e(_tag, 'Stack: ${stackTrace.toString().split('\n').take(5).join('\n')}');
       await downloadDao.updateDownloadStatus(task.id, 'failed', error: e.toString());
       _updateProgress(task.novelId);
     }

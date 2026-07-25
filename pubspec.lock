@@ -1104,14 +1104,6 @@ packages:
       url: "https://pub.dev"
     source: hosted
     version: "2.3.0"
-  pdf_render_maintained:
-    dependency: "direct main"
-    description:
-      name: pdf_render_maintained
-      sha256: "36e28b4b350d998e9d10a621c09ccc9a914d14d4ad1b3e023fda81fcf7cfbe45"
-      url: "https://pub.dev"
-    source: hosted
-    version: "1.6.2"
   permission_handler:
     dependency: "direct main"
     description:
