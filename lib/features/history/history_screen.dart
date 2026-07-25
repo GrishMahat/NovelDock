@@ -54,8 +54,19 @@ class _HistoryScreenState extends ConsumerState<HistoryScreen> {
                         onPressed: () => setState(() => _searchQuery = ''),
                       )
                     : null,
+                filled: true,
+                fillColor: AppTheme.kSurfaceVariantDark,
                 border: OutlineInputBorder(
                   borderRadius: BorderRadius.circular(12),
+                  borderSide: BorderSide.none,
+                ),
+                enabledBorder: OutlineInputBorder(
+                  borderRadius: BorderRadius.circular(12),
+                  borderSide: BorderSide.none,
+                ),
+                focusedBorder: OutlineInputBorder(
+                  borderRadius: BorderRadius.circular(12),
+                  borderSide: const BorderSide(color: AppTheme.kPrimary, width: 1),
                 ),
                 contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
               ),
@@ -238,7 +249,7 @@ class _HistoryScreenState extends ConsumerState<HistoryScreen> {
   }
 }
 
-/// History list tile — loads novel info from DB
+/// History list tile — loads novel + chapter info from DB
 class _HistoryTile extends ConsumerWidget {
   final ReadingHistoryData entry;
   final NovelDao novelDao;
@@ -252,62 +263,71 @@ class _HistoryTile extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
+    final chapterDao = ref.read(chapterDaoProvider);
     return FutureBuilder<Novel?>(
       future: novelDao.getNovelById(entry.novelId),
       builder: (context, novelSnapshot) {
         final novel = novelSnapshot.data;
         final title = novel?.title != null ? stripHtml(novel!.title) : 'Novel #${entry.novelId}';
-        final time = DateTime.fromMillisecondsSinceEpoch(entry.readAt)
-            .toLocal()
-            .toString()
-            .split(' ')[1]
-            .substring(0, 5);
-        final date = DateTime.fromMillisecondsSinceEpoch(entry.readAt)
-            .toLocal()
-            .toString()
-            .split(' ')[0];
 
-        return ListTile(
-          leading: novel?.coverUrl != null
-              ? ClipRRect(
-                  borderRadius: BorderRadius.circular(4),
-                  child: Image.network(
-                    novel!.coverUrl!,
-                    width: 40,
-                    height: 56,
-                    fit: BoxFit.cover,
-                    errorBuilder: (_, __, ___) => Container(
+        return FutureBuilder<Chapter?>(
+          future: chapterDao.getChapterById(entry.chapterId),
+          builder: (context, chapterSnapshot) {
+            final chapter = chapterSnapshot.data;
+            final chapterName = chapter?.name ?? 'Chapter #${entry.chapterId}';
+            final time = DateTime.fromMillisecondsSinceEpoch(entry.readAt)
+                .toLocal()
+                .toString()
+                .split(' ')[1]
+                .substring(0, 5);
+            final date = DateTime.fromMillisecondsSinceEpoch(entry.readAt)
+                .toLocal()
+                .toString()
+                .split(' ')[0];
+
+            return ListTile(
+              leading: novel?.coverUrl != null
+                  ? ClipRRect(
+                      borderRadius: BorderRadius.circular(4),
+                      child: Image.network(
+                        novel!.coverUrl!,
+                        width: 40,
+                        height: 56,
+                        fit: BoxFit.cover,
+                        errorBuilder: (_, __, ___) => Container(
+                          width: 40,
+                          height: 56,
+                          color: AppTheme.kSurfaceVariantDark,
+                          child: const Icon(Icons.book, size: 20),
+                        ),
+                      ),
+                    )
+                  : Container(
                       width: 40,
                       height: 56,
-                      color: AppTheme.kSurfaceVariantDark,
+                      decoration: BoxDecoration(
+                        color: AppTheme.kSurfaceVariantDark,
+                        borderRadius: BorderRadius.circular(4),
+                      ),
                       child: const Icon(Icons.book, size: 20),
                     ),
-                  ),
-                )
-              : Container(
-                  width: 40,
-                  height: 56,
-                  decoration: BoxDecoration(
-                    color: AppTheme.kSurfaceVariantDark,
-                    borderRadius: BorderRadius.circular(4),
-                  ),
-                  child: const Icon(Icons.book, size: 20),
-                ),
-          title: Text(
-            title,
-            maxLines: 2,
-            overflow: TextOverflow.ellipsis,
-            style: const TextStyle(fontSize: 14),
-          ),
-          subtitle: Text(
-            'Chapter #${entry.chapterId} · $date $time',
-            style: const TextStyle(fontSize: 12),
-          ),
-          trailing: IconButton(
-            icon: const Icon(Icons.delete_outline, size: 20),
-            onPressed: onDelete,
-          ),
-          onTap: () => context.push('/reader/${entry.novelId}/${entry.chapterId}'),
+              title: Text(
+                title,
+                maxLines: 2,
+                overflow: TextOverflow.ellipsis,
+                style: const TextStyle(fontSize: 14),
+              ),
+              subtitle: Text(
+                '$chapterName · $date $time',
+                style: const TextStyle(fontSize: 12),
+              ),
+              trailing: IconButton(
+                icon: const Icon(Icons.delete_outline, size: 20),
+                onPressed: onDelete,
+              ),
+              onTap: () => context.push('/reader/${entry.novelId}/${entry.chapterId}'),
+            );
+          },
         );
       },
     );

@@ -5,8 +5,6 @@ import 'package:epubx/epubx.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:flutter_widget_from_html/flutter_widget_from_html.dart';
-import 'package:url_launcher/url_launcher.dart';
 
 import '../../core/database/database.dart';
 import '../../core/providers/database_providers.dart';
@@ -17,20 +15,18 @@ import '../../core/utils/html_preprocessor.dart';
 import '../../core/utils/logger.dart';
 import '../../theme/app_theme.dart';
 import '../../core/tts/tts_manager.dart';
-import '../../core/tts/tts_highlighter.dart';
-import '../../core/utils/html_chunker.dart';
 import '../settings/pages/reader_settings_page.dart';
 import '../../core/translation/translation_service.dart';
 import '../settings/pages/translation_settings_page.dart';
+import 'widgets/reader_settings_sheet.dart';
+
+import 'widgets/bookmark_sheet.dart';
+import 'widgets/chapter_sheet.dart';
+import 'widgets/reader_controls.dart';
+import 'widgets/reader_content_view.dart';
+import 'widgets/translate_dialog.dart' as translate;
 
 const _tag = 'Reader';
-
-/// A loaded chapter with its HTML content
-class _LoadedChapter {
-  final Chapter chapter;
-  final String html;
-  _LoadedChapter({required this.chapter, required this.html});
-}
 
 class ReaderScreen extends ConsumerStatefulWidget {
   final int novelId;
@@ -49,7 +45,7 @@ class _ReaderScreenState extends ConsumerState<ReaderScreen> {
   // Chapter management
   List<Chapter> _chapters = [];
   int _currentIndex = 0;
-  final Map<int, _LoadedChapter> _chapterCache = {};
+  final Map<int, LoadedChapter> _chapterCache = {};
   final ScrollController _scrollController = ScrollController();
   final PageController _pageController = PageController();
   double _scrollProgress = 0.0;
@@ -113,7 +109,6 @@ class _ReaderScreenState extends ConsumerState<ReaderScreen> {
     // Auto-load next chapters when near bottom (continuous mode)
     final settings = ref.read(readerSettingsProvider);
     if (settings.scrollMode == 'continuous' && progress > 0.85) {
-      // Find the first unloaded chapter ahead of the current viewport
       final firstVisible = (pos.pixels / MediaQuery.of(context).size.height).floor();
       final start = _currentIndex + 1;
       final end = (firstVisible + 5).clamp(start, _chapters.length);
@@ -128,7 +123,6 @@ class _ReaderScreenState extends ConsumerState<ReaderScreen> {
     if (ceiling != null && settings.ttsAutoScroll) {
       final ttsState = ref.read(ttsManagerProvider);
       if (ttsState.isSpeaking && pos.pixels > ceiling + 1) {
-        // Snap back to the ceiling without animation (feels like a natural stop).
         _scrollController.jumpTo(ceiling);
       }
     }
@@ -145,23 +139,18 @@ class _ReaderScreenState extends ConsumerState<ReaderScreen> {
 
       Log.i(_tag, 'Loaded ${_chapters.length} chapters, starting at index $_currentIndex');
 
-      // Save reading history
       _saveHistory();
 
-      // Check if this is an EPUB (local file)
       final isEpub = _chapters.isNotEmpty && _chapters.first.url.startsWith('epub://');
 
       if (isEpub) {
-        // Load ALL EPUB chapters at once (they're from a local file, fast)
         for (var i = 0; i < _chapters.length; i++) {
           await _loadChapter(i);
         }
       } else {
-        // Online: load current + preload ahead in background
         await _loadChapter(_currentIndex);
         final settings = ref.read(readerSettingsProvider);
         if (settings.scrollMode == 'continuous') {
-          // Preload next few chapters so the user doesn't hit spinners when scrolling
           for (var i = 1; i <= 3 && _currentIndex + i < _chapters.length; i++) {
             _loadChapter(_currentIndex + i);
           }
@@ -176,7 +165,6 @@ class _ReaderScreenState extends ConsumerState<ReaderScreen> {
       if (mounted) setState(() => _isLoading = false);
     }
 
-    // Restore scroll position from history
     _restoreReadingPosition();
   }
 
@@ -184,7 +172,7 @@ class _ReaderScreenState extends ConsumerState<ReaderScreen> {
     final historyDao = ref.read(historyDaoProvider);
     final latest = await historyDao.getLatestHistoryForNovel(widget.novelId);
     if (latest == null || latest.scrollPosition == null) return;
-    if (latest.chapterId != widget.chapterId) return; // different chapter
+    if (latest.chapterId != widget.chapterId) return;
 
     final position = latest.scrollPosition!;
     WidgetsBinding.instance.addPostFrameCallback((_) {
@@ -212,43 +200,13 @@ class _ReaderScreenState extends ConsumerState<ReaderScreen> {
     if (_chapters.isEmpty) return;
     final chapter = _chapters[_currentIndex];
 
-    // Get current scroll position as percentage
     double position = 0.0;
     if (_scrollController.hasClients && _scrollController.position.hasContentDimensions) {
       position = _scrollController.position.pixels / _scrollController.position.maxScrollExtent;
     }
 
-    // Show note dialog
     if (!context.mounted) return;
-    final noteController = TextEditingController();
-    final note = await showDialog<String>(
-      context: context,
-      builder: (ctx) => AlertDialog(
-        title: const Text('Add Bookmark'),
-        content: Column(
-          mainAxisSize: MainAxisSize.min,
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Text(chapter.name, style: const TextStyle(fontSize: 13, color: AppTheme.kTextSecondaryDark)),
-            const SizedBox(height: 12),
-            TextField(
-              controller: noteController,
-              decoration: const InputDecoration(
-                hintText: 'Add a note (optional)',
-                border: OutlineInputBorder(),
-                isDense: true,
-              ),
-              maxLines: 2,
-              autofocus: true,
-            ),
-          ],
-        ),
-        actions: [
-          TextButton(onPressed: () => Navigator.pop(ctx), child: const Text('Cancel')),
-          FilledButton(onPressed: () => Navigator.pop(ctx, noteController.text), child: const Text('Save')),
-        ],
-      ),
-    );
+    final note = await showAddBookmarkDialog(context, chapterName: chapter.name);
 
     final bookmarkDao = ref.read(bookmarkDaoProvider);
     await bookmarkDao.addBookmark(BookmarksCompanion(
@@ -284,79 +242,22 @@ class _ReaderScreenState extends ConsumerState<ReaderScreen> {
       return;
     }
 
-    showModalBottomSheet(
+    showBookmarkSheet(
       context: context,
-      isScrollControlled: true,
-      builder: (context) => DraggableScrollableSheet(
-        initialChildSize: 0.4,
-        maxChildSize: 0.7,
-        minChildSize: 0.2,
-        expand: false,
-        builder: (context, scrollController) => Column(
-          children: [
-            const Padding(
-              padding: EdgeInsets.all(16),
-              child: Text('Bookmarks', style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
-            ),
-            const Divider(height: 1),
-            Expanded(
-              child: ListView.builder(
-                controller: scrollController,
-                itemCount: bookmarks.length,
-                itemBuilder: (context, index) {
-                  final bm = bookmarks[index];
-                  final chapter = _chapters.firstWhere(
-                    (c) => c.id == bm.chapterId,
-                    orElse: () => _chapters.first,
-                  );
-                  final time = DateTime.fromMillisecondsSinceEpoch(bm.createdAt)
-                      .toLocal().toString().split(' ')[1].substring(0, 5);
-
-                  return ListTile(
-                    leading: const Icon(Icons.bookmark, color: AppTheme.kPrimary),
-                    title: Text(chapter.name, maxLines: 1, overflow: TextOverflow.ellipsis),
-                    subtitle: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Text('Position: ${(double.tryParse(bm.position ?? '0') ?? 0 * 100).round()}% · $time',
-                            style: const TextStyle(fontSize: 12)),
-                        if (bm.note != null && bm.note!.isNotEmpty)
-                          Text(bm.note!, maxLines: 1, overflow: TextOverflow.ellipsis,
-                              style: TextStyle(fontSize: 11, color: AppTheme.kPrimary.withValues(alpha: 0.8))),
-                      ],
-                    ),
-                    trailing: IconButton(
-                      icon: const Icon(Icons.delete_outline, size: 20),
-                      onPressed: () async {
-                        await bookmarkDao.removeBookmark(bm.id);
-                        if (context.mounted) {
-                          Navigator.pop(context);
-                          _showBookmarks();
-                        }
-                      },
-                    ),
-                    onTap: () {
-                      Navigator.pop(context);
-                      // Jump to chapter
-                      final chIdx = _chapters.indexWhere((c) => c.id == bm.chapterId);
-                      if (chIdx >= 0) {
-                        _jumpToChapter(chIdx);
-                        // Scroll to position
-                        final pos = double.tryParse(bm.position ?? '0') ?? 0;
-                        WidgetsBinding.instance.addPostFrameCallback((_) {
-                          if (_scrollController.hasClients && _scrollController.position.hasContentDimensions) {
-                            _scrollController.jumpTo(pos * _scrollController.position.maxScrollExtent);
-                          }
-                        });
-                      }
-                    },
-                  );
-                },
-              ),
-            ),
-          ],
-        ),
-      ),
+      bookmarks: bookmarks,
+      chapters: _chapters,
+      onTapBookmark: (chapterIndex, pos) {
+        _jumpToChapter(chapterIndex);
+        WidgetsBinding.instance.addPostFrameCallback((_) {
+          if (_scrollController.hasClients && _scrollController.position.hasContentDimensions) {
+            _scrollController.jumpTo(pos * _scrollController.position.maxScrollExtent);
+          }
+        });
+      },
+      onDeleteBookmark: (bookmarkId) async {
+        await bookmarkDao.removeBookmark(bookmarkId);
+        if (mounted) _showBookmarks();
+      },
     );
   }
 
@@ -404,24 +305,21 @@ class _ReaderScreenState extends ConsumerState<ReaderScreen> {
       return;
     }
 
-    // Extract hierarchical TOC from NCX navigation
     if (_epubToc.isEmpty && book.Schema?.Navigation?.NavMap?.Points != null) {
       _epubToc = book.Schema!.Navigation!.NavMap!.Points!;
       Log.ok(_tag, 'EPUB TOC: ${_epubToc.length} top-level entries');
     }
 
-    // Use index to match chapter (more reliable than title matching)
     final chIndex = index.clamp(0, book.Chapters!.length - 1);
     final ch = book.Chapters![chIndex];
     final html = ch.HtmlContent ?? '';
     final cleanHtml = HtmlPreprocessor.clean(html, keepCss: true);
-    _chapterCache[chapter.id] = _LoadedChapter(chapter: chapter, html: cleanHtml);
+    _chapterCache[chapter.id] = LoadedChapter(chapter: chapter, html: cleanHtml);
     Log.ok(_tag, 'EPUB chapter ${chIndex + 1} loaded: ${cleanHtml.length} chars');
     setState(() {});
   }
 
   Future<void> _loadPdfChapter(Chapter chapter, int index) async {
-    // PDF chapters are rendered as page images, store the file path for PdfView
     final url = chapter.url;
     final filePath = url.replaceFirst('pdf://', '').split('#').first;
 
@@ -433,8 +331,7 @@ class _ReaderScreenState extends ConsumerState<ReaderScreen> {
       return;
     }
 
-    // Store a marker so the UI knows to render with PdfView
-    _chapterCache[chapter.id] = _LoadedChapter(
+    _chapterCache[chapter.id] = LoadedChapter(
       chapter: chapter,
       html: 'PDF:$filePath',
     );
@@ -486,7 +383,7 @@ class _ReaderScreenState extends ConsumerState<ReaderScreen> {
 
       if (content != null && content.html.isNotEmpty) {
         final cleanHtml = HtmlPreprocessor.clean(content.html);
-        _chapterCache[chapter.id] = _LoadedChapter(chapter: chapter, html: cleanHtml);
+        _chapterCache[chapter.id] = LoadedChapter(chapter: chapter, html: cleanHtml);
         Log.ok(_tag, 'Chapter loaded: ${cleanHtml.length} chars');
         setState(() {});
         return;
@@ -564,7 +461,6 @@ class _ReaderScreenState extends ConsumerState<ReaderScreen> {
       case 'menu':
         setState(() => _showControls = !_showControls);
         break;
-      // 'none' — do nothing
     }
   }
 
@@ -585,7 +481,7 @@ class _ReaderScreenState extends ConsumerState<ReaderScreen> {
         chunkKey!.currentContext!,
         duration: const Duration(milliseconds: 400),
         curve: Curves.easeInOutCubic,
-        alignment: 0.25, // Smoothly center active paragraph at 25% down the viewport
+        alignment: 0.25,
       );
     }
   }
@@ -593,44 +489,11 @@ class _ReaderScreenState extends ConsumerState<ReaderScreen> {
   // ─── Bottom Sheets ────────────────────────────────────────
 
   void _showChapterList() {
-    showModalBottomSheet(
+    showChapterListSheet(
       context: context,
-      isScrollControlled: true,
-      builder: (context) => DraggableScrollableSheet(
-        initialChildSize: 0.5,
-        maxChildSize: 0.8,
-        minChildSize: 0.3,
-        expand: false,
-        builder: (context, scrollController) => Column(
-          children: [
-            const Padding(
-              padding: EdgeInsets.all(16),
-              child: Text('Chapters', style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
-            ),
-            const Divider(height: 1),
-            Expanded(
-              child: ListView.builder(
-                controller: scrollController,
-                itemCount: _chapters.length,
-                itemBuilder: (context, index) {
-                  final ch = _chapters[index];
-                  final isCurrent = index == _currentIndex;
-                  return ListTile(
-                    leading: CircleAvatar(
-                      radius: 16,
-                      backgroundColor: isCurrent ? AppTheme.kPrimary.withValues(alpha: 0.2) : AppTheme.kSurfaceVariantDark,
-                      child: Text('${index + 1}', style: TextStyle(fontSize: 12, color: isCurrent ? AppTheme.kPrimary : null)),
-                    ),
-                    title: Text(ch.name, maxLines: 1, overflow: TextOverflow.ellipsis,
-                        style: TextStyle(fontWeight: isCurrent ? FontWeight.bold : FontWeight.normal)),
-                    onTap: () { Navigator.pop(context); _jumpToChapter(index); },
-                  );
-                },
-              ),
-            ),
-          ],
-        ),
-      ),
+      chapters: _chapters,
+      currentIndex: _currentIndex,
+      onJumpToChapter: _jumpToChapter,
     );
   }
 
@@ -642,75 +505,11 @@ class _ReaderScreenState extends ConsumerState<ReaderScreen> {
       return;
     }
 
-    showModalBottomSheet(
+    showEpubTocSheet(
       context: context,
-      isScrollControlled: true,
-      builder: (context) => DraggableScrollableSheet(
-        initialChildSize: 0.5,
-        maxChildSize: 0.8,
-        minChildSize: 0.2,
-        expand: false,
-        builder: (context, scrollController) => Column(
-          children: [
-            const Padding(
-              padding: EdgeInsets.all(16),
-              child: Text('Table of Contents', style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
-            ),
-            const Divider(height: 1),
-            Expanded(
-              child: ListView.builder(
-                controller: scrollController,
-                itemCount: _epubToc.length,
-                itemBuilder: (context, index) => _buildTocEntry(_epubToc[index], 0),
-              ),
-            ),
-          ],
-        ),
-      ),
-    );
-  }
-
-  Widget _buildTocEntry(EpubNavigationPoint point, int depth) {
-    final title = point.NavigationLabels?.isNotEmpty == true
-        ? point.NavigationLabels!.first.Text ?? 'Untitled'
-        : 'Untitled';
-    final source = point.Content?.Source ?? '';
-
-    // Find matching chapter index by comparing source path
-    int? chapterIndex;
-    if (source.isNotEmpty) {
-      final sourceBase = source.split('#').first;
-      for (var i = 0; i < _chapters.length; i++) {
-        final chUrl = _chapters[i].url;
-        if (chUrl.contains(sourceBase) || sourceBase.contains(chUrl.split('#').last.split('/').last)) {
-          chapterIndex = i;
-          break;
-        }
-      }
-    }
-
-    final children = point.ChildNavigationPoints;
-    final hasChildren = children != null && children.isNotEmpty;
-
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        ListTile(
-          contentPadding: EdgeInsets.only(left: 16.0 + depth * 20.0, right: 16.0),
-          dense: true,
-          leading: hasChildren ? const Icon(Icons.folder, size: 18) : null,
-          title: Text(title, maxLines: 2, overflow: TextOverflow.ellipsis,
-              style: TextStyle(fontSize: depth == 0 ? 14 : 13, fontWeight: depth == 0 ? FontWeight.w500 : FontWeight.normal)),
-          onTap: () {
-            if (chapterIndex != null) {
-              Navigator.pop(context);
-              _jumpToChapter(chapterIndex);
-            }
-          },
-        ),
-        if (hasChildren)
-          for (final child in children!) _buildTocEntry(child, depth + 1),
-      ],
+      epubToc: _epubToc,
+      chapters: _chapters,
+      onJumpToChapter: _jumpToChapter,
     );
   }
 
@@ -723,12 +522,15 @@ class _ReaderScreenState extends ConsumerState<ReaderScreen> {
         maxChildSize: 0.9,
         minChildSize: 0.3,
         expand: false,
-        builder: (context, scrollController) => _ReaderSettingsSheet(scrollController: scrollController),
+        builder: (context, scrollController) => ReaderSettingsSheet(scrollController: scrollController),
       ),
     );
   }
 
   // ─── Build ────────────────────────────────────────────────
+
+  // Key to force HtmlWidget rebuild when settings change
+  int _settingsVersion = 0;
 
   @override
   Widget build(BuildContext context) {
@@ -741,7 +543,6 @@ class _ReaderScreenState extends ConsumerState<ReaderScreen> {
       if (next.isSpeaking && prev?.currentLineIndex != next.currentLineIndex) {
         _scrollToTtsHighlight(next.currentLineIndex);
       }
-      // TTS stopped — lift scroll ceiling and optionally auto-advance to next chapter.
       if ((prev?.isSpeaking == true) && !next.isSpeaking) {
         _ttsScrollCeiling = null;
         final settings = ref.read(readerSettingsProvider);
@@ -751,14 +552,13 @@ class _ReaderScreenState extends ConsumerState<ReaderScreen> {
       }
     });
 
-    // Increment version on every build to force HtmlWidget rebuild
     _settingsVersion++;
 
     return Scaffold(
       backgroundColor: settings.bgColor,
       body: GestureDetector(
         onTapUp: (details) {
-          if (ttsActive) return; // Don't show controls when TTS is active
+          if (ttsActive) return;
           _handleTap(details);
         },
         child: Stack(
@@ -768,17 +568,67 @@ class _ReaderScreenState extends ConsumerState<ReaderScreen> {
             else if (_error != null)
               _buildError()
             else if (settings.scrollMode == 'paged')
-              _buildPagedContent(settings)
+              buildPagedContent(
+                context: context,
+                settings: settings,
+                chapters: _chapters,
+                currentIndex: _currentIndex,
+                chapterCache: _chapterCache,
+                pageController: _pageController,
+                onPageChanged: (index) => setState(() => _currentIndex = index),
+                loadChapter: _loadChapter,
+                goToPreviousChapter: _goToPreviousChapter,
+                goToNextChapter: _goToNextChapter,
+                chunkKeys: _chunkKeys,
+                settingsVersion: _settingsVersion,
+                ttsState: ttsState,
+              )
             else
-              _buildContinuousContent(settings),
+              buildContinuousContent(
+                context: context,
+                settings: settings,
+                chapters: _chapters,
+                currentIndex: _currentIndex,
+                chapterCache: _chapterCache,
+                scrollController: _scrollController,
+                loadChapter: _loadChapter,
+                chunkKeys: _chunkKeys,
+                settingsVersion: _settingsVersion,
+                ttsState: ttsState,
+              ),
 
             // Normal controls — hidden when TTS is active
-            if (_showControls && !ttsActive) _buildTopBar(),
-            if (_showControls && !ttsActive) _buildBottomBar(),
-            if (_showControls && !ttsActive) _buildProgressBar(),
+            if (_showControls && !ttsActive)
+              buildReaderTopBar(
+                context: context,
+                chapterName: _chapters.isNotEmpty ? _chapters[_currentIndex].name : 'Chapter',
+                onBack: () => Navigator.pop(context),
+                onAddBookmark: _addBookmark,
+                onShowBookmarks: _showBookmarks,
+              ),
+            if (_showControls && !ttsActive)
+              buildReaderBottomBar(
+                onPrevious: _goToPreviousChapter,
+                onNext: _goToNextChapter,
+                onToggleTts: () => _toggleTts(),
+                onShowChapterList: _showChapterList,
+                hasEpubToc: _epubToc.isNotEmpty,
+                onShowEpubToc: _showEpubToc,
+                onTranslate: _translateChapter,
+                onSettings: _showSettingsDialog,
+              ),
+            if (_showControls && !ttsActive) buildReaderProgressBar(_scrollProgress),
 
             // TTS floating player — shown when TTS is active
-            if (ttsActive) _buildTtsFloatingPlayer(ttsState),
+            if (ttsActive)
+              buildTtsFloatingPlayer(
+                ttsState: ttsState,
+                onSkipBack: () => ref.read(ttsManagerProvider.notifier).skipBackward(),
+                onTogglePause: () => ref.read(ttsManagerProvider.notifier).togglePause(),
+                onStop: () => ref.read(ttsManagerProvider.notifier).stop(),
+                onSkipNext: () => ref.read(ttsManagerProvider.notifier).skipForward(),
+                onShowTranslateDialog: () => translate.showTranslateDialog(context, ref),
+              ),
           ],
         ),
       ),
@@ -803,434 +653,7 @@ class _ReaderScreenState extends ConsumerState<ReaderScreen> {
     );
   }
 
-  // ─── Alignment helper ─────────────────────────────────────
-
-  Map<String, String>? _alignmentStyles(ReaderSettings settings) {
-    final alignment = settings.textAlignment;
-    if (alignment == 'left' || alignment == 'center' || alignment == 'right' || alignment == 'justify') {
-      return {'text-align': alignment};
-    }
-    return null;
-  }
-
-  Widget _buildChapterContent(_LoadedChapter loaded, ReaderSettings settings, TextStyle textStyle) {
-    // PDF chapter
-    if (loaded.html.startsWith('PDF:')) {
-      final filePath = loaded.html.replaceFirst('PDF:', '');
-      return Center(
-        child: Column(
-          mainAxisAlignment: MainAxisAlignment.center,
-          children: [
-            Icon(Icons.picture_as_pdf, size: 64, color: settings.textColor.withValues(alpha: 0.5)),
-            const SizedBox(height: 16),
-            Text(
-              'PDF Document',
-              style: TextStyle(fontSize: 18, fontWeight: FontWeight.w600, color: settings.textColor),
-            ),
-            const SizedBox(height: 8),
-            Text(
-              filePath.split('/').last,
-              style: TextStyle(color: settings.textColor.withValues(alpha: 0.5), fontSize: 12),
-            ),
-            const SizedBox(height: 24),
-            FilledButton.icon(
-              onPressed: () async {
-                final uri = Uri.file(filePath);
-                if (await canLaunchUrl(uri)) {
-                  await launchUrl(uri, mode: LaunchMode.externalApplication);
-                }
-              },
-              icon: const Icon(Icons.open_in_new, size: 18),
-              label: const Text('Open in PDF Viewer'),
-            ),
-          ],
-        ),
-      );
-    }
-
-    // HTML/EPUB chapter — chunk and render paragraph by paragraph
-    final ttsState = ref.watch(ttsManagerProvider);
-    final currentChapterId = (_chapters.isNotEmpty && _currentIndex < _chapters.length)
-        ? _chapters[_currentIndex].id
-        : -1;
-    final isCurrentChapter = loaded.chapter.id == currentChapterId;
-
-    final chunks = HtmlChunker.chunkHtml(loaded.html);
-    final highlightKey = ttsState.isSpeaking ? '-${ttsState.currentChunkIndex}-${ttsState.currentWordIndex}' : '';
-
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        for (final chunk in chunks) ...[
-          Builder(
-            builder: (context) {
-              final isCurrentChunk = isCurrentChapter &&
-                  ttsState.isSpeaking &&
-                  chunk.index == ttsState.currentChunkIndex;
-
-              var chunkHtml = chunk.rawHtml;
-              if (isCurrentChunk) {
-                // Use word-index-based highlighting: one synthesis per chunk,
-                // word index covers the entire paragraph.
-                chunkHtml = TtsHighlighter.highlightFromWordIndex(
-                  chunk.rawHtml,
-                  ttsState.currentWordIndex,
-                  ttsState.highlightMode,
-                );
-              }
-
-              return KeyedSubtree(
-                key: _chunkKeys.putIfAbsent('${loaded.chapter.id}-${chunk.index}', () => GlobalKey()),
-                child: HtmlWidget(
-                  chunkHtml,
-                  key: ValueKey('$_settingsVersion-${settings.textAlignment}-${settings.fontSize}-${settings.fontFamily}${isCurrentChunk ? highlightKey : ''}'),
-                  textStyle: textStyle,
-                  customStylesBuilder: (element) {
-                    final styles = _alignmentStyles(settings);
-                    if (element.localName == 'span') {
-                      final cls = element.attributes['class'] ?? '';
-                      if (cls.contains('tts-highlight-word')) {
-                        return <String, String>{
-                          'background-color': 'rgba(61, 80, 250, 0.75)',
-                          'color': '#ffffff',
-                          'font-weight': 'bold',
-                        };
-                      } else if (cls.contains('tts-highlight')) {
-                        return <String, String>{
-                          'background-color': 'rgba(61, 80, 250, 0.22)',
-                          'color': 'inherit',
-                        };
-                      }
-                    }
-                    return styles;
-                  },
-                ),
-              );
-            },
-          ),
-        ],
-      ],
-    );
-  }
-
-  // Key to force HtmlWidget rebuild when settings change
-  int _settingsVersion = 0;
-
-  // ─── Continuous Mode ──────────────────────────────────────
-
-  Widget _buildContinuousContent(ReaderSettings settings) {
-    final textStyle = TextStyle(
-      fontSize: settings.fontSize,
-      fontFamily: settings.fontFamily.isEmpty ? null : settings.fontFamily,
-      height: settings.lineHeight,
-      color: settings.textColor,
-    );
-
-    return ListView.builder(
-      controller: _scrollController,
-      padding: EdgeInsets.symmetric(horizontal: settings.paddingH, vertical: settings.paddingV),
-      itemCount: _chapters.length,
-      itemBuilder: (context, index) {
-        // Show loading indicator for chapters not yet loaded
-        final loaded = _chapterCache[_chapters[index].id];
-        if (loaded == null) {
-          // Preload future chapters so they fill in as the user scrolls
-          if (index <= _currentIndex + 3) {
-            _loadChapter(index);
-          }
-          if (index == _currentIndex + 1) {
-            // Immediate next chapter — show a loading spinner
-            return const Padding(
-              padding: EdgeInsets.symmetric(vertical: 32),
-              child: Center(child: CircularProgressIndicator()),
-            );
-          }
-          // Chapters further ahead — provide a placeholder so the
-          // list stays scrollable and triggers onScroll preloading.
-          return const SizedBox(height: 300);
-        }
-
-        // Chapter divider — only for online chapters, not EPUBs
-        final isEpub = loaded.chapter.url.startsWith('epub://');
-        if (index > 0 && !isEpub) {
-          return Column(
-            children: [
-              const SizedBox(height: 64),
-              // Chapter divider — full-width with chapter title
-              Container(
-                width: double.infinity,
-                padding: const EdgeInsets.symmetric(vertical: 24),
-                child: Column(
-                  children: [
-                    // Top line
-                    Container(
-                      height: 1,
-                      color: settings.textColor.withValues(alpha: 0.2),
-                    ),
-                    const SizedBox(height: 24),
-                    // Chapter number
-                    Text(
-                      'Chapter ${index + 1}',
-                      style: TextStyle(
-                        color: settings.textColor.withValues(alpha: 0.4),
-                        fontSize: 12,
-                      ),
-                    ),
-                    const SizedBox(height: 8),
-                    // Chapter title
-                    Text(
-                      loaded.chapter.name,
-                      textAlign: TextAlign.center,
-                      style: TextStyle(
-                        color: settings.textColor,
-                        fontSize: settings.fontSize + 2,
-                        fontWeight: FontWeight.w600,
-                      ),
-                    ),
-                    const SizedBox(height: 24),
-                    // Bottom line
-                    Container(
-                      height: 1,
-                      color: settings.textColor.withValues(alpha: 0.2),
-                    ),
-                  ],
-                ),
-              ),
-              const SizedBox(height: 48),
-              // Chapter content — HTML or PDF
-              _buildChapterContent(loaded, settings, textStyle),
-            ],
-          );
-        }
-
-        // First chapter — no divider
-        return _buildChapterContent(loaded, settings, textStyle);
-      },
-    );
-  }
-
-  // ─── Paged Mode ───────────────────────────────────────────
-
-  Widget _buildPagedContent(ReaderSettings settings) {
-    final textStyle = TextStyle(
-      fontSize: settings.fontSize,
-      fontFamily: settings.fontFamily.isEmpty ? null : settings.fontFamily,
-      height: settings.lineHeight,
-      color: settings.textColor,
-    );
-
-    return Column(
-      children: [
-        // Page content
-        Expanded(
-          child: PageView.builder(
-            controller: _pageController,
-            itemCount: _chapters.length,
-            onPageChanged: (index) {
-              setState(() => _currentIndex = index);
-              _loadChapter(index);
-              if (index > 0) _loadChapter(index - 1);
-              if (index < _chapters.length - 1) _loadChapter(index + 1);
-            },
-            itemBuilder: (context, index) {
-              final loaded = _chapterCache[_chapters[index].id];
-              if (loaded == null) {
-                return const Center(child: CircularProgressIndicator());
-              }
-              return SingleChildScrollView(
-                padding: EdgeInsets.symmetric(horizontal: settings.paddingH, vertical: settings.paddingV),
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    // Chapter title at top
-                    Padding(
-                      padding: const EdgeInsets.only(bottom: 16),
-                      child: Text(
-                        loaded.chapter.name,
-                        style: TextStyle(
-                          color: settings.textColor,
-                          fontSize: settings.fontSize + 4,
-                          fontWeight: FontWeight.bold,
-                        ),
-                      ),
-                    ),
-                    _buildChapterContent(loaded, settings, textStyle),
-                  ],
-                ),
-              );
-            },
-          ),
-        ),
-
-        // Page navigation bar
-        Container(
-          color: settings.bgColor,
-          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-          child: Row(
-            mainAxisAlignment: MainAxisAlignment.spaceBetween,
-            children: [
-              // Previous page
-              TextButton.icon(
-                onPressed: _currentIndex > 0 ? _goToPreviousChapter : null,
-                icon: const Icon(Icons.chevron_left, size: 20),
-                label: const Text('Previous'),
-              ),
-
-              // Chapter indicator
-              Text(
-                '${_currentIndex + 1} / ${_chapters.length}',
-                style: TextStyle(color: settings.textColor.withValues(alpha: 0.7), fontSize: 13),
-              ),
-
-              // Next page
-              TextButton.icon(
-                onPressed: _currentIndex < _chapters.length - 1 ? _goToNextChapter : null,
-                icon: const Text('Next'),
-                label: const Icon(Icons.chevron_right, size: 20),
-              ),
-            ],
-          ),
-        ),
-      ],
-    );
-  }
-
-  // ─── Controls Overlay ─────────────────────────────────────
-
-  Widget _buildTopBar() {
-    final settings = ref.watch(readerSettingsProvider);
-    return Positioned(
-      top: 0, left: 0, right: 0,
-      child: Container(
-        decoration: const BoxDecoration(
-          gradient: LinearGradient(begin: Alignment.topCenter, end: Alignment.bottomCenter, colors: [Colors.black54, Colors.transparent]),
-        ),
-        child: SafeArea(
-          child: Padding(
-            padding: const EdgeInsets.symmetric(horizontal: 8),
-            child: Row(
-              children: [
-                IconButton(
-                  icon: const Icon(Icons.arrow_back, color: Colors.white),
-                  onPressed: () { SystemChrome.setEnabledSystemUIMode(SystemUiMode.edgeToEdge); Navigator.pop(context); },
-                ),
-                Expanded(
-                  child: Text(
-                    _chapters.isNotEmpty ? _chapters[_currentIndex].name : 'Chapter',
-                    style: const TextStyle(color: Colors.white, fontSize: 16, fontWeight: FontWeight.w500),
-                    maxLines: 1, overflow: TextOverflow.ellipsis,
-                  ),
-                ),
-                IconButton(
-                  icon: const Icon(Icons.bookmark_border, color: Colors.white),
-                  onPressed: _addBookmark,
-                ),
-                IconButton(
-                  icon: const Icon(Icons.bookmarks, color: Colors.white),
-                  onPressed: _showBookmarks,
-                ),
-              ],
-            ),
-          ),
-        ),
-      ),
-    );
-  }
-
-  Widget _buildBottomBar() {
-    return Positioned(
-      bottom: 0, left: 0, right: 0,
-      child: Container(
-        decoration: const BoxDecoration(
-          gradient: LinearGradient(begin: Alignment.bottomCenter, end: Alignment.topCenter, colors: [Colors.black54, Colors.transparent]),
-        ),
-        child: SafeArea(
-          child: Padding(
-            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-            child: Row(
-              mainAxisAlignment: MainAxisAlignment.spaceEvenly,
-              children: [
-                IconButton(icon: const Icon(Icons.skip_previous, color: Colors.white), onPressed: _goToPreviousChapter),
-                IconButton(
-                  icon: const Icon(Icons.record_voice_over, color: Colors.white),
-                  onPressed: () => _toggleTts(),
-                ),
-                IconButton(icon: const Icon(Icons.list, color: Colors.white), onPressed: _showChapterList),
-                if (_epubToc.isNotEmpty)
-                  IconButton(icon: const Icon(Icons.menu_book, color: Colors.white), onPressed: _showEpubToc, tooltip: 'Table of Contents'),
-                IconButton(icon: const Icon(Icons.translate, color: Colors.white), onPressed: _translateChapter, tooltip: 'Translate'),
-                IconButton(icon: const Icon(Icons.settings, color: Colors.white), onPressed: _showSettingsDialog),
-                IconButton(icon: const Icon(Icons.skip_next, color: Colors.white), onPressed: _goToNextChapter),
-              ],
-            ),
-          ),
-        ),
-      ),
-    );
-  }
-
-  /// TTS controls — same style as the normal bottom bar.
-  Widget _buildTtsFloatingPlayer(TtsManagerState ttsState) {
-    final progress = ttsState.totalChunks > 0
-        ? ttsState.currentChunkIndex / ttsState.totalChunks
-        : 0.0;
-
-    return Positioned(
-      bottom: 0, left: 0, right: 0,
-      child: Container(
-        decoration: const BoxDecoration(
-          gradient: LinearGradient(begin: Alignment.bottomCenter, end: Alignment.topCenter, colors: [Colors.black54, Colors.transparent]),
-        ),
-        child: SafeArea(
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              // Controls row — same layout as normal bottom bar
-              Padding(
-                padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-                child: Row(
-                  mainAxisAlignment: MainAxisAlignment.spaceEvenly,
-                  children: [
-                    IconButton(
-                      icon: const Icon(Icons.skip_previous, color: Colors.white),
-                      onPressed: () => ref.read(ttsManagerProvider.notifier).skipBackward(),
-                    ),
-                    IconButton(
-                      icon: Icon(
-                        ttsState.isPaused ? Icons.play_arrow : Icons.pause,
-                        color: ttsState.isPaused ? Colors.white : AppTheme.kPrimary,
-                      ),
-                      onPressed: () => ref.read(ttsManagerProvider.notifier).togglePause(),
-                    ),
-                    IconButton(
-                      icon: const Icon(Icons.stop, color: Colors.white),
-                      onPressed: () => ref.read(ttsManagerProvider.notifier).stop(),
-                    ),
-                    IconButton(
-                      icon: const Icon(Icons.skip_next, color: Colors.white),
-                      onPressed: () => ref.read(ttsManagerProvider.notifier).skipForward(),
-                    ),
-                    IconButton(
-                      icon: const Icon(Icons.translate, color: Colors.white),
-                      onPressed: _showTranslateDialog,
-                      tooltip: 'Translate text',
-                    ),
-                  ],
-                ),
-              ),
-              // Thin progress bar
-              LinearProgressIndicator(
-                value: progress,
-                backgroundColor: Colors.white24,
-                valueColor: const AlwaysStoppedAnimation<Color>(AppTheme.kPrimary),
-                minHeight: 2,
-              ),
-            ],
-          ),
-        ),
-      ),
-    );
-  }
+  // ─── TTS ──────────────────────────────────────────────────
 
   void _toggleTts() async {
     final ttsState = ref.read(ttsManagerProvider);
@@ -1241,7 +664,6 @@ class _ReaderScreenState extends ConsumerState<ReaderScreen> {
       return;
     }
 
-    // Start TTS for current chapter
     if (_chapters.isEmpty || _currentIndex >= _chapters.length) return;
     final chapter = _chapters[_currentIndex];
     final loaded = _chapterCache[chapter.id];
@@ -1252,7 +674,6 @@ class _ReaderScreenState extends ConsumerState<ReaderScreen> {
       return;
     }
 
-    // Get novel info for media controls (title + cover + author)
     final novelDao = ref.read(novelDaoProvider);
     final novel = await novelDao.getNovelById(widget.novelId);
     ttsNotifier.startFromHtml(
@@ -1266,14 +687,12 @@ class _ReaderScreenState extends ConsumerState<ReaderScreen> {
   void _autoAdvanceTts() async {
     if (_currentIndex >= _chapters.length - 1) return;
 
-    // Move to next chapter
     final nextIndex = _currentIndex + 1;
     setState(() => _currentIndex = nextIndex);
     if (_scrollController.hasClients) _scrollController.jumpTo(0);
     await _loadChapter(nextIndex);
     _preloadSurrounding();
 
-    // Start TTS on the new chapter
     final chapter = _chapters[nextIndex];
     final loaded = _chapterCache[chapter.id];
     if (loaded == null) return;
@@ -1288,6 +707,8 @@ class _ReaderScreenState extends ConsumerState<ReaderScreen> {
       novelAuthor: novel?.author,
     );
   }
+
+  // ─── Translation ──────────────────────────────────────────
 
   void _translateChapter() async {
     if (_chapters.isEmpty || _currentIndex >= _chapters.length) return;
@@ -1311,7 +732,6 @@ class _ReaderScreenState extends ConsumerState<ReaderScreen> {
       return;
     }
 
-    // Show loading
     if (!mounted) return;
     ScaffoldMessenger.of(context).showSnackBar(
       const SnackBar(content: Text('Translating...'), duration: Duration(seconds: 3)),
@@ -1320,17 +740,14 @@ class _ReaderScreenState extends ConsumerState<ReaderScreen> {
     try {
       final service = ref.read(translationServiceProvider);
 
-      // Parse HTML into paragraphs, translate each one, rebuild HTML
       final paragraphRegex = RegExp(r'<(p|div|h[1-6]|li|blockquote)[^>]*>(.*?)</\1>', dotAll: true);
       final matches = paragraphRegex.allMatches(loaded.html).toList();
 
       if (matches.isEmpty) {
-        // No paragraph tags — treat as single block
         final plainText = loaded.html.replaceAll(RegExp(r'<[^>]*>'), ' ').replaceAll(RegExp(r'\s+'), ' ').trim();
         final translated = await service.translate(plainText, sourceLang: sourceLang, targetLang: targetLang);
-        _chapterCache[chapter.id] = _LoadedChapter(chapter: chapter, html: '<p>$translated</p>');
+        _chapterCache[chapter.id] = LoadedChapter(chapter: chapter, html: '<p>$translated</p>');
       } else {
-        // Translate each paragraph individually
         final buffer = StringBuffer();
         for (final match in matches) {
           final tag = match.group(1)!;
@@ -1345,7 +762,7 @@ class _ReaderScreenState extends ConsumerState<ReaderScreen> {
           final translated = await service.translate(plainText, sourceLang: sourceLang, targetLang: targetLang);
           buffer.write('<$tag>$translated</$tag>\n');
         }
-        _chapterCache[chapter.id] = _LoadedChapter(chapter: chapter, html: buffer.toString());
+        _chapterCache[chapter.id] = LoadedChapter(chapter: chapter, html: buffer.toString());
       }
 
       setState(() {});
@@ -1364,291 +781,5 @@ class _ReaderScreenState extends ConsumerState<ReaderScreen> {
       }
     }
   }
-
-  void _showTranslateDialog() {
-    final controller = TextEditingController();
-    String? translatedText;
-    bool isTranslating = false;
-
-    showDialog(
-      context: context,
-      builder: (ctx) => StatefulBuilder(
-        builder: (ctx, setDialogState) => AlertDialog(
-          title: const Text('Translate Text'),
-          content: SizedBox(
-            width: double.maxFinite,
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                TextField(
-                  controller: controller,
-                  maxLines: 4,
-                  decoration: const InputDecoration(
-                    hintText: 'Paste or type text to translate...',
-                    border: OutlineInputBorder(),
-                  ),
-                ),
-                if (isTranslating) ...[
-                  const SizedBox(height: 12),
-                  const LinearProgressIndicator(),
-                ],
-                if (translatedText != null) ...[
-                  const SizedBox(height: 12),
-                  Container(
-                    width: double.infinity,
-                    padding: const EdgeInsets.all(12),
-                    decoration: BoxDecoration(
-                      color: AppTheme.kSurfaceVariantDark,
-                      borderRadius: BorderRadius.circular(8),
-                    ),
-                    child: Text(translatedText!, style: const TextStyle(fontSize: 14)),
-                  ),
-                ],
-              ],
-            ),
-          ),
-          actions: [
-            TextButton(onPressed: () => Navigator.pop(ctx), child: const Text('Close')),
-            FilledButton(
-              onPressed: isTranslating
-                  ? null
-                  : () async {
-                      final text = controller.text.trim();
-                      if (text.isEmpty) return;
-
-                      setDialogState(() => isTranslating = true);
-
-                      final translationSettings = ref.read(translationSettingsProvider);
-                      final service = ref.read(translationServiceProvider);
-                      final result = await service.translate(
-                        text,
-                        sourceLang: translationSettings.fromLanguage,
-                        targetLang: translationSettings.toLanguage,
-                      );
-
-                      setDialogState(() {
-                        isTranslating = false;
-                        translatedText = result;
-                      });
-                    },
-              child: const Text('Translate'),
-            ),
-          ],
-        ),
-      ),
-    );
-  }
-
-  Widget _buildProgressBar() {
-    return Positioned(
-      top: 0, left: 0, right: 0,
-      child: LinearProgressIndicator(
-        value: _scrollProgress,
-        backgroundColor: Colors.white24,
-        valueColor: const AlwaysStoppedAnimation<Color>(AppTheme.kPrimary),
-        minHeight: 2,
-      ),
-    );
-  }
 }
 
-// ─── Settings Sheet (same as before) ────────────────────────
-
-class _ReaderSettingsSheet extends ConsumerStatefulWidget {
-  final ScrollController scrollController;
-  const _ReaderSettingsSheet({required this.scrollController});
-
-  @override
-  ConsumerState<_ReaderSettingsSheet> createState() => _ReaderSettingsSheetState();
-}
-
-class _ReaderSettingsSheetState extends ConsumerState<_ReaderSettingsSheet> {
-  List<String> _systemFonts = [];
-  bool _loadingFonts = true;
-
-  @override
-  void initState() {
-    super.initState();
-    _loadFonts();
-  }
-
-  Future<void> _loadFonts() async {
-    final fonts = await getSystemFonts();
-    setState(() { _systemFonts = fonts; _loadingFonts = false; });
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    final settings = ref.watch(readerSettingsProvider);
-    final notifier = ref.read(readerSettingsProvider.notifier);
-
-    return Column(
-      children: [
-        const Padding(
-          padding: EdgeInsets.all(16),
-          child: Text('Reader Settings', style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
-        ),
-        const Divider(height: 1),
-        Expanded(
-          child: ListView(
-            controller: widget.scrollController,
-            padding: const EdgeInsets.all(16),
-            children: [
-              _buildSection('Font'),
-              ListTile(
-                dense: true, contentPadding: EdgeInsets.zero,
-                title: const Text('Font Family'),
-                subtitle: Text(settings.fontFamily.isEmpty ? 'System Default' : settings.fontFamily,
-                    style: TextStyle(fontFamily: settings.fontFamily.isEmpty ? null : settings.fontFamily)),
-                trailing: const Icon(Icons.chevron_right),
-                onTap: () => _showFontPicker(settings, notifier),
-              ),
-              const SizedBox(height: 12),
-              _buildSlider('Size', settings.fontSize, 10, 30, '${settings.fontSize.round()} sp', (v) => notifier.updateFontSize(v)),
-              _buildSlider('Line Height', settings.lineHeight, 1.0, 3.0, settings.lineHeight.toStringAsFixed(1), (v) => notifier.updateLineHeight(v)),
-
-              const SizedBox(height: 16),
-              _buildSection('Layout'),
-              _buildSlider('H Padding', settings.paddingH, 0, 50, '${settings.paddingH.round()}', (v) => notifier.updatePaddingH(v)),
-              _buildSlider('V Padding', settings.paddingV, 0, 50, '${settings.paddingV.round()}', (v) => notifier.updatePaddingV(v)),
-              _buildSlider('Paragraph Gap', settings.paragraphSpacing, 0, 40, '${settings.paragraphSpacing.round()}', (v) => notifier.updateParagraphSpacing(v)),
-
-              const SizedBox(height: 16),
-              _buildSection('Text'),
-              _buildAlignmentRow(settings, notifier),
-
-              const SizedBox(height: 16),
-              _buildSection('Display'),
-              SwitchListTile(dense: true, contentPadding: EdgeInsets.zero, title: const Text('TTS Auto-Scroll'), subtitle: const Text('Auto-scroll reader while TTS is reading'), value: settings.ttsAutoScroll, onChanged: (_) => notifier.toggleTtsAutoScroll()),
-              SwitchListTile(dense: true, contentPadding: EdgeInsets.zero, title: const Text('TTS Auto-Advance'), subtitle: const Text('Automatically start next chapter when TTS finishes'), value: settings.ttsAutoAdvance, onChanged: (_) => notifier.toggleTtsAutoAdvance()),
-              SwitchListTile(dense: true, contentPadding: EdgeInsets.zero, title: const Text('Bionic Reading'), subtitle: const Text('Bold first half of each word'), value: settings.bionicReading, onChanged: (_) => notifier.toggleBionicReading()),
-              SwitchListTile(dense: true, contentPadding: EdgeInsets.zero, title: const Text('Selectable Text'), value: settings.selectableText, onChanged: (_) => notifier.toggleSelectableText()),
-              SwitchListTile(dense: true, contentPadding: EdgeInsets.zero, title: const Text('Show Time'), value: settings.showTime, onChanged: (_) => notifier.toggleShowTime()),
-              if (!Platform.isLinux && !Platform.isMacOS && !Platform.isWindows) ...[
-                SwitchListTile(dense: true, contentPadding: EdgeInsets.zero, title: const Text('Show Battery'), value: settings.showBattery, onChanged: (_) => notifier.toggleShowBattery()),
-                SwitchListTile(dense: true, contentPadding: EdgeInsets.zero, title: const Text('Keep Screen On'), value: settings.keepScreenOn, onChanged: (_) => notifier.toggleKeepScreenOn()),
-              ],
-
-              const SizedBox(height: 16),
-              _buildSection('Scroll'),
-              _buildRadioTile('Continuous', 'continuous', settings.scrollMode, (v) => notifier.updateScrollMode(v!)),
-              _buildRadioTile('Paged', 'paged', settings.scrollMode, (v) => notifier.updateScrollMode(v!)),
-
-              if (!Platform.isLinux && !Platform.isMacOS && !Platform.isWindows) ...[
-                const SizedBox(height: 16),
-                _buildSection('Orientation'),
-                _buildRadioTile('Auto', 'auto', settings.orientation, (v) => notifier.updateOrientation(v!)),
-                _buildRadioTile('Portrait', 'portrait', settings.orientation, (v) => notifier.updateOrientation(v!)),
-                _buildRadioTile('Landscape', 'landscape', settings.orientation, (v) => notifier.updateOrientation(v!)),
-              ],
-
-              const SizedBox(height: 16),
-              _buildSection('Theme'),
-              _buildThemeRow(settings, notifier),
-            ],
-          ),
-        ),
-      ],
-    );
-  }
-
-  void _showFontPicker(ReaderSettings settings, ReaderSettingsNotifier notifier) {
-    showModalBottomSheet(
-      context: context,
-      isScrollControlled: true,
-      builder: (context) => DraggableScrollableSheet(
-        initialChildSize: 0.5, maxChildSize: 0.8, minChildSize: 0.3, expand: false,
-        builder: (context, scrollController) => Column(
-          children: [
-            const Padding(padding: EdgeInsets.all(16), child: Text('Select Font', style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold))),
-            const Divider(height: 1),
-            Expanded(
-              child: ListView.builder(
-                controller: scrollController,
-                itemCount: _systemFonts.length + 1,
-                itemBuilder: (context, index) {
-                  if (index == 0) {
-                    return ListTile(
-                      leading: Icon(settings.fontFamily.isEmpty ? Icons.check_circle : Icons.circle_outlined, color: settings.fontFamily.isEmpty ? AppTheme.kPrimary : null),
-                      title: const Text('System Default'),
-                      onTap: () { notifier.updateFontFamily(''); Navigator.pop(context); },
-                    );
-                  }
-                  final font = _systemFonts[index - 1];
-                  final isSelected = settings.fontFamily.toLowerCase() == font.toLowerCase();
-                  return ListTile(
-                    leading: Icon(isSelected ? Icons.check_circle : Icons.circle_outlined, color: isSelected ? AppTheme.kPrimary : null),
-                    title: Text(font, style: TextStyle(fontFamily: font, fontSize: 16)),
-                    onTap: () { notifier.updateFontFamily(font); Navigator.pop(context); },
-                  );
-                },
-              ),
-            ),
-          ],
-        ),
-      ),
-    );
-  }
-
-  Widget _buildSection(String title) {
-    return Padding(padding: const EdgeInsets.only(bottom: 8), child: Text(title, style: const TextStyle(fontSize: 14, fontWeight: FontWeight.w600, color: AppTheme.kTextSecondaryDark)));
-  }
-
-  Widget _buildSlider(String label, double value, double min, double max, String display, ValueChanged<double> onChanged) {
-    return Padding(
-      padding: const EdgeInsets.symmetric(vertical: 4),
-      child: Row(children: [
-        SizedBox(width: 80, child: Text(label, style: const TextStyle(fontSize: 13))),
-        Expanded(child: Slider(value: value, min: min, max: max, onChanged: onChanged)),
-        SizedBox(width: 40, child: Text(display, style: const TextStyle(fontSize: 12))),
-      ]),
-    );
-  }
-
-  Widget _buildAlignmentRow(ReaderSettings settings, ReaderSettingsNotifier notifier) {
-    return Row(children: [
-      const SizedBox(width: 80, child: Text('Align', style: TextStyle(fontSize: 13))),
-      Expanded(child: SegmentedButton<String>(
-        segments: const [
-          ButtonSegment(value: 'left', icon: Icon(Icons.format_align_left, size: 18)),
-          ButtonSegment(value: 'center', icon: Icon(Icons.format_align_center, size: 18)),
-          ButtonSegment(value: 'right', icon: Icon(Icons.format_align_right, size: 18)),
-          ButtonSegment(value: 'justify', icon: Icon(Icons.format_align_justify, size: 18)),
-        ],
-        selected: {settings.textAlignment},
-        onSelectionChanged: (s) => notifier.updateTextAlignment(s.first),
-      )),
-    ]);
-  }
-
-  Widget _buildRadioTile(String title, String value, String groupValue, ValueChanged<String?> onChanged) {
-    return RadioListTile<String>(dense: true, contentPadding: EdgeInsets.zero, title: Text(title), value: value, groupValue: groupValue, onChanged: onChanged);
-  }
-
-  Widget _buildThemeRow(ReaderSettings settings, ReaderSettingsNotifier notifier) {
-    return Wrap(spacing: 12, runSpacing: 8, children: [
-      _themeCircle('Dark', 'dark', AppTheme.kReaderBgDefault, AppTheme.kReaderTextDefault, settings, notifier),
-      _themeCircle('Light', 'light', AppTheme.kReaderBgColors['light']!, AppTheme.kReaderTextColors['light']!, settings, notifier),
-      _themeCircle('Sepia', 'sepia', AppTheme.kReaderBgColors['sepia']!, AppTheme.kReaderTextColors['sepia']!, settings, notifier),
-      _themeCircle('Green', 'green', AppTheme.kReaderBgColors['green']!, AppTheme.kReaderTextColors['green']!, settings, notifier),
-      _themeCircle('Blue', 'blue', AppTheme.kReaderBgColors['blue']!, AppTheme.kReaderTextColors['blue']!, settings, notifier),
-    ]);
-  }
-
-  Widget _themeCircle(String label, String themeKey, Color bg, Color text, ReaderSettings settings, ReaderSettingsNotifier notifier) {
-    final isSelected = settings.readerTheme == themeKey;
-    return GestureDetector(
-      onTap: () => notifier.updateReaderTheme(themeKey),
-      child: Column(mainAxisSize: MainAxisSize.min, children: [
-        Container(
-          width: 40, height: 40,
-          decoration: BoxDecoration(color: bg, shape: BoxShape.circle, border: Border.all(
-            color: isSelected ? AppTheme.kPrimary : Colors.grey.withValues(alpha: 0.3), width: isSelected ? 3 : 1)),
-          child: Center(child: Text('Aa', style: TextStyle(color: text, fontSize: 12, fontWeight: FontWeight.bold))),
-        ),
-        const SizedBox(height: 4),
-        Text(label, style: TextStyle(fontSize: 10, color: isSelected ? AppTheme.kPrimary : null, fontWeight: isSelected ? FontWeight.bold : FontWeight.normal)),
-      ]),
-    );
-  }
-}

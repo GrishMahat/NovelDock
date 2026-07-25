@@ -1,0 +1,145 @@
+import 'package:epubx/epubx.dart';
+import 'package:flutter/material.dart';
+
+import '../../../core/database/database.dart';
+import '../../../theme/app_theme.dart';
+
+/// Shows a draggable bottom sheet listing all chapters.
+void showChapterListSheet({
+  required BuildContext context,
+  required List<Chapter> chapters,
+  required int currentIndex,
+  required void Function(int index) onJumpToChapter,
+}) {
+  showModalBottomSheet(
+    context: context,
+    isScrollControlled: true,
+    builder: (context) => DraggableScrollableSheet(
+      initialChildSize: 0.5,
+      maxChildSize: 0.8,
+      minChildSize: 0.3,
+      expand: false,
+      builder: (context, scrollController) => Column(
+        children: [
+          const Padding(
+            padding: EdgeInsets.all(16),
+            child: Text('Chapters', style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
+          ),
+          const Divider(height: 1),
+          Expanded(
+            child: ListView.builder(
+              controller: scrollController,
+              itemCount: chapters.length,
+              itemBuilder: (context, index) {
+                final ch = chapters[index];
+                final isCurrent = index == currentIndex;
+                return ListTile(
+                  leading: CircleAvatar(
+                    radius: 16,
+                    backgroundColor: isCurrent ? AppTheme.kPrimary.withValues(alpha: 0.2) : AppTheme.kSurfaceVariantDark,
+                    child: Text('${index + 1}', style: TextStyle(fontSize: 12, color: isCurrent ? AppTheme.kPrimary : null)),
+                  ),
+                  title: Text(ch.name, maxLines: 1, overflow: TextOverflow.ellipsis,
+                      style: TextStyle(fontWeight: isCurrent ? FontWeight.bold : FontWeight.normal)),
+                  onTap: () { Navigator.pop(context); onJumpToChapter(index); },
+                );
+              },
+            ),
+          ),
+        ],
+      ),
+    ),
+  );
+}
+
+/// Shows a draggable bottom sheet with the EPUB table of contents.
+void showEpubTocSheet({
+  required BuildContext context,
+  required List<EpubNavigationPoint> epubToc,
+  required List<Chapter> chapters,
+  required void Function(int index) onJumpToChapter,
+}) {
+  showModalBottomSheet(
+    context: context,
+    isScrollControlled: true,
+    builder: (context) => DraggableScrollableSheet(
+      initialChildSize: 0.5,
+      maxChildSize: 0.8,
+      minChildSize: 0.2,
+      expand: false,
+      builder: (context, scrollController) => Column(
+        children: [
+          const Padding(
+            padding: EdgeInsets.all(16),
+            child: Text('Table of Contents', style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
+          ),
+          const Divider(height: 1),
+          Expanded(
+            child: ListView.builder(
+              controller: scrollController,
+              itemCount: epubToc.length,
+              itemBuilder: (sheetContext, index) => buildTocEntry(
+                context: sheetContext,
+                point: epubToc[index],
+                depth: 0,
+                chapters: chapters,
+                onJumpToChapter: onJumpToChapter,
+              ),
+            ),
+          ),
+        ],
+      ),
+    ),
+  );
+}
+
+/// Builds a single TOC entry (and its children recursively).
+Widget buildTocEntry({
+  required BuildContext context,
+  required EpubNavigationPoint point,
+  required int depth,
+  required List<Chapter> chapters,
+  required void Function(int index) onJumpToChapter,
+}) {
+  final title = point.NavigationLabels?.isNotEmpty == true
+      ? point.NavigationLabels!.first.Text ?? 'Untitled'
+      : 'Untitled';
+  final source = point.Content?.Source ?? '';
+
+  int? chapterIndex;
+  if (source.isNotEmpty) {
+    final sourceBase = source.split('#').first;
+    for (var i = 0; i < chapters.length; i++) {
+      final chUrl = chapters[i].url;
+      if (chUrl.contains(sourceBase) || sourceBase.contains(chUrl.split('#').last.split('/').last)) {
+        chapterIndex = i;
+        break;
+      }
+    }
+  }
+
+  final children = point.ChildNavigationPoints;
+  final hasChildren = children != null && children.isNotEmpty;
+
+  return Column(
+    crossAxisAlignment: CrossAxisAlignment.start,
+    children: [
+      ListTile(
+        contentPadding: EdgeInsets.only(left: 16.0 + depth * 20.0, right: 16.0),
+        dense: true,
+        leading: hasChildren ? const Icon(Icons.folder, size: 18) : null,
+        title: Text(title, maxLines: 2, overflow: TextOverflow.ellipsis,
+            style: TextStyle(fontSize: depth == 0 ? 14 : 13, fontWeight: depth == 0 ? FontWeight.w500 : FontWeight.normal)),
+        onTap: () {
+          if (chapterIndex != null) {
+            Navigator.pop(context);
+            onJumpToChapter(chapterIndex);
+          }
+        },
+      ),
+      if (hasChildren)
+        for (final child in children)
+          buildTocEntry(context: context, point: child, depth: depth + 1, chapters: chapters, onJumpToChapter: onJumpToChapter),
+    ],
+  );
+}
