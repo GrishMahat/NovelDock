@@ -6,7 +6,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_widget_from_html/flutter_widget_from_html.dart';
-import 'package:pdf_render_maintained/pdf_render_maintained.dart';
+import 'package:url_launcher/url_launcher.dart';
 
 import '../../core/database/database.dart';
 import '../../core/providers/database_providers.dart';
@@ -714,76 +714,6 @@ class _ReaderScreenState extends ConsumerState<ReaderScreen> {
     );
   }
 
-  void _showPdfThumbnails(String filePath) {
-    showModalBottomSheet(
-      context: context,
-      isScrollControlled: true,
-      builder: (context) => DraggableScrollableSheet(
-        initialChildSize: 0.6,
-        maxChildSize: 0.85,
-        minChildSize: 0.3,
-        expand: false,
-        builder: (context, scrollController) => Column(
-          children: [
-            const Padding(
-              padding: EdgeInsets.all(16),
-              child: Text('Pages', style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
-            ),
-            const Divider(height: 1),
-            Expanded(
-              child: FutureBuilder<PdfDocument>(
-                future: PdfDocument.openFile(filePath),
-                builder: (context, snapshot) {
-                  if (!snapshot.hasData) {
-                    return const Center(child: CircularProgressIndicator());
-                  }
-                  final document = snapshot.data!;
-                  return GridView.builder(
-                    controller: scrollController,
-                    padding: const EdgeInsets.all(8),
-                    gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
-                      crossAxisCount: 3,
-                      childAspectRatio: 0.7,
-                      crossAxisSpacing: 8,
-                      mainAxisSpacing: 8,
-                    ),
-                    itemCount: document.pageCount,
-                    itemBuilder: (context, index) {
-                      return GestureDetector(
-                        onTap: () => Navigator.pop(context),
-                        child: Column(
-                          children: [
-                            Expanded(
-                              child: Container(
-                                decoration: BoxDecoration(
-                                  border: Border.all(color: Colors.grey.withValues(alpha: 0.3)),
-                                  borderRadius: BorderRadius.circular(4),
-                                ),
-                                child: ClipRRect(
-                                  borderRadius: BorderRadius.circular(4),
-                                  child: PdfPageView(
-                                    pdfDocument: document,
-                                    pageNumber: index + 1,
-                                  ),
-                                ),
-                              ),
-                            ),
-                            const SizedBox(height: 4),
-                            Text('${index + 1}', style: const TextStyle(fontSize: 11)),
-                          ],
-                        ),
-                      );
-                    },
-                  );
-                },
-              ),
-            ),
-          ],
-        ),
-      ),
-    );
-  }
-
   void _showSettingsDialog() {
     showModalBottomSheet(
       context: context,
@@ -887,20 +817,34 @@ class _ReaderScreenState extends ConsumerState<ReaderScreen> {
     // PDF chapter
     if (loaded.html.startsWith('PDF:')) {
       final filePath = loaded.html.replaceFirst('PDF:', '');
-      return Stack(
-        children: [
-          PdfViewer.openFile(filePath),
-          Positioned(
-            right: 16,
-            bottom: 16,
-            child: FloatingActionButton.small(
-              heroTag: 'pdf_thumbnails',
-              backgroundColor: Colors.black54,
-              onPressed: () => _showPdfThumbnails(filePath),
-              child: const Icon(Icons.grid_view, color: Colors.white, size: 20),
+      return Center(
+        child: Column(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            Icon(Icons.picture_as_pdf, size: 64, color: settings.textColor.withValues(alpha: 0.5)),
+            const SizedBox(height: 16),
+            Text(
+              'PDF Document',
+              style: TextStyle(fontSize: 18, fontWeight: FontWeight.w600, color: settings.textColor),
             ),
-          ),
-        ],
+            const SizedBox(height: 8),
+            Text(
+              filePath.split('/').last,
+              style: TextStyle(color: settings.textColor.withValues(alpha: 0.5), fontSize: 12),
+            ),
+            const SizedBox(height: 24),
+            FilledButton.icon(
+              onPressed: () async {
+                final uri = Uri.file(filePath);
+                if (await canLaunchUrl(uri)) {
+                  await launchUrl(uri, mode: LaunchMode.externalApplication);
+                }
+              },
+              icon: const Icon(Icons.open_in_new, size: 18),
+              label: const Text('Open in PDF Viewer'),
+            ),
+          ],
+        ),
       );
     }
 
@@ -1376,21 +1320,34 @@ class _ReaderScreenState extends ConsumerState<ReaderScreen> {
     try {
       final service = ref.read(translationServiceProvider);
 
-      // Extract plain text from HTML (strip tags for translation)
-      final plainText = loaded.html
-          .replaceAll(RegExp(r'<[^>]*>'), ' ')
-          .replaceAll(RegExp(r'\s+'), ' ')
-          .trim();
+      // Parse HTML into paragraphs, translate each one, rebuild HTML
+      final paragraphRegex = RegExp(r'<(p|div|h[1-6]|li|blockquote)[^>]*>(.*?)</\1>', dotAll: true);
+      final matches = paragraphRegex.allMatches(loaded.html).toList();
 
-      final translated = await service.translate(
-        plainText,
-        sourceLang: sourceLang,
-        targetLang: targetLang,
-      );
+      if (matches.isEmpty) {
+        // No paragraph tags — treat as single block
+        final plainText = loaded.html.replaceAll(RegExp(r'<[^>]*>'), ' ').replaceAll(RegExp(r'\s+'), ' ').trim();
+        final translated = await service.translate(plainText, sourceLang: sourceLang, targetLang: targetLang);
+        _chapterCache[chapter.id] = _LoadedChapter(chapter: chapter, html: '<p>$translated</p>');
+      } else {
+        // Translate each paragraph individually
+        final buffer = StringBuffer();
+        for (final match in matches) {
+          final tag = match.group(1)!;
+          final innerHtml = match.group(2)!;
+          final plainText = innerHtml.replaceAll(RegExp(r'<[^>]*>'), ' ').replaceAll(RegExp(r'\s+'), ' ').trim();
 
-      // Replace chapter content with translation
-      final translatedHtml = '<p>$translated</p>';
-      _chapterCache[chapter.id] = _LoadedChapter(chapter: chapter, html: translatedHtml);
+          if (plainText.isEmpty) {
+            buffer.write(match.group(0));
+            continue;
+          }
+
+          final translated = await service.translate(plainText, sourceLang: sourceLang, targetLang: targetLang);
+          buffer.write('<$tag>$translated</$tag>\n');
+        }
+        _chapterCache[chapter.id] = _LoadedChapter(chapter: chapter, html: buffer.toString());
+      }
+
       setState(() {});
 
       if (mounted) {

@@ -178,8 +178,8 @@ class _CloudflareWebViewState extends State<_CloudflareWebView> {
       _checkCount++;
       _checkCookies();
 
-      // Give up after 60 checks (2 minutes)
-      if (_checkCount > 60) {
+      // Give up after 150 checks (5 minutes)
+      if (_checkCount > 150) {
         _checkTimer?.cancel();
         widget.onComplete({});
       }

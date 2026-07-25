@@ -22,8 +22,8 @@ class SettingsScreen extends StatelessWidget {
             _SettingsTile(
               icon: Icons.download,
               title: 'Downloads',
-              subtitle: 'Download path, Wi-Fi only, parallel downloads',
-              onTap: () => context.push('/settings/downloads'),
+              subtitle: 'Download queue, settings, and storage',
+              onTap: () => context.push('/downloads'),
             ),
           ]),
           _buildSection(context, 'Reader', [
@@ -70,21 +70,13 @@ class SettingsScreen extends StatelessWidget {
     );
   }
 
-  Widget _buildSection(
-      BuildContext context, String title, List<Widget> children) {
+  Widget _buildSection(BuildContext context, String title, List<Widget> children) {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
         Padding(
           padding: const EdgeInsets.fromLTRB(16, 24, 16, 4),
-          child: Text(
-            title,
-            style: const TextStyle(
-              fontSize: 14,
-              fontWeight: FontWeight.w600,
-              color: AppTheme.kPrimary,
-            ),
-          ),
+          child: Text(title, style: const TextStyle(fontSize: 14, fontWeight: FontWeight.w600, color: AppTheme.kPrimary)),
         ),
         ...children,
       ],
@@ -98,22 +90,14 @@ class _SettingsTile extends StatelessWidget {
   final String subtitle;
   final VoidCallback onTap;
 
-  const _SettingsTile({
-    required this.icon,
-    required this.title,
-    required this.subtitle,
-    required this.onTap,
-  });
+  const _SettingsTile({required this.icon, required this.title, required this.subtitle, required this.onTap});
 
   @override
   Widget build(BuildContext context) {
     return ListTile(
       leading: Icon(icon, color: AppTheme.kTextSecondaryDark),
       title: Text(title),
-      subtitle: Text(
-        subtitle,
-        style: const TextStyle(fontSize: 12),
-      ),
+      subtitle: Text(subtitle, style: const TextStyle(fontSize: 12)),
       trailing: const Icon(Icons.chevron_right),
       onTap: onTap,
     );
