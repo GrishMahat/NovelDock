@@ -22,8 +22,8 @@ class SettingsScreen extends StatelessWidget {
             _SettingsTile(
               icon: Icons.download,
               title: 'Downloads',
-              subtitle: 'View download queue',
-              onTap: () => context.push('/downloads'),
+              subtitle: 'Download path, Wi-Fi only, parallel downloads',
+              onTap: () => context.push('/settings/downloads'),
             ),
           ]),
           _buildSection(context, 'Reader', [

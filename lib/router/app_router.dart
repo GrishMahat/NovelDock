@@ -15,8 +15,10 @@ import '../features/settings/settings_screen.dart';
 import '../features/settings/pages/provider_management_page.dart';
 import '../features/settings/pages/reader_settings_page.dart';
 import '../features/settings/pages/translation_settings_page.dart';
+import '../features/settings/pages/download_settings_page.dart';
 import '../features/settings/pages/about_page.dart';
 import '../features/import/import_screen.dart';
+import '../main.dart' show sharedFilePath;
 
 final GlobalKey<NavigatorState> _rootNavigatorKey = GlobalKey<NavigatorState>();
 final GlobalKey<NavigatorState> _shellNavigatorKey = GlobalKey<NavigatorState>();
@@ -121,6 +123,12 @@ final routerProvider = Provider<GoRouter>((ref) {
         builder: (context, state) => const TranslationSettingsPage(),
       ),
       GoRoute(
+        path: '/settings/downloads',
+        name: 'downloadSettings',
+        parentNavigatorKey: _rootNavigatorKey,
+        builder: (context, state) => const DownloadSettingsPage(),
+      ),
+      GoRoute(
         path: '/settings/about',
         name: 'about',
         parentNavigatorKey: _rootNavigatorKey,
@@ -130,7 +138,9 @@ final routerProvider = Provider<GoRouter>((ref) {
         path: '/import',
         name: 'import',
         parentNavigatorKey: _rootNavigatorKey,
-        builder: (context, state) => const ImportScreen(),
+        builder: (context, state) => ImportScreen(
+          initialFilePath: state.uri.queryParameters['file'] ?? sharedFilePath,
+        ),
       ),
     ],
   );

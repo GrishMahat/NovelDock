@@ -25,8 +25,7 @@ class QuickNovelApp extends ConsumerWidget {
 }
 
 /// Main shell with bottom navigation bar.
-/// The bottom nav has 4 tabs matching the original app:
-/// [Library/Download] [Search] [History] [Settings]
+/// 5 tabs: [Library] [Search] [History] [Downloads] [Settings]
 class MainShell extends StatefulWidget {
   final Widget child;
   const MainShell({super.key, required this.child});
@@ -38,12 +37,12 @@ class MainShell extends StatefulWidget {
 class _MainShellState extends State<MainShell> {
   int _currentIndex = 0;
 
-  // Map tab index to go_router path
   static const _tabPaths = [
-    '/library',    // 0: Library/Downloads
-    '/search',     // 1: Search (Browse)
-    '/history',    // 2: History
-    '/settings',   // 3: Settings
+    '/library',
+    '/search',
+    '/history',
+    '/downloads',
+    '/settings',
   ];
 
   void _onTap(int index) {
@@ -80,6 +79,11 @@ class _MainShellState extends State<MainShell> {
             icon: Icon(Icons.history),
             selectedIcon: Icon(Icons.history),
             label: 'History',
+          ),
+          NavigationDestination(
+            icon: Icon(Icons.download_outlined),
+            selectedIcon: Icon(Icons.download),
+            label: 'Downloads',
           ),
           NavigationDestination(
             icon: Icon(Icons.settings_outlined),

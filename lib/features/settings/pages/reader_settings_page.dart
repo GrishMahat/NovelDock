@@ -31,8 +31,12 @@ class ReaderSettings {
   final bool keepScreenOn;
   final bool selectableText;
   final bool ttsAutoScroll;
+  final bool ttsAutoAdvance;
   final String orientation;
   final String readerTheme;
+  final String leftTapAction;
+  final String centerTapAction;
+  final String rightTapAction;
 
   const ReaderSettings({
     this.fontSize = 16.0,
@@ -49,8 +53,12 @@ class ReaderSettings {
     this.keepScreenOn = true,
     this.selectableText = false,
     this.ttsAutoScroll = true,
+    this.ttsAutoAdvance = true,
     this.orientation = 'auto',
     this.readerTheme = 'dark',
+    this.leftTapAction = 'previous',
+    this.centerTapAction = 'menu',
+    this.rightTapAction = 'next',
   });
 
   ReaderSettings copyWith({
@@ -58,7 +66,9 @@ class ReaderSettings {
     double? paddingH, double? paddingV, String? scrollMode,
     String? textAlignment, double? paragraphSpacing, bool? bionicReading,
     bool? showTime, bool? showBattery, bool? keepScreenOn,
-    bool? selectableText, bool? ttsAutoScroll, String? orientation, String? readerTheme,
+    bool? selectableText, bool? ttsAutoScroll, bool? ttsAutoAdvance,
+    String? orientation, String? readerTheme,
+    String? leftTapAction, String? centerTapAction, String? rightTapAction,
   }) {
     return ReaderSettings(
       fontSize: fontSize ?? this.fontSize,
@@ -75,8 +85,12 @@ class ReaderSettings {
       keepScreenOn: keepScreenOn ?? this.keepScreenOn,
       selectableText: selectableText ?? this.selectableText,
       ttsAutoScroll: ttsAutoScroll ?? this.ttsAutoScroll,
+      ttsAutoAdvance: ttsAutoAdvance ?? this.ttsAutoAdvance,
       orientation: orientation ?? this.orientation,
       readerTheme: readerTheme ?? this.readerTheme,
+      leftTapAction: leftTapAction ?? this.leftTapAction,
+      centerTapAction: centerTapAction ?? this.centerTapAction,
+      rightTapAction: rightTapAction ?? this.rightTapAction,
     );
   }
 
@@ -166,8 +180,12 @@ class ReaderSettingsNotifier extends StateNotifier<ReaderSettings> {
         keepScreenOn: p.getBool('reader_keep_screen_on') ?? true,
         selectableText: p.getBool('reader_selectable_text') ?? false,
         ttsAutoScroll: p.getBool('reader_tts_autoscroll') ?? true,
+        ttsAutoAdvance: p.getBool('reader_tts_autoadvance') ?? true,
         orientation: p.getString('reader_orientation') ?? 'auto',
         readerTheme: p.getString('reader_theme') ?? 'dark',
+        leftTapAction: p.getString('reader_left_tap') ?? 'previous',
+        centerTapAction: p.getString('reader_center_tap') ?? 'menu',
+        rightTapAction: p.getString('reader_right_tap') ?? 'next',
       );
     } catch (e) {
       Log.e(_tag, 'Failed to load settings', e);
@@ -191,8 +209,12 @@ class ReaderSettingsNotifier extends StateNotifier<ReaderSettings> {
       await p.setBool('reader_keep_screen_on', state.keepScreenOn);
       await p.setBool('reader_selectable_text', state.selectableText);
       await p.setBool('reader_tts_autoscroll', state.ttsAutoScroll);
+      await p.setBool('reader_tts_autoadvance', state.ttsAutoAdvance);
       await p.setString('reader_orientation', state.orientation);
       await p.setString('reader_theme', state.readerTheme);
+      await p.setString('reader_left_tap', state.leftTapAction);
+      await p.setString('reader_center_tap', state.centerTapAction);
+      await p.setString('reader_right_tap', state.rightTapAction);
     } catch (e) {
       Log.e(_tag, 'Failed to save settings', e);
     }
@@ -219,6 +241,10 @@ class ReaderSettingsNotifier extends StateNotifier<ReaderSettings> {
   void toggleKeepScreenOn() => _update((s) => s.copyWith(keepScreenOn: !s.keepScreenOn));
   void toggleSelectableText() => _update((s) => s.copyWith(selectableText: !s.selectableText));
   void toggleTtsAutoScroll() => _update((s) => s.copyWith(ttsAutoScroll: !s.ttsAutoScroll));
+  void toggleTtsAutoAdvance() => _update((s) => s.copyWith(ttsAutoAdvance: !s.ttsAutoAdvance));
+  void updateLeftTapAction(String v) => _update((s) => s.copyWith(leftTapAction: v));
+  void updateCenterTapAction(String v) => _update((s) => s.copyWith(centerTapAction: v));
+  void updateRightTapAction(String v) => _update((s) => s.copyWith(rightTapAction: v));
 }
 
 final readerSettingsProvider =
@@ -324,6 +350,13 @@ class _GeneralTab extends ConsumerWidget {
         // ── Theme ──
         _section('Theme'),
         _themeRow(settings, notifier),
+
+        const SizedBox(height: 16),
+        // ── Tap Zones ──
+        _section('Tap Zones'),
+        _tapZoneRow('Left', settings.leftTapAction, (v) => notifier.updateLeftTapAction(v!)),
+        _tapZoneRow('Center', settings.centerTapAction, (v) => notifier.updateCenterTapAction(v!)),
+        _tapZoneRow('Right', settings.rightTapAction, (v) => notifier.updateRightTapAction(v!)),
       ],
     );
   }
@@ -410,6 +443,25 @@ class _GeneralTab extends ConsumerWidget {
         onSelectionChanged: (s) => notifier.updateTextAlignment(s.first),
       )),
     ]);
+  }
+
+  Widget _tapZoneRow(String label, String value, ValueChanged<String?> onChanged) {
+    return Padding(
+      padding: const EdgeInsets.symmetric(vertical: 2),
+      child: Row(children: [
+        SizedBox(width: 80, child: Text(label, style: const TextStyle(fontSize: 13))),
+        Expanded(child: SegmentedButton<String>(
+          segments: const [
+            ButtonSegment(value: 'previous', label: Text('Prev', style: TextStyle(fontSize: 11))),
+            ButtonSegment(value: 'menu', label: Text('Menu', style: TextStyle(fontSize: 11))),
+            ButtonSegment(value: 'next', label: Text('Next', style: TextStyle(fontSize: 11))),
+            ButtonSegment(value: 'none', label: Text('Off', style: TextStyle(fontSize: 11))),
+          ],
+          selected: {value},
+          onSelectionChanged: (s) => onChanged(s.first),
+        )),
+      ]),
+    );
   }
 }
 

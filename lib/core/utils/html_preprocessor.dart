@@ -6,14 +6,17 @@ import 'package:html/parser.dart' as html_parser;
 class HtmlPreprocessor {
   /// Clean HTML content for rendering.
   /// Returns cleaned HTML string.
-  static String clean(String rawHtml, {bool stripAuthorNotes = true}) {
+  /// If [keepCss] is true, preserves <style> and <link> tags (for EPUB content).
+  static String clean(String rawHtml, {bool stripAuthorNotes = true, bool keepCss = false}) {
     final document = html_parser.parse(rawHtml);
 
     // 1. Remove <script> tags
     document.querySelectorAll('script').forEach((e) => e.remove());
 
-    // 2. Remove <style> tags
-    document.querySelectorAll('style').forEach((e) => e.remove());
+    // 2. Remove <style> tags (unless keepCss for EPUB)
+    if (!keepCss) {
+      document.querySelectorAll('style').forEach((e) => e.remove());
+    }
 
     // 3. Remove <iframe> tags (ads, trackers)
     document.querySelectorAll('iframe').forEach((e) => e.remove());
@@ -21,8 +24,10 @@ class HtmlPreprocessor {
     // 4. Remove <noscript> tags
     document.querySelectorAll('noscript').forEach((e) => e.remove());
 
-    // 5. Remove <link> tags (external stylesheets)
-    document.querySelectorAll('link').forEach((e) => e.remove());
+    // 5. Remove <link> tags (external stylesheets) — keep for EPUB
+    if (!keepCss) {
+      document.querySelectorAll('link').forEach((e) => e.remove());
+    }
 
     // 6. Remove <meta> tags
     document.querySelectorAll('meta').forEach((e) => e.remove());

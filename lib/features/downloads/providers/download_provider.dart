@@ -1,7 +1,9 @@
 import 'dart:async';
 import 'dart:io';
+import 'dart:typed_data';
 
 import 'package:drift/drift.dart' show Value;
+import 'package:epubx/epubx.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_riverpod/legacy.dart';
 import 'package:path_provider/path_provider.dart';
@@ -13,6 +15,7 @@ import '../../../core/providers/engine.dart';
 import '../../../core/providers/registry.dart';
 import '../../../core/network/client.dart';
 import '../../../core/utils/logger.dart';
+import 'download_notification.dart';
 
 const _tag = 'Download';
 
@@ -213,11 +216,41 @@ class DownloadNotifier extends StateNotifier<Map<int, NovelDownloadProgress>> {
         return;
       }
 
-      // Save to file
+      // Save as EPUB
       final dir = await _getDownloadDir(novel);
-      final fileName = '${task.chapterId}.html';
+      final fileName = '${task.chapterId}.epub';
       final file = File(p.join(dir.path, fileName));
-      await file.writeAsString(content.html);
+
+      final epubBook = EpubBook()
+        ..Title = chapter.name
+        ..Author = novel.author ?? novel.title
+        ..Chapters = [
+          EpubChapter()
+            ..Title = chapter.name
+            ..ContentFileName = '${task.chapterId}.xhtml'
+            ..HtmlContent = content.html,
+        ]
+        ..Content = (EpubContent()
+          ..Html = {
+            '${task.chapterId}.xhtml': (EpubTextContentFile()
+              ..Content = content.html
+              ..ContentMimeType = 'application/xhtml+xml'),
+          });
+
+      final epubBytes = EpubWriter.writeBook(epubBook);
+      if (epubBytes != null) {
+        await file.writeAsBytes(epubBytes);
+      } else {
+        // Fallback: save as HTML if EPUB generation fails
+        final chapterDaoFallback = ref.read(chapterDaoProvider);
+        final htmlFile = File(p.join(dir.path, '${task.chapterId}.html'));
+        await htmlFile.writeAsString(content.html);
+        await chapterDaoFallback.markChapterAsDownloaded(task.chapterId, htmlFile.path);
+        await downloadDao.updateDownloadStatus(task.id, 'done', progress: 1.0);
+        _updateProgress(task.novelId);
+        Log.ok(_tag, 'Chapter ${chapter.name} downloaded (HTML fallback) to ${htmlFile.path}');
+        return;
+      }
 
       // Update chapter as downloaded
       final chapterDao2 = ref.read(chapterDaoProvider);
@@ -271,6 +304,25 @@ class DownloadNotifier extends StateNotifier<Map<int, NovelDownloadProgress>> {
         isDownloading: isDownloading,
       ),
     };
+
+    // Update download notification
+    DownloadNotification.init(); // no-op if already initialized
+    if (isDownloading) {
+      final novelDao = ref.read(novelDaoProvider);
+      final novel = await novelDao.getNovelById(novelId);
+      DownloadNotification.showProgress(
+        novelTitle: novel?.title ?? 'Unknown',
+        completed: completed,
+        total: allChapters.length,
+      );
+    } else if (completed > 0 && !isDownloading) {
+      final novelDao = ref.read(novelDaoProvider);
+      final novel = await novelDao.getNovelById(novelId);
+      DownloadNotification.showComplete(
+        novelTitle: novel?.title ?? 'Unknown',
+        total: completed,
+      );
+    }
   }
 
   /// Cancel all downloads for a novel

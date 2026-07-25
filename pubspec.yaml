@@ -38,7 +38,6 @@ dependencies:
   # Content Rendering
   flutter_widget_from_html: ^0.17.2
   epubx: ^4.0.0
-  pdfx: ^2.9.2
   scrollable_positioned_list: ^0.3.8
 
   # UI Components
@@ -73,6 +72,9 @@ dependencies:
   # Cupertino icons
   cupertino_icons: ^1.0.8
   audioplayers: ^6.8.1
+  audio_service: ^0.18.19
+  audio_session: ^0.2.4
+  pdf_render_maintained: ^1.6.2
 dev_dependencies:
   flutter_test:
     sdk: flutter

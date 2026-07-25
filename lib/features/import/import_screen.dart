@@ -1,9 +1,10 @@
 import 'dart:io';
 
-import 'package:drift/drift.dart' show Value, InsertMode;
+import 'package:drift/drift.dart' show Value;
 import 'package:epubx/epubx.dart';
 import 'package:file_picker/file_picker.dart';
-import 'package:pdfx/pdfx.dart';
+import 'package:image/image.dart' as img;
+
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:path/path.dart' as p;
@@ -17,7 +18,8 @@ import '../../theme/app_theme.dart';
 const _tag = 'Import';
 
 class ImportScreen extends ConsumerStatefulWidget {
-  const ImportScreen({super.key});
+  final String? initialFilePath;
+  const ImportScreen({super.key, this.initialFilePath});
 
   @override
   ConsumerState<ImportScreen> createState() => _ImportScreenState();
@@ -27,6 +29,68 @@ class _ImportScreenState extends ConsumerState<ImportScreen> {
   bool _isImporting = false;
   String? _importedFile;
   String? _error;
+
+  @override
+  void initState() {
+    super.initState();
+    if (widget.initialFilePath != null) {
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        _importFromPath(widget.initialFilePath!);
+      });
+    }
+  }
+
+  Future<void> _importFromPath(String path) async {
+    final file = File(path);
+    if (!await file.exists()) {
+      setState(() { _error = 'File not found: $path'; });
+      return;
+    }
+    setState(() { _isImporting = true; _error = null; });
+
+    try {
+      final fileName = p.basename(path);
+      final ext = p.extension(fileName).toLowerCase();
+
+      Log.i(_tag, 'Importing from share intent: $fileName ($ext)');
+
+      final config = await AppConfig.getInstance();
+      final importDir = Directory(p.join(config.dataDir.path, 'imports'));
+      await importDir.create(recursive: true);
+      final destPath = p.join(importDir.path, fileName);
+      await file.copy(destPath);
+      Log.ok(_tag, 'Copied to: $destPath');
+
+      final novelDao = ref.read(novelDaoProvider);
+      final novelId = await novelDao.insertNovel(NovelsCompanion(
+        providerId: const Value('local'),
+        url: Value(destPath),
+        title: Value(p.basenameWithoutExtension(fileName)),
+        addedAt: Value(DateTime.now().millisecondsSinceEpoch),
+      ));
+
+      final libraryDao = ref.read(libraryDaoProvider);
+      await libraryDao.addToLibrary(novelId);
+      Log.ok(_tag, 'Added to library: novelId=$novelId');
+
+      if (ext == '.epub') {
+        await _parseEpub(destPath, novelId);
+      } else if (ext == '.pdf') {
+        await _parsePdf(destPath, novelId);
+      }
+
+      setState(() { _isImporting = false; _importedFile = fileName; });
+
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Imported: $fileName')),
+        );
+      }
+    } catch (e) {
+      Log.e(_tag, 'Import failed', e);
+      setState(() { _isImporting = false; _error = e.toString(); });
+    }
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -150,13 +214,30 @@ class _ImportScreenState extends ConsumerState<ImportScreen> {
 
       Log.i(_tag, 'EPUB: ${book.Title}, ${book.Chapters?.length ?? 0} chapters');
 
-      // Update novel metadata (only the fields we want to change)
-      final novelDao = ref.read(novelDaoProvider);
+      // Extract cover image
+      String? coverUrl;
+      if (book.CoverImage != null) {
+        try {
+          final config = await AppConfig.getInstance();
+          final coversDir = Directory(p.join(config.dataDir.path, 'covers'));
+          await coversDir.create(recursive: true);
+          final coverPath = p.join(coversDir.path, '$novelId.jpg');
+          final jpegBytes = img.encodeJpg(img.copyResize(book.CoverImage!, width: 300));
+          await File(coverPath).writeAsBytes(jpegBytes);
+          coverUrl = coverPath;
+          Log.ok(_tag, 'Saved EPUB cover: $coverPath');
+        } catch (e) {
+          Log.e(_tag, 'Failed to save EPUB cover', e);
+        }
+      }
+
+      // Update novel metadata
       final db = ref.read(appDatabaseProvider);
       await (db.update(db.novels)..where((t) => t.id.equals(novelId))).write(
         NovelsCompanion(
           title: Value(book.Title ?? p.basenameWithoutExtension(filePath)),
           author: Value(book.Author),
+          coverUrl: coverUrl != null ? Value(coverUrl) : const Value.absent(),
         ),
       );
 
@@ -183,7 +264,7 @@ class _ImportScreenState extends ConsumerState<ImportScreen> {
 
   Future<void> _parsePdf(String filePath, int novelId) async {
     try {
-      // pdfx doesn't support Linux — store as single-chapter PDF
+      // Store PDF as single chapter — rendered by pdfrx in reader
       final chapterDao = ref.read(chapterDaoProvider);
       await chapterDao.insertChapter(ChaptersCompanion(
         novelId: Value(novelId),
@@ -191,7 +272,7 @@ class _ImportScreenState extends ConsumerState<ImportScreen> {
         url: Value('pdf://$filePath#page=1'),
         index: Value(0),
       ));
-      Log.ok(_tag, 'Added PDF as single chapter (pdfx not supported on Linux)');
+      Log.ok(_tag, 'Added PDF as single chapter');
     } catch (e) {
       Log.e(_tag, 'PDF parse failed', e);
     }
