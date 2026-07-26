@@ -1,4 +1,4 @@
-# quicknovel
+# NovelDock
 
 A new Flutter project.
 

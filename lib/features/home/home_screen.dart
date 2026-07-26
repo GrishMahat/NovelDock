@@ -175,7 +175,7 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
       appBar: AppBar(
         title: _currentQuery.isNotEmpty
             ? Text('Search: $_currentQuery')
-            : const Text('NovelBase'),
+            : const Text('NovelDock'),
         actions: [
           if (_currentQuery.isNotEmpty) ...[
             IconButton(

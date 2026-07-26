@@ -1,6 +1,6 @@
 {
-    "name": "quicknovel",
-    "short_name": "quicknovel",
+    "name": "NovelDock",
+    "short_name": "NovelDock",
     "start_url": ".",
     "display": "standalone",
     "background_color": "#0175C2",

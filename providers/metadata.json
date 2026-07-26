@@ -8,8 +8,8 @@
       "baseUrl": "https://www.wuxiabox.com",
       "file": "wuxiabox.js",
       "version": "1.0.0",
-      "author": "quicknovel",
-      "repo": "https://github.com/example/quicknovel-wuxiabox"
+      "author": "noveldock",
+      "repo": "https://github.com/example/noveldock-wuxiabox"
     },
     {
       "id": "examplenovel",
@@ -18,8 +18,8 @@
       "baseUrl": "https://www.example.com",
       "file": "example_provider.js",
       "version": "1.0.0",
-      "author": "quicknovel",
-      "repo": "https://github.com/example/quicknovel-example"
+      "author": "noveldock",
+      "repo": "https://github.com/example/noveldock-example"
     },
     {
       "id": "royalroad",
@@ -28,8 +28,8 @@
       "baseUrl": "https://www.royalroad.com",
       "file": "royalroad_provider.js",
       "version": "1.0.0",
-      "author": "quicknovel",
-      "repo": "https://github.com/example/quicknovel-royalroad"
+      "author": "noveldock",
+      "repo": "https://github.com/example/noveldock-royalroad"
     }
   ]
 }

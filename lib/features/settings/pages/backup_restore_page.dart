@@ -159,13 +159,13 @@ class BackupRestorePage extends ConsumerWidget {
 
       final dir = await getApplicationDocumentsDirectory();
       final timestamp = DateTime.now().millisecondsSinceEpoch;
-      final file = File('${dir.path}/novelbase_backup_$timestamp.json');
+      final file = File('${dir.path}/noveldock_backup_$timestamp.json');
       await file.writeAsString(jsonStr);
 
       await SharePlus.instance.share(
         ShareParams(
           files: [XFile(file.path)],
-          text: 'NovelBase Backup',
+          text: 'NovelDock Backup',
         ),
       );
 

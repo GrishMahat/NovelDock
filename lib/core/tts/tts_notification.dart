@@ -93,7 +93,7 @@ class TtsNotification {
   }) async {
     if (!_initialized || Platform.isLinux) return;
 
-    final title = novelTitle ?? 'NovelBase';
+    final title = novelTitle ?? 'NovelDock';
     final status = isPaused ? 'Paused' : 'Playing';
 
     AndroidNotificationDetails androidDetails;

@@ -27,7 +27,7 @@ class BackgroundDownloadService {
           autoStart: false,
           isForegroundMode: true,
           foregroundServiceNotificationId: 8888,
-          initialNotificationTitle: 'NovelBase',
+          initialNotificationTitle: 'NovelDock',
           initialNotificationContent: 'Download service ready',
           foregroundServiceTypes: [AndroidForegroundType.dataSync],
         ),
@@ -96,7 +96,7 @@ void _onStart(ServiceInstance service) async {
   service.on('updateNotification').listen((event) {
     if (event != null && service is AndroidServiceInstance) {
       service.setForegroundNotificationInfo(
-        title: event['title'] ?? 'NovelBase',
+        title: event['title'] ?? 'NovelDock',
         content: event['content'] ?? 'Downloading...',
       );
     }

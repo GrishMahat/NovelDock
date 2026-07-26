@@ -1,6 +1,6 @@
 import 'package:flutter_test/flutter_test.dart';
-import 'package:quicknovel/core/tts/tts_highlighter.dart';
-import 'package:quicknovel/core/tts/tts_manager.dart';
+import 'package:noveldock/core/tts/tts_highlighter.dart';
+import 'package:noveldock/core/tts/tts_manager.dart';
 
 void main() {
   group('TtsHighlighter', () {

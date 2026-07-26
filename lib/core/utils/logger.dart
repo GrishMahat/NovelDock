@@ -1,7 +1,7 @@
 import 'package:flutter/foundation.dart';
 import 'log_buffer.dart';
 
-/// Simple structured logger for NovelBase.
+/// Simple structured logger for NovelDock.
 /// In release mode, only warnings and errors are logged.
 class Log {
   static const String _reset = '\x1B[0m';

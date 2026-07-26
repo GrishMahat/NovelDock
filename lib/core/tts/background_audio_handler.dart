@@ -84,8 +84,8 @@ Future<BackgroundAudioHandler> initAudioService() async {
   return await AudioService.init<BackgroundAudioHandler>(
     builder: () => BackgroundAudioHandler(),
     config: const AudioServiceConfig(
-      androidNotificationChannelId: 'dev.grish.novelbase.tts',
-      androidNotificationChannelName: 'NovelBase TTS',
+      androidNotificationChannelId: 'dev.grish.noveldock.tts',
+      androidNotificationChannelName: 'NovelDock TTS',
       androidNotificationOngoing: true,
       androidStopForegroundOnPause: true,
     ),

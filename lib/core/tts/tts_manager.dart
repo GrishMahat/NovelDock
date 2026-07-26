@@ -134,8 +134,8 @@ class TtsManager extends StateNotifier<TtsManagerState> {
       return;
     }
     final isPlaying = state.isSpeaking && !state.isPaused;
-    final novelTitle = state.novelTitle.isNotEmpty ? state.novelTitle : 'NovelBase';
-    final author = state.novelAuthor.isNotEmpty ? state.novelAuthor : 'NovelBase';
+    final novelTitle = state.novelTitle.isNotEmpty ? state.novelTitle : 'NovelDock';
+    final author = state.novelAuthor.isNotEmpty ? state.novelAuthor : 'NovelDock';
     final currentText = state.currentText.isNotEmpty ? state.currentText : 'Reading...';
 
     TtsNotification.show(
