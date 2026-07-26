@@ -58,15 +58,37 @@ class ProviderEngine {
     }
 
     Log.ok(_tag, 'Provider loaded. Exported: ${result.stringResult}');
-    return ProviderInstance(runtime: _runtime!);
+
+    // Parse exported function names
+    final exported = ProviderInstance(runtime: _runtime!);
+    try {
+      final list = jsonDecode(result.stringResult) as List;
+      exported._exportedFunctions = list.cast<String>();
+    } catch (_) {}
+
+    return exported;
   }
 }
 
 /// A loaded provider instance. Wraps calls to JS-exported functions.
 class ProviderInstance {
   final JavascriptRuntime runtime;
+  List<String> _exportedFunctions = [];
 
   ProviderInstance({required this.runtime});
+
+  /// List of functions exported by this provider.
+  List<String> get exportedFunctions => _exportedFunctions;
+
+  /// Validate that the provider exports required functions.
+  /// Returns a list of missing required functions (empty = valid).
+  List<String> validate() {
+    const required = ['getSearchUrl', 'parseSearchResults', 'getNovelInfoUrl', 'parseNovelInfo', 'getChapterContentUrl', 'parseChapterContent'];
+    return required.where((fn) => !_exportedFunctions.contains(fn)).toList();
+  }
+
+  /// Check if a specific function is exported.
+  bool hasFunction(String name) => _exportedFunctions.contains(name);
 
   /// Call a provider function by name and return the result.
   Future<dynamic> call(String name, List<dynamic> args) async {

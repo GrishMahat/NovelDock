@@ -123,23 +123,45 @@ class AppConfig {
     return p.join(registriesDir.path, registryId, 'metadata.json');
   }
 
-  /// Path to a cached provider's JS source
+  /// Directory for a specific registry
+  Directory registryDir(String registryId) {
+    return Directory(p.join(registriesDir.path, registryId));
+  }
+
+  /// Icons directory for a specific registry
+  Directory registryIconsDir(String registryId) {
+    return Directory(p.join(registriesDir.path, registryId, 'icons'));
+  }
+
+  /// Path to a provider's JS file within a registry
+  String registryProviderJsPath(String registryId, String providerId) {
+    return p.join(registriesDir.path, registryId, '$providerId.js');
+  }
+
+  /// Path to a provider's icon within a registry
+  String registryProviderIconPath(String registryId, String providerId) {
+    return p.join(registriesDir.path, registryId, 'icons', '$providerId.png');
+  }
+
+  // ─── Legacy paths (for backward compat) ────────────────
+
+  /// Path to a cached provider's JS source (legacy)
   String providerJsPath(String providerId) {
     return p.join(providersDir.path, providerId, 'provider.js');
   }
 
-  /// Path to a cached provider's local metadata
+  /// Path to a cached provider's icon (legacy)
+  String providerIconPath(String providerId) {
+    return p.join(providersDir.path, providerId, 'icon.png');
+  }
+
+  /// Path to a cached provider's local metadata (legacy)
   String providerInfoPath(String providerId) {
     return p.join(providersDir.path, providerId, 'info.json');
   }
 
-  /// Directory for a specific provider
+  /// Directory for a specific provider (legacy)
   Directory providerDir(String providerId) {
     return Directory(p.join(providersDir.path, providerId));
-  }
-
-  /// Directory for a specific registry
-  Directory registryDir(String registryId) {
-    return Directory(p.join(registriesDir.path, registryId));
   }
 }

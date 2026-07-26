@@ -1,5 +1,9 @@
 {
   "version": 1,
+  "name": "QuickNovel Default",
+  "description": "Default provider registry bundled with the app. Includes icons for 50+ providers.",
+  "status": "active",
+  "updated": 1753526400,
   "providers": [
     {
       "id": "wuxiabox",
@@ -7,9 +11,9 @@
       "lang": "en",
       "baseUrl": "https://www.wuxiabox.com",
       "file": "wuxiabox.js",
+      "icon": "icons/icon_wuxiabox.png",
       "version": "1.0.0",
-      "author": "quicknovel",
-      "repo": "https://github.com/example/quicknovel-wuxiabox"
+      "author": "quicknovel"
     },
     {
       "id": "examplenovel",
@@ -18,8 +22,7 @@
       "baseUrl": "https://www.example.com",
       "file": "example_provider.js",
       "version": "1.0.0",
-      "author": "quicknovel",
-      "repo": "https://github.com/example/quicknovel-example"
+      "author": "quicknovel"
     },
     {
       "id": "royalroad",
@@ -27,9 +30,18 @@
       "lang": "en",
       "baseUrl": "https://www.royalroad.com",
       "file": "royalroad_provider.js",
+      "icon": "icons/icon_royalroad2.png",
       "version": "1.0.0",
-      "author": "quicknovel",
-      "repo": "https://github.com/example/quicknovel-royalroad"
+      "author": "quicknovel"
+    },
+    {
+      "id": "nah",
+      "name": "Nah Test",
+      "lang": "en",
+      "baseUrl": "https://www.example.com",
+      "file": "provider/test2.js",
+      "version": "0.0.1",
+      "author": "test"
     }
   ]
 }
