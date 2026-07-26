@@ -1,3 +1,5 @@
+import 'dart:io';
+
 import 'package:drift/drift.dart' hide Column;
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -343,26 +345,7 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
         child: Column(
           mainAxisAlignment: MainAxisAlignment.center,
           children: [
-            Container(
-              width: 56,
-              height: 56,
-              decoration: BoxDecoration(
-                color: color.withValues(alpha: 0.15),
-                borderRadius: BorderRadius.circular(12),
-              ),
-              child: Center(
-                child: Text(
-                  provider.name.isNotEmpty
-                      ? provider.name[0].toUpperCase()
-                      : '?',
-                  style: TextStyle(
-                    fontSize: 24,
-                    fontWeight: FontWeight.bold,
-                    color: color,
-                  ),
-                ),
-              ),
-            ),
+            _buildProviderIcon(provider, color),
             const SizedBox(height: 8),
             Text(
               provider.name,
@@ -378,6 +361,54 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
         ),
       ),
     );
+  }
+
+  Widget _buildProviderIcon(ProviderMeta provider, Color color) {
+    return FutureBuilder<File?>(
+      future: _getIconFile(provider.id),
+      builder: (context, snapshot) {
+        final iconFile = snapshot.data;
+
+        return Container(
+          width: 56,
+          height: 56,
+          decoration: BoxDecoration(
+            color: iconFile != null ? Colors.transparent : color.withValues(alpha: 0.15),
+            borderRadius: BorderRadius.circular(12),
+          ),
+          clipBehavior: Clip.antiAlias,
+          child: iconFile != null
+              ? Image.file(
+                  iconFile,
+                  fit: BoxFit.cover,
+                  errorBuilder: (_, __, ___) => _letterAvatar(provider, color),
+                )
+              : _letterAvatar(provider, color),
+        );
+      },
+    );
+  }
+
+  Future<File?> _getIconFile(String providerId) async {
+    final registry = await ref.read(registryManagerProvider.future);
+    return registry.loadCachedProviderIcon(providerId);
+  }
+
+  Widget _letterAvatar(ProviderMeta provider, Color color) {
+    return Center(
+      child: Text(
+        provider.name.isNotEmpty ? provider.name[0].toUpperCase() : '?',
+        style: TextStyle(
+          fontSize: 24,
+          fontWeight: FontWeight.bold,
+          color: color,
+        ),
+      ),
+    );
+  }
+
+  String _iconAssetPath(String providerId) {
+    return 'assets/providers/icons/icon_$providerId.png';
   }
 
   Widget _buildSearchResultItem(SearchResultItem item) {
