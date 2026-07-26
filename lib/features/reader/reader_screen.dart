@@ -9,7 +9,6 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../core/database/database.dart';
 import '../../core/providers/database_providers.dart';
 import '../../core/providers/engine.dart';
-import '../../core/providers/registry.dart';
 import '../../core/network/client.dart';
 import '../../core/utils/html_preprocessor.dart';
 import '../../core/utils/logger.dart';
@@ -46,6 +45,7 @@ class _ReaderScreenState extends ConsumerState<ReaderScreen> {
   List<Chapter> _chapters = [];
   int _currentIndex = 0;
   final Map<int, LoadedChapter> _chapterCache = {};
+  final Set<int> _loadingChapters = {};
   final ScrollController _scrollController = ScrollController();
   final PageController _pageController = PageController();
   double _scrollProgress = 0.0;
@@ -264,7 +264,9 @@ class _ReaderScreenState extends ConsumerState<ReaderScreen> {
   Future<void> _loadChapter(int index) async {
     if (index < 0 || index >= _chapters.length) return;
     if (_chapterCache.containsKey(_chapters[index].id)) return;
+    if (_loadingChapters.contains(_chapters[index].id)) return;
 
+    _loadingChapters.add(_chapters[index].id);
     final chapter = _chapters[index];
     Log.i(_tag, 'Loading chapter ${index + 1}: ${chapter.name}');
 
@@ -282,6 +284,8 @@ class _ReaderScreenState extends ConsumerState<ReaderScreen> {
         _error = 'Failed to load chapter "${chapter.name}". Check your connection and try again.';
         if (mounted) setState(() {});
       }
+    } finally {
+      _loadingChapters.remove(chapter.id);
     }
   }
 

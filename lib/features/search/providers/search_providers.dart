@@ -53,8 +53,6 @@ class SearchNotifier extends StateNotifier<SearchState> {
 
     try {
       final enabledProviders = ref.read(enabledProvidersProvider);
-      final registryManager = await ref.read(registryManagerProvider.future);
-      final engine = ref.read(providerEngineProvider);
       final dio = await ref.read(dioProvider.future);
 
       Log.i(_tag, 'Searching ${enabledProviders.length} enabled providers: $enabledProviders');
@@ -65,12 +63,13 @@ class SearchNotifier extends StateNotifier<SearchState> {
         try {
           Log.i(_tag, 'Searching provider: $providerId');
 
-          // Use cached provider instance
-          final instance = await loadProviderById(providerId, ref);
-          if (instance == null) {
+          // Check cache first
+          final cached = ref.read(loadedProvidersProvider)[providerId];
+          if (cached == null) {
             Log.e(_tag, 'No cached provider for $providerId, skipping');
             continue;
           }
+          final instance = cached;
 
           List<SearchResultItem> tagResults(List<SearchResultItem> items) {
             return items.map((e) => SearchResultItem(

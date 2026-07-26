@@ -1,6 +1,5 @@
 import 'dart:async';
 import 'dart:io';
-import 'dart:typed_data';
 
 import 'package:drift/drift.dart' show Value;
 import 'package:epubx/epubx.dart';
@@ -12,7 +11,6 @@ import 'package:path/path.dart' as p;
 import '../../../core/database/database.dart';
 import '../../../core/providers/database_providers.dart';
 import '../../../core/providers/engine.dart';
-import '../../../core/providers/registry.dart';
 import '../../../core/network/client.dart';
 import '../../../core/utils/logger.dart';
 import '../background_service.dart';
