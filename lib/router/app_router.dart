@@ -3,8 +3,8 @@ import 'package:go_router/go_router.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../app.dart';
-import '../features/home/home_screen.dart';
 import '../features/search/search_results_screen.dart';
+import '../features/browse/browse_screen.dart';
 import '../features/browse/provider_screen.dart';
 import '../features/novel/novel_detail_screen.dart';
 import '../features/reader/reader_screen.dart';
@@ -41,10 +41,10 @@ final routerProvider = Provider<GoRouter>((ref) {
             builder: (context, state) => const LibraryScreen(),
           ),
           GoRoute(
-            path: '/search',
-            name: 'search',
+            path: '/browse',
+            name: 'browse',
             pageBuilder: (context, state) => const NoTransitionPage(
-              child: HomeScreen(),
+              child: BrowseScreen(),
             ),
           ),
           GoRoute(

@@ -25,7 +25,7 @@ class QuickNovelApp extends ConsumerWidget {
 }
 
 /// Main shell with bottom navigation bar.
-/// 4 tabs: [Library] [Search] [History] [Settings]
+/// 4 tabs: [Library] [Browse] [History] [Settings]
 class MainShell extends StatefulWidget {
   final Widget child;
   const MainShell({super.key, required this.child});
@@ -39,7 +39,7 @@ class _MainShellState extends State<MainShell> {
 
   static const _tabPaths = [
     '/library',
-    '/search',
+    '/browse',
     '/history',
     '/settings',
   ];
@@ -70,9 +70,9 @@ class _MainShellState extends State<MainShell> {
             label: 'Library',
           ),
           NavigationDestination(
-            icon: Icon(Icons.search),
-            selectedIcon: Icon(Icons.search),
-            label: 'Search',
+            icon: Icon(Icons.explore_outlined),
+            selectedIcon: Icon(Icons.explore),
+            label: 'Browse',
           ),
           NavigationDestination(
             icon: Icon(Icons.history),

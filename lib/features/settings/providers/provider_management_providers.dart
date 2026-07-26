@@ -91,24 +91,35 @@ class RegistriesNotifier extends AsyncNotifier<List<RegistryInfo>> {
     ]);
     _saveToDb();
   }
+
+  Future<void> toggleRegistry(String registryId) async {
+    final current = state.value ?? [];
+    state = AsyncData([
+      for (final r in current)
+        if (r.id == registryId) r.copyWith(enabled: !r.enabled) else r,
+    ]);
+    await _saveToDb();
+    Log.i(_tag, 'Toggled registry: $registryId');
+  }
 }
 
-/// All available providers — from registries only.
+/// All available providers — from enabled registries only.
 final availableProvidersProvider =
     FutureProvider<List<ProviderMeta>>((ref) async {
   final registriesAsync = ref.watch(registriesProvider);
   final registries = registriesAsync.value ?? [];
   final registryManager = await ref.watch(registryManagerProvider.future);
 
-  Log.i(_tag, 'Loading providers from ${registries.length} registries...');
+  // Only load from enabled registries
+  final enabledRegistries = registries.where((r) => r.enabled).toList();
+  Log.i(_tag, 'Loading providers from ${enabledRegistries.length}/${registries.length} enabled registries...');
 
   final allProviders = <ProviderMeta>[];
 
-  for (final registry in registries) {
+  for (final registry in enabledRegistries) {
     final metadata = await registryManager.loadCachedMetadata(registry.id);
     if (metadata != null) {
       Log.i(_tag, 'Got ${metadata.providers.length} providers from registry "${registry.id}"');
-      // Tag each provider with its registry ID
       for (final provider in metadata.providers) {
         allProviders.add(ProviderMeta(
           id: provider.id,

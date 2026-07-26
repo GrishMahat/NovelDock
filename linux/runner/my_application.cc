@@ -25,13 +25,13 @@ static void my_application_activate(GApplication* application) {
   GtkWindow* window =
       GTK_WINDOW(gtk_application_window_new(GTK_APPLICATION(application)));
 
-  // Use a header bar when running in GNOME as this is the common style used
-  // by applications and is the setup most users will be using (e.g. Ubuntu
-  // desktop).
-  // If running on X and not using GNOME then just use a traditional title bar
-  // in case the window manager does more exotic layout, e.g. tiling.
-  // If running on Wayland assume the header bar will work (may need changing
-  // if future cases occur).
+  // Window decoration policy:
+  // - GNOME on X11: use GTK header bar (common GNOME style)
+  // - Other X11 WMs: traditional title bar (WM handles decoration)
+  // - Wayland + GNOME: header bar
+  // - Wayland + tiling WMs (Niri, Hyprland, Sway): NO header bar
+  //   No decoration looks cleaner on tiling compositors and gives more
+  //   vertical screen space. TODO: Make this configurable in settings.
   gboolean use_header_bar = TRUE;
 #ifdef GDK_WINDOWING_X11
   GdkScreen* screen = gtk_window_get_screen(window);
@@ -42,6 +42,17 @@ static void my_application_activate(GApplication* application) {
     }
   }
 #endif
+  // Check for tiling compositors on Wayland
+  const gchar* desktop = g_getenv("XDG_CURRENT_DESKTOP");
+  if (desktop != NULL) {
+    if (g_str_has_prefix(desktop, "Niri") ||
+        g_str_has_prefix(desktop, "Hyprland") ||
+        g_str_has_prefix(desktop, "sway") ||
+        strstr(desktop, "niri") != NULL ||
+        strstr(desktop, "hyprland") != NULL) {
+      use_header_bar = FALSE;
+    }
+  }
   if (use_header_bar) {
     GtkHeaderBar* header_bar = GTK_HEADER_BAR(gtk_header_bar_new());
     gtk_widget_show(GTK_WIDGET(header_bar));

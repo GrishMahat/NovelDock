@@ -172,20 +172,15 @@ class DownloadNotifier extends StateNotifier<Map<int, NovelDownloadProgress>> {
         return;
       }
 
-      final registry = await ref.read(registryManagerProvider.future);
-      final engine = ref.read(providerEngineProvider);
       final dio = await ref.read(dioProvider.future);
 
-      Log.d(_tag, 'Loading provider JS for: ${novel.providerId}');
-      final jsSource = await registry.loadCachedProviderJs(novel.providerId);
-      if (jsSource == null) {
-        await downloadDao.updateDownloadStatus(task.id, 'failed', error: 'Provider JS not found for ${novel.providerId}');
+      Log.d(_tag, 'Loading provider instance for: ${novel.providerId}');
+      final instance = await loadProviderById(novel.providerId, ref);
+      if (instance == null) {
+        await downloadDao.updateDownloadStatus(task.id, 'failed', error: 'Provider not found for ${novel.providerId}');
         _updateProgress(task.novelId);
         return;
       }
-
-      Log.d(_tag, 'Loading provider instance...');
-      final instance = await engine.loadProvider(jsSource);
 
       Log.d(_tag, 'Getting content URL for: ${chapter.url}');
       final contentUrl = await instance.getChapterContentUrl(chapter.url);

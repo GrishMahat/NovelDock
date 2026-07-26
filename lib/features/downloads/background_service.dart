@@ -1,9 +1,8 @@
 import 'dart:async';
+import 'dart:io';
 import 'dart:ui';
 
 import 'package:flutter_background_service/flutter_background_service.dart';
-import 'package:flutter_background_service_android/flutter_background_service_android.dart';
-import 'package:flutter_local_notifications/flutter_local_notifications.dart';
 
 import '../../core/utils/logger.dart';
 
@@ -11,6 +10,7 @@ const _tag = 'BGService';
 
 /// Background download service — keeps downloads running when app is backgrounded.
 /// Uses flutter_background_service for Android foreground service.
+/// No-op on desktop platforms (Linux, macOS, Windows).
 class BackgroundDownloadService {
   static final FlutterBackgroundService _service = FlutterBackgroundService();
   static bool _initialized = false;
@@ -18,6 +18,7 @@ class BackgroundDownloadService {
   /// Initialize and start the background service.
   static Future<void> init() async {
     if (_initialized) return;
+    if (!Platform.isAndroid && !Platform.isIOS) return;
 
     try {
       await _service.configure(
@@ -46,6 +47,7 @@ class BackgroundDownloadService {
 
   /// Start the background service for downloads.
   static Future<void> start() async {
+    if (!Platform.isAndroid && !Platform.isIOS) return;
     if (!_initialized) await init();
     try {
       await _service.startService();
@@ -57,6 +59,7 @@ class BackgroundDownloadService {
 
   /// Stop the background service.
   static Future<void> stop() async {
+    if (!Platform.isAndroid && !Platform.isIOS) return;
     try {
       final service = FlutterBackgroundService();
       service.invoke('stop');
