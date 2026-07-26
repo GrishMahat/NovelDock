@@ -119,8 +119,8 @@ class TtsMpris {
 class _TtsMPRISService extends MPRISService {
   _TtsMPRISService()
       : super(
-          'QuickNovel',
-          identity: 'QuickNovel TTS',
+          'NovelBase',
+          identity: 'NovelBase TTS',
           canPlay: true,
           canPause: true,
           canGoPrevious: true,

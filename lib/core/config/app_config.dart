@@ -10,16 +10,16 @@ const _tag = 'Config';
 /// Platform-aware application paths following XDG conventions.
 ///
 /// Config directory (settings, registry metadata — small, user-editable):
-///   Linux:   ~/.config/quicknovel/
-///   macOS:   ~/Library/Application Support/quicknovel/
-///   Windows: %APPDATA%/quicknovel/
-///   Android/iOS: <app documents>/quicknovel/config/
+///   Linux:   ~/.config/novelbase/
+///   macOS:   ~/Library/Application Support/novelbase/
+///   Windows: %APPDATA%/novelbase/
+///   Android/iOS: <app documents>/novelbase/config/
 ///
 /// Data directory (providers, database, cookies — large, machine-managed):
-///   Linux:   ~/.local/share/quicknovel/
-///   macOS:   ~/Library/Application Support/quicknovel/
-///   Windows: %LOCALAPPDATA%/quicknovel/
-///   Android/iOS: <app documents>/quicknovel/data/
+///   Linux:   ~/.local/share/novelbase/
+///   macOS:   ~/Library/Application Support/novelbase/
+///   Windows: %LOCALAPPDATA%/novelbase/
+///   Android/iOS: <app documents>/novelbase/data/
 class AppConfig {
   static AppConfig? _instance;
 
@@ -41,7 +41,7 @@ class AppConfig {
   Directory get cookiesDir => Directory(p.join(dataDir.path, 'cookies'));
 
   /// Database file location (data)
-  String get databasePath => p.join(dataDir.path, 'quicknovel.sqlite');
+  String get databasePath => p.join(dataDir.path, 'novelbase.sqlite');
 
   static Future<AppConfig> getInstance() async {
     if (_instance != null) return _instance!;
@@ -74,31 +74,31 @@ class AppConfig {
     if (Platform.isLinux) {
       final home = Platform.environment['HOME'];
       if (home != null) {
-        return Directory(p.join(home, '.config', 'quicknovel'));
+        return Directory(p.join(home, '.config', 'novelbase'));
       }
     }
     if (Platform.isMacOS) {
       final home = Platform.environment['HOME'];
       if (home != null) {
-        return Directory(p.join(home, 'Library', 'Application Support', 'quicknovel'));
+        return Directory(p.join(home, 'Library', 'Application Support', 'novelbase'));
       }
     }
     if (Platform.isWindows) {
       final appData = Platform.environment['APPDATA'];
       if (appData != null) {
-        return Directory(p.join(appData, 'quicknovel'));
+        return Directory(p.join(appData, 'novelbase'));
       }
     }
     // Android, iOS, fallback
     final docs = await getApplicationDocumentsDirectory();
-    return Directory(p.join(docs.path, 'quicknovel', 'config'));
+    return Directory(p.join(docs.path, 'novelbase', 'config'));
   }
 
   static Future<Directory> _resolveDataDir() async {
     if (Platform.isLinux) {
       final home = Platform.environment['HOME'];
       if (home != null) {
-        return Directory(p.join(home, '.local', 'share', 'quicknovel'));
+        return Directory(p.join(home, '.local', 'share', 'novelbase'));
       }
     }
     if (Platform.isMacOS) {
@@ -108,12 +108,12 @@ class AppConfig {
     if (Platform.isWindows) {
       final localAppData = Platform.environment['LOCALAPPDATA'];
       if (localAppData != null) {
-        return Directory(p.join(localAppData, 'quicknovel'));
+        return Directory(p.join(localAppData, 'novelbase'));
       }
     }
     // Android, iOS, fallback
     final docs = await getApplicationDocumentsDirectory();
-    return Directory(p.join(docs.path, 'quicknovel', 'data'));
+    return Directory(p.join(docs.path, 'novelbase', 'data'));
   }
 
   // ─── Path helpers ─────────────────────────────────────

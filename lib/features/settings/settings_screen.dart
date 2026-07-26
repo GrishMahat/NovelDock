@@ -39,7 +39,7 @@ class SettingsScreen extends StatelessWidget {
               icon: Icons.palette,
               title: 'Theme',
               subtitle: 'Colors and appearance',
-              onTap: () {},
+              onTap: () => context.push('/settings/theme'),
             ),
           ]),
           _buildSection(context, 'Data', [
@@ -47,7 +47,7 @@ class SettingsScreen extends StatelessWidget {
               icon: Icons.backup,
               title: 'Backup & Restore',
               subtitle: 'Export or import library data',
-              onTap: () {},
+              onTap: () => context.push('/settings/backup'),
             ),
             _SettingsTile(
               icon: Icons.translate,
@@ -57,6 +57,12 @@ class SettingsScreen extends StatelessWidget {
             ),
           ]),
           _buildSection(context, 'About', [
+            _SettingsTile(
+              icon: Icons.bug_report,
+              title: 'Log Viewer',
+              subtitle: 'View in-app debug logs',
+              onTap: () => context.push('/settings/logs'),
+            ),
             _SettingsTile(
               icon: Icons.info_outline,
               title: 'About',

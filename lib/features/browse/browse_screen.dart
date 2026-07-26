@@ -7,6 +7,7 @@ import 'package:go_router/go_router.dart';
 
 import '../../core/providers/models.dart';
 import '../../theme/app_theme.dart';
+import '../../widgets/shimmer_list.dart';
 import '../settings/providers/provider_management_providers.dart';
 import 'webview_screen.dart';
 
@@ -49,7 +50,7 @@ class _BrowseScreenState extends ConsumerState<BrowseScreen>
                   hintText: 'Search sources...',
                   border: InputBorder.none,
                 ),
-                onSubmitted: (q) => context.push('/browse/search?q=$q'),
+                onSubmitted: (q) => context.push('/search/results?q=$q'),
               )
             : const Text('Browse'),
         actions: [
@@ -145,7 +146,7 @@ class SourcesTab extends ConsumerWidget {
     final enabled = ref.watch(enabledProvidersProvider);
 
     return providersAsync.when(
-      loading: () => const Center(child: CircularProgressIndicator()),
+      loading: () => const ShimmerList(),
       error: (e, _) => Center(child: Text('Error: $e')),
       data: (providers) {
         final enabledProviders =
@@ -243,7 +244,7 @@ class ExtensionsTab extends ConsumerWidget {
     final enabled = ref.watch(enabledProvidersProvider);
 
     return providersAsync.when(
-      loading: () => const Center(child: CircularProgressIndicator()),
+      loading: () => const ShimmerList(),
       error: (e, _) => Center(child: Text('Error: $e')),
       data: (providers) {
         if (providers.isEmpty) {
@@ -481,7 +482,7 @@ Widget providerAvatar(ProviderMeta provider) {
   try {
     final home = Platform.environment['HOME'];
     if (home != null) {
-      final registriesDir = Directory('$home/.config/quicknovel/registries');
+      final registriesDir = Directory('$home/.config/novelbase/registries');
       if (registriesDir.existsSync()) {
         for (final entity in registriesDir.listSync()) {
           if (entity is! Directory) continue;

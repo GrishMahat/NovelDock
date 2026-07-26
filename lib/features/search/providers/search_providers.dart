@@ -3,7 +3,6 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_riverpod/legacy.dart';
 
 import '../../../core/providers/engine.dart';
-import '../../../core/providers/registry.dart';
 import '../../../core/network/client.dart';
 import '../../../core/utils/logger.dart';
 import '../../settings/providers/provider_management_providers.dart';
@@ -129,11 +128,13 @@ class SearchNotifier extends StateNotifier<SearchState> {
         }
       }
 
-      Log.ok(_tag, 'Total results: ${allResults.length}');
+      // Rank results by fuzzy relevance
+      final ranked = _rankResults(allResults, query);
+      Log.ok(_tag, 'Total results: ${ranked.length}');
       state = state.copyWith(
-        results: allResults,
+        results: ranked,
         isLoading: false,
-        hasNextPage: allResults.length >= 20,
+        hasNextPage: ranked.length >= 20,
       );
     } catch (e) {
       Log.e(_tag, 'Search failed', e);
@@ -231,6 +232,89 @@ class SearchNotifier extends StateNotifier<SearchState> {
       Log.e(_tag, 'POST search failed', e);
       return null;
     }
+  }
+
+  /// Rank search results by fuzzy relevance to the query.
+  /// Uses token-based scoring: title match > author match > summary match,
+  /// weighted by token proximity and substring containment.
+  List<SearchResultItem> _rankResults(List<SearchResultItem> results, String query) {
+    if (results.isEmpty) return results;
+
+    final queryTokens = query.toLowerCase().split(RegExp(r'\s+')).where((t) => t.isNotEmpty).toList();
+    if (queryTokens.isEmpty) return results;
+
+    // Score each result
+    final scored = results.map((item) {
+      final title = item.title.toLowerCase();
+      final author = item.author?.toLowerCase() ?? '';
+      final summary = item.summary?.toLowerCase() ?? '';
+
+      double score = 0;
+
+      for (final token in queryTokens) {
+        // Exact title match: highest score
+        if (title == token) {
+          score += 100;
+        } else if (title.contains(token)) {
+          score += 50;
+        } else {
+          // Fuzzy title match via Levenshtein
+          final dist = _levenshteinDistance(token, title);
+          if (dist <= 2) {
+            score += 30 * (1 - dist / title.length);
+          }
+        }
+
+        // Token-in-summary bonus
+        if (summary.contains(token)) {
+          score += 10;
+        }
+
+        // Token-in-author bonus
+        if (author.contains(token)) {
+          score += 5;
+        }
+
+        // Full query as substring of title
+        if (title.contains(query.toLowerCase())) {
+          score += 20;
+        }
+      }
+
+      // Normalize by title length (shorter = denser match)
+      if (title.isNotEmpty) {
+        score = score / (title.length / 10);
+      }
+
+      return (item: item, score: score);
+    }).toList();
+
+    // Sort descending by score
+    scored.sort((a, b) => b.score.compareTo(a.score));
+    return scored.map((s) => s.item).toList();
+  }
+
+  /// Simple Levenshtein distance between two strings.
+  int _levenshteinDistance(String a, String b) {
+    final m = a.length;
+    final n = b.length;
+    final dp = List.generate(m + 1, (_) => List.filled(n + 1, 0));
+
+    for (var i = 0; i <= m; i++) dp[i][0] = i;
+    for (var j = 0; j <= n; j++) dp[0][j] = j;
+
+    for (var i = 1; i <= m; i++) {
+      for (var j = 1; j <= n; j++) {
+        final cost = a[i - 1] == b[j - 1] ? 0 : 1;
+        dp[i][j] = [
+          dp[i - 1][j] + 1,
+          dp[i][j - 1] + 1,
+          dp[i - 1][j - 1] + cost,
+        ].reduce((x, y) => x < y ? x : y);
+      }
+    }
+
+    return dp[m][n];
   }
 
   void clear() {

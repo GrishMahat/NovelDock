@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter_svg/flutter_svg.dart';
 import 'package:package_info_plus/package_info_plus.dart';
 import 'package:url_launcher/url_launcher.dart';
 
@@ -17,20 +18,16 @@ class AboutPage extends StatelessWidget {
           const SizedBox(height: 32),
           // App icon
           Center(
-            child: Container(
-              width: 80,
-              height: 80,
-              decoration: BoxDecoration(
-                color: AppTheme.kPrimary,
-                borderRadius: BorderRadius.circular(16),
-              ),
-              child: const Icon(Icons.book, size: 48, color: Colors.white),
+            child: SvgPicture.asset(
+              'assets/images/logo.svg',
+              width: 96,
+              height: 96,
             ),
           ),
           const SizedBox(height: 16),
           const Center(
             child: Text(
-              'QuickNovel',
+              'NovelBase',
               style: TextStyle(fontSize: 24, fontWeight: FontWeight.bold),
             ),
           ),
@@ -55,14 +52,14 @@ class AboutPage extends StatelessWidget {
             title: const Text('Source Code'),
             subtitle: const Text('GitHub'),
             trailing: const Icon(Icons.open_in_new, size: 18),
-            onTap: () => _launchUrl('https://github.com/user/QuickNovel'),
+            onTap: () => _launchUrl('https://github.com/user/NovelBase'),
           ),
           ListTile(
             leading: const Icon(Icons.bug_report),
             title: const Text('Report Issue'),
             subtitle: const Text('Found a bug? Let us know'),
             trailing: const Icon(Icons.open_in_new, size: 18),
-            onTap: () => _launchUrl('https://github.com/user/QuickNovel/issues'),
+            onTap: () => _launchUrl('https://github.com/user/NovelBase/issues'),
           ),
 
           const SizedBox(height: 16),
@@ -73,7 +70,7 @@ class AboutPage extends StatelessWidget {
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  Text('QuickNovel', style: TextStyle(fontWeight: FontWeight.w600)),
+                  Text('NovelBase', style: TextStyle(fontWeight: FontWeight.w600)),
                   SizedBox(height: 4),
                   Text(
                     'Multi-platform novel reader and downloader. '

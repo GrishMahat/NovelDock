@@ -11,6 +11,7 @@ import '../../core/providers/database_providers.dart';
 import '../../core/providers/engine.dart';
 import '../../core/network/client.dart';
 import '../../core/utils/html_preprocessor.dart';
+import '../../core/utils/lru_cache.dart';
 import '../../core/utils/logger.dart';
 import '../../theme/app_theme.dart';
 import '../../core/tts/tts_manager.dart';
@@ -44,7 +45,7 @@ class _ReaderScreenState extends ConsumerState<ReaderScreen> {
   // Chapter management
   List<Chapter> _chapters = [];
   int _currentIndex = 0;
-  final Map<int, LoadedChapter> _chapterCache = {};
+  final LruCache<int, LoadedChapter> _chapterCache = LruCache(20);
   final Set<int> _loadingChapters = {};
   final ScrollController _scrollController = ScrollController();
   final PageController _pageController = PageController();
@@ -555,84 +556,109 @@ class _ReaderScreenState extends ConsumerState<ReaderScreen> {
 
     _settingsVersion++;
 
+    final isDesktop = Platform.isLinux || Platform.isWindows || Platform.isMacOS;
+
     return Scaffold(
       backgroundColor: settings.bgColor,
-      body: GestureDetector(
+      body: isDesktop
+          ? CallbackShortcuts(
+              bindings: {
+                SingleActivator(LogicalKeyboardKey.arrowLeft): _goToPreviousChapter,
+                SingleActivator(LogicalKeyboardKey.arrowRight): _goToNextChapter,
+                SingleActivator(LogicalKeyboardKey.escape): () => Navigator.pop(context),
+                SingleActivator(LogicalKeyboardKey.space): () {
+                  setState(() => _showControls = !_showControls);
+                },
+              },
+              child: Focus(
+                autofocus: true,
+                child: GestureDetector(
+                  onTapUp: (details) {
+                    if (ttsActive) return;
+                    _handleTap(details);
+                  },
+                  child: _buildReaderStack(settings, ttsState, ttsActive),
+                ),
+              ),
+            )
+          : GestureDetector(
         onTapUp: (details) {
           if (ttsActive) return;
           _handleTap(details);
         },
-        child: Stack(
-          children: [
-            if (_isLoading)
-              const Center(child: CircularProgressIndicator())
-            else if (_error != null)
-              _buildError()
-            else if (settings.scrollMode == 'paged')
-              buildPagedContent(
-                context: context,
-                settings: settings,
-                chapters: _chapters,
-                currentIndex: _currentIndex,
-                chapterCache: _chapterCache,
-                pageController: _pageController,
-                onPageChanged: (index) => setState(() => _currentIndex = index),
-                loadChapter: _loadChapter,
-                goToPreviousChapter: _goToPreviousChapter,
-                goToNextChapter: _goToNextChapter,
-                chunkKeys: _chunkKeys,
-                settingsVersion: _settingsVersion,
-                ttsState: ttsState,
-              )
-            else
-              buildContinuousContent(
-                context: context,
-                settings: settings,
-                chapters: _chapters,
-                currentIndex: _currentIndex,
-                chapterCache: _chapterCache,
-                scrollController: _scrollController,
-                loadChapter: _loadChapter,
-                chunkKeys: _chunkKeys,
-                settingsVersion: _settingsVersion,
-                ttsState: ttsState,
-              ),
-
-            // Normal controls — hidden when TTS is active
-            if (_showControls && !ttsActive)
-              buildReaderTopBar(
-                context: context,
-                chapterName: _chapters.isNotEmpty ? _chapters[_currentIndex].name : 'Chapter',
-                onBack: () => Navigator.pop(context),
-                onAddBookmark: _addBookmark,
-                onShowBookmarks: _showBookmarks,
-              ),
-            if (_showControls && !ttsActive)
-              buildReaderBottomBar(
-                onPrevious: _goToPreviousChapter,
-                onNext: _goToNextChapter,
-                onToggleTts: () => _toggleTts(),
-                onShowChapterList: _showChapterList,
-                hasEpubToc: _epubToc.isNotEmpty,
-                onShowEpubToc: _showEpubToc,
-                onTranslate: _translateChapter,
-                onSettings: _showSettingsDialog,
-              ),
-            if (_showControls && !ttsActive) buildReaderProgressBar(_scrollProgress),
-
-            // TTS floating player — shown when TTS is active
-            if (ttsActive)
-              buildTtsFloatingPlayer(
-                ttsState: ttsState,
-                onSkipBack: () => ref.read(ttsManagerProvider.notifier).skipBackward(),
-                onTogglePause: () => ref.read(ttsManagerProvider.notifier).togglePause(),
-                onStop: () => ref.read(ttsManagerProvider.notifier).stop(),
-                onSkipNext: () => ref.read(ttsManagerProvider.notifier).skipForward(),
-                onShowTranslateDialog: () => translate.showTranslateDialog(context, ref),
-              ),
-          ],
-        ),
+        child: _buildReaderStack(settings, ttsState, ttsActive),
       ),
+    );
+  }
+
+  Widget _buildReaderStack(ReaderSettings settings, TtsManagerState ttsState, bool ttsActive) {
+    return Stack(
+      children: [
+        if (_isLoading)
+          const Center(child: CircularProgressIndicator())
+        else if (_error != null)
+          _buildError()
+        else if (settings.scrollMode == 'paged')
+          buildPagedContent(
+            context: context,
+            settings: settings,
+            chapters: _chapters,
+            currentIndex: _currentIndex,
+            chapterCache: _chapterCache,
+            pageController: _pageController,
+            onPageChanged: (index) => setState(() => _currentIndex = index),
+            loadChapter: _loadChapter,
+            goToPreviousChapter: _goToPreviousChapter,
+            goToNextChapter: _goToNextChapter,
+            chunkKeys: _chunkKeys,
+            settingsVersion: _settingsVersion,
+            ttsState: ttsState,
+          )
+        else
+          buildContinuousContent(
+            context: context,
+            settings: settings,
+            chapters: _chapters,
+            currentIndex: _currentIndex,
+            chapterCache: _chapterCache,
+            scrollController: _scrollController,
+            loadChapter: _loadChapter,
+            chunkKeys: _chunkKeys,
+            settingsVersion: _settingsVersion,
+            ttsState: ttsState,
+          ),
+
+        if (_showControls && !ttsActive)
+          buildReaderTopBar(
+            context: context,
+            chapterName: _chapters.isNotEmpty ? _chapters[_currentIndex].name : 'Chapter',
+            onBack: () => Navigator.pop(context),
+            onAddBookmark: _addBookmark,
+            onShowBookmarks: _showBookmarks,
+          ),
+        if (_showControls && !ttsActive)
+          buildReaderBottomBar(
+            onPrevious: _goToPreviousChapter,
+            onNext: _goToNextChapter,
+            onToggleTts: () => _toggleTts(),
+            onShowChapterList: _showChapterList,
+            hasEpubToc: _epubToc.isNotEmpty,
+            onShowEpubToc: _showEpubToc,
+            onTranslate: _translateChapter,
+            onSettings: _showSettingsDialog,
+          ),
+        if (_showControls && !ttsActive) buildReaderProgressBar(_scrollProgress),
+
+        if (ttsActive)
+          buildTtsFloatingPlayer(
+            ttsState: ttsState,
+            onSkipBack: () => ref.read(ttsManagerProvider.notifier).skipBackward(),
+            onTogglePause: () => ref.read(ttsManagerProvider.notifier).togglePause(),
+            onStop: () => ref.read(ttsManagerProvider.notifier).stop(),
+            onSkipNext: () => ref.read(ttsManagerProvider.notifier).skipForward(),
+            onShowTranslateDialog: () => translate.showTranslateDialog(context, ref),
+          ),
+      ],
     );
   }
 

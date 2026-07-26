@@ -12,7 +12,9 @@ import '../../core/utils/logger.dart';
 import '../../core/providers/database_providers.dart';
 import '../../core/network/client.dart';
 import '../../core/database/database.dart';
+import '../../core/display_mode.dart';
 import '../../theme/app_theme.dart';
+import '../../widgets/shimmer_list.dart';
 import '../settings/providers/provider_management_providers.dart';
 import '../search/providers/search_providers.dart';
 
@@ -30,6 +32,7 @@ class HomeScreen extends ConsumerStatefulWidget {
 class _HomeScreenState extends ConsumerState<HomeScreen> {
   final _searchController = TextEditingController();
   String _currentQuery = '';
+  DisplayMode _displayMode = DisplayMode.list;
 
   @override
   void dispose() {
@@ -172,9 +175,14 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
       appBar: AppBar(
         title: _currentQuery.isNotEmpty
             ? Text('Search: $_currentQuery')
-            : const Text('QuickNovel'),
+            : const Text('NovelBase'),
         actions: [
-          if (_currentQuery.isNotEmpty)
+          if (_currentQuery.isNotEmpty) ...[
+            IconButton(
+              icon: Icon(_displayMode.icon),
+              onPressed: () => setState(() => _displayMode = _displayMode.next),
+              tooltip: 'Display mode',
+            ),
             IconButton(
               icon: const Icon(Icons.close),
               onPressed: () {
@@ -183,6 +191,7 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
                 ref.read(searchProvider.notifier).clear();
               },
             ),
+          ],
         ],
       ),
       body: Column(
@@ -230,7 +239,10 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
     Set<String> enabledProviders,
   ) {
     return providersAsync.when(
-      loading: () => const Center(child: CircularProgressIndicator()),
+      loading: () => const Padding(
+        padding: EdgeInsets.all(12),
+        child: ShimmerGrid(crossAxisCount: 3, aspectRatio: 0.85),
+      ),
       error: (e, _) => Center(child: Text('Error: $e')),
       data: (providers) {
         final enabled =
@@ -287,7 +299,7 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
 
   Widget _buildSearchResults(SearchState searchState) {
     if (searchState.isLoading) {
-      return const Center(child: CircularProgressIndicator());
+      return const ShimmerList();
     }
 
     if (searchState.error != null) {
@@ -321,13 +333,36 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
       );
     }
 
-    return ListView.builder(
-      itemCount: searchState.results.length,
-      itemBuilder: (context, index) {
-        final item = searchState.results[index];
-        return _buildSearchResultItem(item);
-      },
-    );
+    switch (_displayMode) {
+      case DisplayMode.grid:
+        return GridView.builder(
+          padding: const EdgeInsets.all(8),
+          gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
+            crossAxisCount: 3,
+            childAspectRatio: 0.68,
+            crossAxisSpacing: 8,
+            mainAxisSpacing: 8,
+          ),
+          itemCount: searchState.results.length,
+          itemBuilder: (context, index) => _buildSearchGridItem(searchState.results[index]),
+        );
+      case DisplayMode.list:
+        return ListView.builder(
+          itemCount: searchState.results.length,
+          itemBuilder: (context, index) {
+            final item = searchState.results[index];
+            return _buildSearchResultItem(item);
+          },
+        );
+      case DisplayMode.compact:
+        return ListView.builder(
+          itemCount: searchState.results.length,
+          itemBuilder: (context, index) {
+            final item = searchState.results[index];
+            return _buildSearchCompactItem(item);
+          },
+        );
+    }
   }
 
   Widget _buildProviderCard(ProviderMeta provider) {
@@ -453,6 +488,100 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
             )
           : null,
       onTap: () => _openNovel(item),
+    );
+  }
+
+  Widget _buildSearchGridItem(SearchResultItem item) {
+    return Card(
+      clipBehavior: Clip.antiAlias,
+      child: InkWell(
+        onTap: () => _openNovel(item),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            Expanded(
+              child: item.cover != null
+                  ? Image.network(
+                      item.cover!,
+                      fit: BoxFit.cover,
+                      errorBuilder: (_, _, _) => Container(
+                        color: AppTheme.kSurfaceVariantDark,
+                        child: const Icon(Icons.broken_image),
+                      ),
+                    )
+                  : Container(
+                      color: AppTheme.kSurfaceVariantDark,
+                      child: const Icon(Icons.book),
+                    ),
+            ),
+            Padding(
+              padding: const EdgeInsets.all(6),
+              child: Text(
+                item.title,
+                style: const TextStyle(fontSize: 11, fontWeight: FontWeight.w500),
+                maxLines: 2,
+                overflow: TextOverflow.ellipsis,
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildSearchCompactItem(SearchResultItem item) {
+    return InkWell(
+      onTap: () => _openNovel(item),
+      child: Padding(
+        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+        child: Row(
+          children: [
+            ClipRRect(
+              borderRadius: BorderRadius.circular(3),
+              child: item.cover != null
+                  ? Image.network(
+                      item.cover!,
+                      width: 28,
+                      height: 38,
+                      fit: BoxFit.cover,
+                      errorBuilder: (_, _, _) => Container(
+                        width: 28,
+                        height: 38,
+                        color: AppTheme.kSurfaceVariantDark,
+                        child: const Icon(Icons.broken_image, size: 16),
+                      ),
+                    )
+                  : Container(
+                      width: 28,
+                      height: 38,
+                      color: AppTheme.kSurfaceVariantDark,
+                      child: const Icon(Icons.book, size: 16),
+                    ),
+            ),
+            const SizedBox(width: 10),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    item.title,
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: const TextStyle(fontSize: 13),
+                  ),
+                  if (item.author != null)
+                    Text(
+                      item.author!,
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: const TextStyle(fontSize: 11, color: AppTheme.kTextSecondaryDark),
+                    ),
+                ],
+              ),
+            ),
+          ],
+        ),
+      ),
     );
   }
 }
