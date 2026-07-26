@@ -1,6 +1,6 @@
 {
   "version": 1,
-  "name": "NovelBase Default",
+  "name": "NovelDock Default",
   "description": "Default provider registry bundled with the app. Includes icons for 50+ providers.",
   "status": "active",
   "updated": 1753526400,
@@ -13,7 +13,7 @@
       "file": "wuxiabox.js",
       "icon": "icons/icon_wuxiabox.png",
       "version": "1.0.0",
-      "author": "quicknovel"
+      "author": "noveldock"
     },
     {
       "id": "examplenovel",
@@ -22,7 +22,7 @@
       "baseUrl": "https://www.example.com",
       "file": "example_provider.js",
       "version": "1.0.0",
-      "author": "quicknovel"
+      "author": "noveldock"
     },
     {
       "id": "royalroad",
@@ -32,7 +32,7 @@
       "file": "royalroad_provider.js",
       "icon": "icons/icon_royalroad2.png",
       "version": "1.0.0",
-      "author": "quicknovel"
+      "author": "noveldock"
     },
     {
       "id": "nah",

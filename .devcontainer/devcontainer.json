@@ -1,5 +1,5 @@
 {
-  "name": "QuickNovel Android Builder",
+  "name": "NovelDock Android Builder",
   "image": "mcr.microsoft.com/devcontainers/universal:2-linux",
   "features": {
     "ghcr.io/devcontainers/features/java:1": {

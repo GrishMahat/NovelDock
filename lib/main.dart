@@ -60,7 +60,7 @@ void main() async {
 
   runApp(
     const ProviderScope(
-      child: NovelBaseApp(),
+      child: NovelDockApp(),
     ),
   );
 }

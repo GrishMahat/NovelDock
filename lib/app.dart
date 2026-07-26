@@ -9,15 +9,15 @@ import 'router/app_router.dart';
 import 'theme/app_theme.dart';
 import 'widgets/tts_mini_player.dart';
 
-class NovelBaseApp extends ConsumerWidget {
-  const NovelBaseApp({super.key});
+class NovelDockApp extends ConsumerWidget {
+  const NovelDockApp({super.key});
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final router = ref.watch(routerProvider);
 
     return MaterialApp.router(
-      title: 'NovelBase',
+      title: 'NovelDock',
       debugShowCheckedModeBanner: false,
       routerConfig: router,
       theme: AppTheme.light(),

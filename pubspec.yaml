@@ -1,5 +1,5 @@
-name: quicknovel
-description: "QuickNovel - Multi-platform novel reader and downloader"
+name: noveldock
+description: "NovelDock - Multi-platform novel reader and downloader"
 publish_to: 'none'
 version: 1.0.0+1
 

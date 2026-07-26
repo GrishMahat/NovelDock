@@ -2,7 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flex_color_scheme/flex_color_scheme.dart';
 
 class AppTheme {
-  // Colors from original NovelBase
+  // Colors from original NovelDock
   static const Color kBackgroundDark = Color(0xFF111111);
   static const Color kBackgroundAmoled = Color(0xFF000000);
   static const Color kBackgroundAmoledLight = Color(0xFF121213);

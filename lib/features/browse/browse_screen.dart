@@ -482,7 +482,7 @@ Widget providerAvatar(ProviderMeta provider) {
   try {
     final home = Platform.environment['HOME'];
     if (home != null) {
-      final registriesDir = Directory('$home/.config/novelbase/registries');
+      final registriesDir = Directory('$home/.config/noveldock/registries');
       if (registriesDir.existsSync()) {
         for (final entity in registriesDir.listSync()) {
           if (entity is! Directory) continue;

@@ -1,4 +1,4 @@
-package dev.grish.novelbase
+package dev.grish.noveldock
 
 import com.ryanheise.audioservice.AudioServiceActivity
 
