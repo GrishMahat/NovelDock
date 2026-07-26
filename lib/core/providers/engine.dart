@@ -23,6 +23,38 @@ String decodeHtmlEntities(String str) {
   return str;
 }
 
+/// Feature flags that a provider can declare via getProviderMetadata().
+class ProviderFeatureFlags {
+  final bool hasMainPage;
+  final bool hasReviews;
+  final bool hasRateLimit;
+  final bool usesCloudFlareKiller;
+  final bool hasSearch;
+  final bool hasChapterApi;
+
+  const ProviderFeatureFlags({
+    this.hasMainPage = false,
+    this.hasReviews = false,
+    this.hasRateLimit = false,
+    this.usesCloudFlareKiller = false,
+    this.hasSearch = true,
+    this.hasChapterApi = false,
+  });
+
+  factory ProviderFeatureFlags.fromJson(Map<String, dynamic> json) {
+    return ProviderFeatureFlags(
+      hasMainPage: json['hasMainPage'] as bool? ?? false,
+      hasReviews: json['hasReviews'] as bool? ?? false,
+      hasRateLimit: json['hasRateLimit'] as bool? ?? false,
+      usesCloudFlareKiller: json['usesCloudFlareKiller'] as bool? ?? false,
+      hasSearch: json['hasSearch'] as bool? ?? true,
+      hasChapterApi: json['hasChapterApi'] as bool? ?? false,
+    );
+  }
+
+  static const empty = ProviderFeatureFlags();
+}
+
 /// Wraps the JS engine for evaluating provider JS files.
 class ProviderEngine {
   JavascriptRuntime? _runtime;
@@ -74,11 +106,29 @@ class ProviderEngine {
 class ProviderInstance {
   final JavascriptRuntime runtime;
   List<String> _exportedFunctions = [];
+  ProviderFeatureFlags _flags = ProviderFeatureFlags.empty;
 
   ProviderInstance({required this.runtime});
 
   /// List of functions exported by this provider.
   List<String> get exportedFunctions => _exportedFunctions;
+
+  /// Feature flags declared by this provider.
+  ProviderFeatureFlags get flags => _flags;
+
+  /// Read and cache feature flags from the provider's getProviderMetadata().
+  Future<void> loadFlags() async {
+    if (!_exportedFunctions.contains('getProviderMetadata')) return;
+    try {
+      final result = await call('getProviderMetadata', []);
+      if (result != null && result is Map<String, dynamic>) {
+        _flags = ProviderFeatureFlags.fromJson(result);
+        Log.i(_tag, 'Flags: ${result.toString()}');
+      }
+    } catch (e) {
+      Log.d(_tag, 'getProviderMetadata() failed: $e');
+    }
+  }
 
   /// Validate that the provider exports required functions.
   /// Returns a list of missing required functions (empty = valid).
@@ -181,6 +231,61 @@ class ProviderInstance {
   Future<String?> getImageUrl(String imgUrl) async {
     final result = await call('getImageUrl', [imgUrl]);
     return result?.toString();
+  }
+
+  // ─── Main Page / Category / Tag Browsing ─────────────────
+
+  /// Load the main/explore page for this provider.
+  /// Returns a list of novel items featured on the main page.
+  Future<SearchResults?> loadMainPage({int page = 1, String? category, String? orderBy, String? tag}) async {
+    try {
+      final result = await call('loadMainPage', [page, category, orderBy, tag]);
+      if (result != null && result is Map<String, dynamic>) {
+        return SearchResults.fromJson(result);
+      }
+    } catch (e) {
+      Log.d(_tag, 'loadMainPage() not available: $e');
+    }
+    return null;
+  }
+
+  /// Get available categories for browsing.
+  Future<List<String>?> getCategories() async {
+    try {
+      final result = await call('getCategories', []);
+      if (result != null && result is List) {
+        return result.cast<String>();
+      }
+    } catch (e) {
+      Log.d(_tag, 'getCategories() not available: $e');
+    }
+    return null;
+  }
+
+  /// Get available sort order options.
+  Future<List<Map<String, String>>?> getOrderBys() async {
+    try {
+      final result = await call('getOrderBys', []);
+      if (result != null && result is List) {
+        return result.cast<Map<String, String>>();
+      }
+    } catch (e) {
+      Log.d(_tag, 'getOrderBys() not available: $e');
+    }
+    return null;
+  }
+
+  /// Get available tags for filtering.
+  Future<List<String>?> getTags() async {
+    try {
+      final result = await call('getTags', []);
+      if (result != null && result is List) {
+        return result.cast<String>();
+      }
+    } catch (e) {
+      Log.d(_tag, 'getTags() not available: $e');
+    }
+    return null;
   }
 }
 
@@ -376,6 +481,9 @@ Future<ProviderInstance?> loadProviderById(
   }
 
   final instance = await engine.loadProvider(jsSource);
+
+  // Load feature flags
+  await instance.loadFlags();
 
   final current = ref.read(loadedProvidersProvider);
   ref.read(loadedProvidersProvider.notifier).state = {

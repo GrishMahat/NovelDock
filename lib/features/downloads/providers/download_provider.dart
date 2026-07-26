@@ -11,6 +11,7 @@ import 'package:path/path.dart' as p;
 import '../../../core/database/database.dart';
 import '../../../core/providers/database_providers.dart';
 import '../../../core/providers/engine.dart';
+import '../../../core/providers/registry.dart';
 import '../../../core/network/client.dart';
 import '../../../core/utils/logger.dart';
 import '../background_service.dart';
@@ -173,7 +174,24 @@ class DownloadNotifier extends StateNotifier<Map<int, NovelDownloadProgress>> {
       final dio = await ref.read(dioProvider.future);
 
       Log.d(_tag, 'Loading provider instance for: ${novel.providerId}');
-      final instance = await loadProviderById(novel.providerId, ref);
+      // Load provider directly using Ref (not WidgetRef)
+      ProviderInstance? instance;
+      final cached = ref.read(loadedProvidersProvider)[novel.providerId];
+      if (cached != null) {
+        instance = cached;
+      } else {
+        final registry = await ref.read(registryManagerProvider.future);
+        final engine = ref.read(providerEngineProvider);
+        final jsSource = await registry.loadCachedProviderJs(novel.providerId);
+        if (jsSource != null) {
+          instance = await engine.loadProvider(jsSource);
+          final current = ref.read(loadedProvidersProvider);
+          ref.read(loadedProvidersProvider.notifier).state = {
+            ...current,
+            novel.providerId: instance,
+          };
+        }
+      }
       if (instance == null) {
         await downloadDao.updateDownloadStatus(task.id, 'failed', error: 'Provider not found for ${novel.providerId}');
         _updateProgress(task.novelId);
@@ -226,7 +244,6 @@ class DownloadNotifier extends StateNotifier<Map<int, NovelDownloadProgress>> {
 
       final chapterHtml = content.html;
       final chapterTitle = chapter.name;
-      final novelTitle = novel.title ?? 'Unknown';
       final novelAuthor = novel.author ?? '';
 
       final epubBook = EpubBook()

@@ -17,6 +17,9 @@ import '../features/settings/pages/reader_settings_page.dart';
 import '../features/settings/pages/translation_settings_page.dart';
 import '../features/settings/pages/download_settings_page.dart';
 import '../features/settings/pages/about_page.dart';
+import '../features/settings/pages/theme_settings_page.dart';
+import '../features/settings/pages/backup_restore_page.dart';
+import '../features/settings/pages/log_viewer_page.dart';
 import '../features/import/import_screen.dart';
 import '../main.dart' show sharedFilePath;
 
@@ -133,6 +136,24 @@ final routerProvider = Provider<GoRouter>((ref) {
         name: 'about',
         parentNavigatorKey: _rootNavigatorKey,
         builder: (context, state) => const AboutPage(),
+      ),
+      GoRoute(
+        path: '/settings/theme',
+        name: 'themeSettings',
+        parentNavigatorKey: _rootNavigatorKey,
+        builder: (context, state) => const ThemeSettingsPage(),
+      ),
+      GoRoute(
+        path: '/settings/backup',
+        name: 'backupRestore',
+        parentNavigatorKey: _rootNavigatorKey,
+        builder: (context, state) => const BackupRestorePage(),
+      ),
+      GoRoute(
+        path: '/settings/logs',
+        name: 'logViewer',
+        parentNavigatorKey: _rootNavigatorKey,
+        builder: (context, state) => const LogViewerPage(),
       ),
       GoRoute(
         path: '/import',

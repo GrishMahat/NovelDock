@@ -4,8 +4,10 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
 import '../../core/database/database.dart';
+import '../../core/display_mode.dart';
 import '../../core/providers/database_providers.dart';
 import '../../theme/app_theme.dart';
+import '../../widgets/shimmer_list.dart';
 
 class LibraryScreen extends ConsumerStatefulWidget {
   const LibraryScreen({super.key});
@@ -17,7 +19,7 @@ class LibraryScreen extends ConsumerStatefulWidget {
 class _LibraryScreenState extends ConsumerState<LibraryScreen>
     with SingleTickerProviderStateMixin {
   late final TabController _tabController;
-  bool _isGrid = true;
+  DisplayMode _displayMode = DisplayMode.grid;
 
   static const _tabs = [
     'All',
@@ -61,8 +63,8 @@ class _LibraryScreenState extends ConsumerState<LibraryScreen>
             tooltip: 'Import EPUB/PDF',
           ),
           IconButton(
-            icon: Icon(_isGrid ? Icons.view_list : Icons.grid_view),
-            onPressed: () => setState(() => _isGrid = !_isGrid),
+            icon: Icon(_displayMode.icon),
+            onPressed: () => setState(() => _displayMode = _displayMode.next),
           ),
         ],
         bottom: TabBar(
@@ -90,7 +92,13 @@ class _LibraryScreenState extends ConsumerState<LibraryScreen>
       stream: stream,
       builder: (context, snapshot) {
         if (snapshot.connectionState == ConnectionState.waiting) {
-          return const Center(child: CircularProgressIndicator());
+          switch (_displayMode) {
+            case DisplayMode.grid:
+              return const ShimmerGrid();
+            case DisplayMode.list:
+            case DisplayMode.compact:
+              return const ShimmerList();
+          }
         }
 
         final novels = snapshot.data ?? [];
@@ -126,23 +134,29 @@ class _LibraryScreenState extends ConsumerState<LibraryScreen>
           );
         }
 
-        if (_isGrid) {
-          return GridView.builder(
-            padding: const EdgeInsets.all(8),
-            gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
-              crossAxisCount: 3,
-              childAspectRatio: 0.68,
-              crossAxisSpacing: 8,
-              mainAxisSpacing: 8,
-            ),
-            itemCount: novels.length,
-            itemBuilder: (context, index) => _buildGridItem(novels[index]),
-          );
-        } else {
-          return ListView.builder(
-            itemCount: novels.length,
-            itemBuilder: (context, index) => _buildListItem(novels[index]),
-          );
+        switch (_displayMode) {
+          case DisplayMode.grid:
+            return GridView.builder(
+              padding: const EdgeInsets.all(8),
+              gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
+                crossAxisCount: 3,
+                childAspectRatio: 0.68,
+                crossAxisSpacing: 8,
+                mainAxisSpacing: 8,
+              ),
+              itemCount: novels.length,
+              itemBuilder: (context, index) => _buildGridItem(novels[index]),
+            );
+          case DisplayMode.list:
+            return ListView.builder(
+              itemCount: novels.length,
+              itemBuilder: (context, index) => _buildListItem(novels[index]),
+            );
+          case DisplayMode.compact:
+            return ListView.builder(
+              itemCount: novels.length,
+              itemBuilder: (context, index) => _buildCompactItem(novels[index]),
+            );
         }
       },
     );
@@ -249,6 +263,57 @@ class _LibraryScreenState extends ConsumerState<LibraryScreen>
       ),
       onTap: () => context.push('/novel/${novel.id}'),
       onLongPress: () => _showStatusMenu(novel),
+    );
+  }
+
+  Widget _buildCompactItem(Novel novel) {
+    return InkWell(
+      onTap: () => context.push('/novel/${novel.id}'),
+      onLongPress: () => _showStatusMenu(novel),
+      child: Padding(
+        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+        child: Row(
+          children: [
+            ClipRRect(
+              borderRadius: BorderRadius.circular(3),
+              child: _buildCover(novel.coverUrl, 28, 38),
+            ),
+            const SizedBox(width: 10),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    novel.title,
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: const TextStyle(fontSize: 13),
+                  ),
+                  if (novel.author != null && novel.author!.isNotEmpty)
+                    Text(
+                      novel.author!,
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: const TextStyle(fontSize: 11, color: AppTheme.kTextSecondaryDark),
+                    ),
+                ],
+              ),
+            ),
+            if (novel.status != null && novel.status!.isNotEmpty)
+              Container(
+                padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                decoration: BoxDecoration(
+                  color: AppTheme.kSurfaceVariantDark,
+                  borderRadius: BorderRadius.circular(4),
+                ),
+                child: Text(
+                  novel.status!,
+                  style: const TextStyle(fontSize: 10, color: AppTheme.kTextSecondaryDark),
+                ),
+              ),
+          ],
+        ),
+      ),
     );
   }
 

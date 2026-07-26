@@ -5,7 +5,6 @@ import '../../core/database/database.dart';
 import '../../core/providers/database_providers.dart';
 import '../../theme/app_theme.dart';
 import '../settings/pages/download_settings_page.dart';
-import 'providers/download_provider.dart';
 
 class DownloadsScreen extends ConsumerStatefulWidget {
   const DownloadsScreen({super.key});

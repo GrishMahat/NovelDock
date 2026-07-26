@@ -1,6 +1,7 @@
 import 'package:flutter/foundation.dart';
+import 'log_buffer.dart';
 
-/// Simple structured logger for QuickNovel.
+/// Simple structured logger for NovelBase.
 /// In release mode, only warnings and errors are logged.
 class Log {
   static const String _reset = '\x1B[0m';
@@ -10,38 +11,40 @@ class Log {
   static const String _cyan = '\x1B[36m';
   static const String _gray = '\x1B[90m';
 
+  /// Callback invoked for every log entry (used by LogBuffer).
+  static void Function(LogLevel level, String tag, String message)? onLog;
+
   static void d(String tag, String message) {
     if (kDebugMode) {
-      // ignore: avoid_print
       print('$_gray[$tag] $message$_reset');
     }
+    onLog?.call(LogLevel.debug, tag, message);
   }
 
   static void i(String tag, String message) {
     if (kDebugMode) {
-      // ignore: avoid_print
       print('$_cyan[$tag] $message$_reset');
     }
+    onLog?.call(LogLevel.info, tag, message);
   }
 
   static void w(String tag, String message) {
-    // ignore: avoid_print
     print('$_yellow[$tag] WARN: $message$_reset');
+    onLog?.call(LogLevel.warning, tag, message);
   }
 
   static void e(String tag, String message, [Object? error]) {
-    // ignore: avoid_print
     print('$_red[$tag] ERROR: $message$_reset');
     if (error != null) {
-      // ignore: avoid_print
       print('$_red[$tag]   $error$_reset');
     }
+    onLog?.call(LogLevel.error, tag, error is String ? '$message\n  $error' : '$message\n  $error');
   }
 
   static void ok(String tag, String message) {
     if (kDebugMode) {
-      // ignore: avoid_print
       print('$_green[$tag] OK: $message$_reset');
     }
+    onLog?.call(LogLevel.info, tag, message);
   }
 }

@@ -7,6 +7,7 @@ import '../../core/providers/database_providers.dart';
 import '../../core/utils/logger.dart';
 import '../../core/utils/text_utils.dart';
 import '../../theme/app_theme.dart';
+import '../../widgets/shimmer_list.dart';
 
 const _tag = 'History';
 
@@ -79,7 +80,7 @@ class _HistoryScreenState extends ConsumerState<HistoryScreen> {
               stream: historyDao.watchAllHistory(),
               builder: (context, snapshot) {
                 if (snapshot.connectionState == ConnectionState.waiting) {
-                  return const Center(child: CircularProgressIndicator());
+                  return const ShimmerList();
                 }
 
                 var entries = snapshot.data ?? [];

@@ -17,7 +17,6 @@ class ReaderSettingsSheet extends ConsumerStatefulWidget {
 
 class _ReaderSettingsSheetState extends ConsumerState<ReaderSettingsSheet> {
   List<String> _systemFonts = [];
-  bool _loadingFonts = true;
 
   @override
   void initState() {
@@ -27,7 +26,7 @@ class _ReaderSettingsSheetState extends ConsumerState<ReaderSettingsSheet> {
 
   Future<void> _loadFonts() async {
     final fonts = await getSystemFonts();
-    if (mounted) setState(() { _systemFonts = fonts; _loadingFonts = false; });
+    if (mounted) setState(() { _systemFonts = fonts; });
   }
 
   @override
@@ -170,7 +169,13 @@ class _ReaderSettingsSheetState extends ConsumerState<ReaderSettingsSheet> {
   }
 
   Widget _radioTile(String title, String value, String groupValue, ValueChanged<String?> onChanged) {
-    return RadioListTile<String>(dense: true, contentPadding: EdgeInsets.zero, title: Text(title), value: value, groupValue: groupValue, onChanged: onChanged);
+    return ListTile(
+      dense: true,
+      contentPadding: EdgeInsets.zero,
+      title: Text(title),
+      trailing: Radio<String>(value: value, groupValue: groupValue, onChanged: onChanged),
+      onTap: () => onChanged(value),
+    );
   }
 
   Widget _themeRow(ReaderSettings settings, ReaderSettingsNotifier notifier) {

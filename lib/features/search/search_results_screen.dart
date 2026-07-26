@@ -4,6 +4,7 @@ import 'package:infinite_scroll_pagination/infinite_scroll_pagination.dart';
 
 import '../../core/providers/engine.dart';
 import '../../theme/app_theme.dart';
+import 'providers/search_providers.dart';
 
 class SearchResultsScreen extends ConsumerStatefulWidget {
   final String query;
@@ -21,15 +22,15 @@ class _SearchResultsScreenState extends ConsumerState<SearchResultsScreen> {
     super.initState();
     _pagingController = PagingController(
       getNextPageKey: (state) {
-        // Return next page key if there are more pages
         if (state.pages?.last.isNotEmpty == true) {
           return (state.pages?.length ?? 0) + 1;
         }
         return null;
       },
       fetchPage: (pageKey) async {
-        // TODO: Search across all enabled providers and merge results
-        return <SearchResultItem>[];
+        final searchState = ref.read(searchProvider.notifier);
+        await searchState.search(widget.query, page: pageKey);
+        return ref.read(searchProvider).results;
       },
     );
   }

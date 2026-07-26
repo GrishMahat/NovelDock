@@ -2,7 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flex_color_scheme/flex_color_scheme.dart';
 
 class AppTheme {
-  // Colors from original QuickNovel
+  // Colors from original NovelBase
   static const Color kBackgroundDark = Color(0xFF111111);
   static const Color kBackgroundAmoled = Color(0xFF000000);
   static const Color kBackgroundAmoledLight = Color(0xFF121213);
@@ -17,7 +17,7 @@ class AppTheme {
   static const Color kTextLight = Color(0xFF202125);
   static const Color kTextSecondaryDark = Color(0xFF9BA0A4);
   static const Color kTextSecondaryLight = Color(0xFF5F6267);
-  static const Color kPrimary = Color(0xFF3D50FA);
+  static const Color kPrimary = Color(0xFF356AE6);
   static const Color kOngoing = Color(0xFFF53B66);
   static const Color kReaderBgDefault = Color(0xFF292832);
   static const Color kReaderTextDefault = Color(0xFFCCCCCC);

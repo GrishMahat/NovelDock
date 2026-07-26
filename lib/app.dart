@@ -1,4 +1,7 @@
+import 'dart:io';
+
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
@@ -6,15 +9,15 @@ import 'router/app_router.dart';
 import 'theme/app_theme.dart';
 import 'widgets/tts_mini_player.dart';
 
-class QuickNovelApp extends ConsumerWidget {
-  const QuickNovelApp({super.key});
+class NovelBaseApp extends ConsumerWidget {
+  const NovelBaseApp({super.key});
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final router = ref.watch(routerProvider);
 
     return MaterialApp.router(
-      title: 'QuickNovel',
+      title: 'NovelBase',
       debugShowCheckedModeBanner: false,
       routerConfig: router,
       theme: AppTheme.light(),
@@ -53,8 +56,28 @@ class _MainShellState extends State<MainShell> {
 
   @override
   Widget build(BuildContext context) {
+    final isDesktop = Platform.isLinux || Platform.isWindows || Platform.isMacOS;
+
     return Scaffold(
-      body: Column(
+      body: isDesktop
+          ? CallbackShortcuts(
+              bindings: {
+                SingleActivator(LogicalKeyboardKey.digit1): () => _onTap(0),
+                SingleActivator(LogicalKeyboardKey.digit2): () => _onTap(1),
+                SingleActivator(LogicalKeyboardKey.digit3): () => _onTap(2),
+                SingleActivator(LogicalKeyboardKey.digit4): () => _onTap(3),
+              },
+              child: Focus(
+                autofocus: true,
+                child: Column(
+                  children: [
+                    const TtsMiniPlayer(),
+                    Expanded(child: widget.child),
+                  ],
+                ),
+              ),
+            )
+          : Column(
         children: [
           const TtsMiniPlayer(),
           Expanded(child: widget.child),

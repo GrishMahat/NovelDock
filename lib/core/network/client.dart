@@ -26,7 +26,7 @@ final dioProvider = FutureProvider<Dio>((ref) async {
     connectTimeout: const Duration(seconds: 15),
     receiveTimeout: const Duration(seconds: 30),
     headers: {
-      'User-Agent': 'QuickNovel/1.0',
+      'User-Agent': 'NovelBase/1.0',
       'Accept':
           'text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8',
       'Accept-Language': 'en-US,en;q=0.5',

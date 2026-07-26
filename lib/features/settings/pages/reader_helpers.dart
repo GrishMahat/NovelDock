@@ -42,9 +42,11 @@ Widget switchTile(String title, String? subtitle, bool value, ValueChanged<bool>
 }
 
 Widget radio(String title, String value, String groupValue, ValueChanged<String?> onChanged) {
-  return RadioListTile<String>(
+  return ListTile(
     dense: true, contentPadding: EdgeInsets.zero,
-    title: Text(title), value: value, groupValue: groupValue, onChanged: onChanged,
+    title: Text(title),
+    trailing: Radio<String>(value: value, groupValue: groupValue, onChanged: onChanged),
+    onTap: () => onChanged(value),
   );
 }
 

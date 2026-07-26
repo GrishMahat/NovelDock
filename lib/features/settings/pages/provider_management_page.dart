@@ -270,19 +270,6 @@ class _ProviderManagementPageState extends ConsumerState<ProviderManagementPage>
     );
   }
 
-  IconData _registryStatusIcon(String? status) {
-    switch (status) {
-      case 'active':
-        return Icons.check_circle;
-      case 'unmaintained':
-        return Icons.warning_amber;
-      case 'deprecated':
-        return Icons.error;
-      default:
-        return Icons.folder;
-    }
-  }
-
   Color _registryStatusColor(String? status) {
     switch (status) {
       case 'active':
