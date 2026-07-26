@@ -1,18 +1,13 @@
-import 'dart:convert';
-import 'dart:io';
-
 import 'package:file_picker/file_picker.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:path/path.dart' as p;
 
-import '../../../core/config/app_config.dart';
 import '../../../core/providers/models.dart';
 import '../../../core/utils/logger.dart';
 import '../../../theme/app_theme.dart';
 import '../providers/provider_management_providers.dart';
 
-const _tag = 'ProviderMgmt';
+const _tag = 'Registries';
 
 class ProviderManagementPage extends ConsumerStatefulWidget {
   const ProviderManagementPage({super.key});
@@ -38,10 +33,6 @@ class _ProviderManagementPageState extends ConsumerState<ProviderManagementPage>
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
             content: Text('${updatedIds.length} registry(ies) have updates available'),
-            action: SnackBarAction(
-              label: 'View',
-              onPressed: () {}, // Already on this page
-            ),
           ),
         );
       }
@@ -54,12 +45,10 @@ class _ProviderManagementPageState extends ConsumerState<ProviderManagementPage>
   Widget build(BuildContext context) {
     final registriesAsync = ref.watch(registriesProvider);
     final registries = registriesAsync.value ?? [];
-    final providersAsync = ref.watch(availableProvidersProvider);
-    final enabledProviders = ref.watch(enabledProvidersProvider);
 
     return Scaffold(
       appBar: AppBar(
-        title: const Text('Providers'),
+        title: const Text('Registries'),
         actions: [
           if (_checkingUpdates)
             const Padding(
@@ -76,8 +65,6 @@ class _ProviderManagementPageState extends ConsumerState<ProviderManagementPage>
                 _showAddRegistryUrlDialog(context, ref);
               } else if (value == 'file') {
                 _importRegistryFile(context, ref);
-              } else if (value == 'js') {
-                _loadProviderFromFile(context, ref);
               }
             },
             itemBuilder: (context) => [
@@ -85,7 +72,7 @@ class _ProviderManagementPageState extends ConsumerState<ProviderManagementPage>
                 value: 'url',
                 child: ListTile(
                   leading: Icon(Icons.cloud_download),
-                  title: Text('Add Registry URL'),
+                  title: Text('Add from URL'),
                   subtitle: Text('From a GitHub repository'),
                   dense: true,
                 ),
@@ -94,17 +81,8 @@ class _ProviderManagementPageState extends ConsumerState<ProviderManagementPage>
                 value: 'file',
                 child: ListTile(
                   leading: Icon(Icons.file_open),
-                  title: Text('Import Registry JSON'),
-                  subtitle: Text('Load a local registry.json file'),
-                  dense: true,
-                ),
-              ),
-              const PopupMenuItem(
-                value: 'js',
-                child: ListTile(
-                  leading: Icon(Icons.code),
-                  title: Text('Load Provider JS'),
-                  subtitle: Text('Load a single provider .js file'),
+                  title: Text('Import JSON file'),
+                  subtitle: Text('Load a local registry.json'),
                   dense: true,
                 ),
               ),
@@ -112,66 +90,16 @@ class _ProviderManagementPageState extends ConsumerState<ProviderManagementPage>
           ),
         ],
       ),
-      body: providersAsync.when(
-        loading: () => const Center(child: CircularProgressIndicator()),
-        error: (e, _) => Center(child: Text('Error: $e')),
-        data: (providers) {
-          if (registries.isEmpty && providers.isEmpty) {
-            return _buildEmptyState(context, ref);
-          }
-
-          return CustomScrollView(
-            slivers: [
-              // Registries section
-              if (registries.isNotEmpty) ...[
-                SliverToBoxAdapter(
-                  child: _buildSectionHeader('Registries'),
-                ),
-                SliverList(
-                  delegate: SliverChildBuilderDelegate(
-                    (context, index) {
-                      final registry = registries[index];
-                      return _buildRegistryTile(context, ref, registry);
-                    },
-                    childCount: registries.length,
-                  ),
-                ),
-              ],
-
-              // Providers section
-              SliverToBoxAdapter(
-                child: _buildSectionHeader('Available Providers'),
-              ),
-              if (providers.isEmpty)
-                const SliverToBoxAdapter(
-                  child: Padding(
-                    padding: EdgeInsets.all(32),
-                    child: Center(
-                      child: Text(
-                        'No providers found.\nAdd a registry or load a .js file.',
-                        textAlign: TextAlign.center,
-                        style: TextStyle(color: AppTheme.kTextSecondaryDark),
-                      ),
-                    ),
-                  ),
-                )
-              else
-                SliverList(
-                  delegate: SliverChildBuilderDelegate(
-                    (context, index) {
-                      final provider = providers[index];
-                      final isEnabled =
-                          enabledProviders.contains(provider.id);
-                      return _buildProviderTile(
-                          context, ref, provider, isEnabled);
-                    },
-                    childCount: providers.length,
-                  ),
-                ),
-            ],
-          );
-        },
-      ),
+      body: registries.isEmpty
+          ? _buildEmptyState(context, ref)
+          : ListView.builder(
+              padding: const EdgeInsets.all(12),
+              itemCount: registries.length,
+              itemBuilder: (context, index) {
+                final registry = registries[index];
+                return _buildRegistryCard(context, ref, registry);
+              },
+            ),
     );
   }
 
@@ -187,15 +115,12 @@ class _ProviderManagementPageState extends ConsumerState<ProviderManagementPage>
           ),
           const SizedBox(height: 16),
           const Text(
-            'No providers loaded',
-            style: TextStyle(
-              fontSize: 18,
-              fontWeight: FontWeight.w600,
-            ),
+            'No registries added',
+            style: TextStyle(fontSize: 18, fontWeight: FontWeight.w600),
           ),
           const SizedBox(height: 8),
           const Text(
-            'Add a registry URL, import a JSON file,\nor load a .js provider to get started.',
+            'Add a registry URL or import a JSON file\nto get started.',
             textAlign: TextAlign.center,
             style: TextStyle(color: AppTheme.kTextSecondaryDark),
           ),
@@ -221,221 +146,154 @@ class _ProviderManagementPageState extends ConsumerState<ProviderManagementPage>
     );
   }
 
-  Widget _buildSectionHeader(String title) {
-    return Padding(
-      padding: const EdgeInsets.fromLTRB(16, 24, 16, 8),
-      child: Text(
-        title,
-        style: const TextStyle(
-          fontSize: 14,
-          fontWeight: FontWeight.w600,
-          color: AppTheme.kTextSecondaryDark,
-        ),
-      ),
-    );
-  }
-
-  Widget _buildRegistryTile(
+  Widget _buildRegistryCard(
       BuildContext context, WidgetRef ref, RegistryInfo registry) {
     final hasUpdate = registry.pendingUpdate;
     final status = registry.status;
 
-    return ListTile(
-      leading: Stack(
-        alignment: Alignment.center,
-        children: [
-          Icon(
-            _registryStatusIcon(status),
-            color: _registryStatusColor(status),
-          ),
-          if (hasUpdate)
-            Positioned(
-              right: 0,
-              top: 0,
-              child: Container(
-                width: 10,
-                height: 10,
-                decoration: const BoxDecoration(
-                  color: Colors.orange,
-                  shape: BoxShape.circle,
-                ),
-              ),
-            ),
-        ],
-      ),
-      title: Text(registry.name ?? registry.id),
-      subtitle: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          if (registry.description != null && registry.description!.isNotEmpty)
-            Padding(
-              padding: const EdgeInsets.only(top: 2),
-              child: Text(
-                registry.description!,
-                maxLines: 1,
-                overflow: TextOverflow.ellipsis,
-                style: const TextStyle(fontSize: 12),
-              ),
-            ),
-          Padding(
-            padding: const EdgeInsets.only(top: 2),
-            child: Text(
-              registry.url,
-              maxLines: 1,
-              overflow: TextOverflow.ellipsis,
-              style: const TextStyle(fontSize: 11, color: AppTheme.kTextSecondaryDark),
-            ),
-          ),
-          if (status != null)
-            Padding(
-              padding: const EdgeInsets.only(top: 4),
-              child: Container(
-                padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
-                decoration: BoxDecoration(
-                  color: _registryStatusColor(status).withValues(alpha: 0.2),
-                  borderRadius: BorderRadius.circular(4),
-                ),
-                child: Text(
-                  status.toUpperCase(),
-                  style: TextStyle(
-                    fontSize: 10,
-                    fontWeight: FontWeight.bold,
-                    color: _registryStatusColor(status),
+    return Card(
+      margin: const EdgeInsets.only(bottom: 12),
+      child: Padding(
+        padding: const EdgeInsets.all(12),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            // Top row: name + status + actions + toggle
+            Row(
+              children: [
+                // Name + status badge
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Row(
+                        children: [
+                          Flexible(
+                            child: Text(
+                              registry.name ?? registry.id,
+                              style: const TextStyle(
+                                fontSize: 15,
+                                fontWeight: FontWeight.w600,
+                              ),
+                              overflow: TextOverflow.ellipsis,
+                            ),
+                          ),
+                          if (status != null) ...[
+                            const SizedBox(width: 6),
+                            Container(
+                              padding: const EdgeInsets.symmetric(horizontal: 5, vertical: 1),
+                              decoration: BoxDecoration(
+                                color: _registryStatusColor(status).withValues(alpha: 0.2),
+                                borderRadius: BorderRadius.circular(3),
+                              ),
+                              child: Text(
+                                status.toUpperCase(),
+                                style: TextStyle(
+                                  fontSize: 9,
+                                  fontWeight: FontWeight.bold,
+                                  color: _registryStatusColor(status),
+                                ),
+                              ),
+                            ),
+                          ],
+                          if (hasUpdate) ...[
+                            const SizedBox(width: 6),
+                            Container(
+                              padding: const EdgeInsets.symmetric(horizontal: 5, vertical: 1),
+                              decoration: BoxDecoration(
+                                color: Colors.orange.withValues(alpha: 0.2),
+                                borderRadius: BorderRadius.circular(3),
+                              ),
+                              child: const Text(
+                                'UPDATE',
+                                style: TextStyle(
+                                  fontSize: 9,
+                                  fontWeight: FontWeight.bold,
+                                  color: Colors.orange,
+                                ),
+                              ),
+                            ),
+                          ],
+                        ],
+                      ),
+                      if (registry.description != null && registry.description!.isNotEmpty)
+                        Padding(
+                          padding: const EdgeInsets.only(top: 2),
+                          child: Text(
+                            registry.description!,
+                            style: const TextStyle(
+                              fontSize: 12,
+                              color: AppTheme.kTextSecondaryDark,
+                            ),
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                          ),
+                        ),
+                    ],
                   ),
                 ),
-              ),
-            ),
-        ],
-      ),
-      isThreeLine: true,
-      trailing: Row(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          if (hasUpdate)
-            IconButton(
-              icon: const Icon(Icons.update, color: Colors.orange),
-              tooltip: 'Update available',
-              onPressed: () => _confirmApplyUpdate(context, ref, registry),
-            ),
-          IconButton(
-            icon: const Icon(Icons.delete_outline),
-            onPressed: () => _confirmRemoveRegistry(context, ref, registry),
-          ),
-        ],
-      ),
-    );
-  }
-
-  Widget _buildProviderTile(
-    BuildContext context,
-    WidgetRef ref,
-    ProviderMeta provider,
-    bool isEnabled,
-  ) {
-    return SwitchListTile(
-      secondary: _buildProviderAvatar(provider),
-      title: Row(
-        children: [
-          Expanded(child: Text(provider.name)),
-          if (provider.nsfw)
-            Container(
-              padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
-              decoration: BoxDecoration(
-                color: Colors.red.withValues(alpha: 0.2),
-                borderRadius: BorderRadius.circular(4),
-              ),
-              child: const Text(
-                'NSFW',
-                style: TextStyle(
-                  fontSize: 10,
-                  fontWeight: FontWeight.bold,
-                  color: Colors.red,
+                // Actions
+                if (hasUpdate)
+                  IconButton(
+                    icon: const Icon(Icons.update, color: Colors.orange, size: 20),
+                    tooltip: 'Update available',
+                    onPressed: () => _confirmApplyUpdate(context, ref, registry),
+                  ),
+                IconButton(
+                  icon: const Icon(Icons.delete_outline, size: 20),
+                  tooltip: 'Remove registry',
+                  onPressed: () => _confirmRemoveRegistry(context, ref, registry),
                 ),
-              ),
+                // Enable toggle
+                Switch(
+                  value: registry.enabled,
+                  onChanged: (_) async {
+                    await ref.read(registriesProvider.notifier).toggleRegistry(registry.id);
+                  },
+                ),
+              ],
             ),
-        ],
-      ),
-      subtitle: Row(
-        children: [
-          Expanded(
-            child: Text(
-              '${provider.lang.toUpperCase()} · ${provider.baseUrl}',
-              style: const TextStyle(fontSize: 12),
-            ),
-          ),
-          if (provider.registryId != null)
-            Container(
-              padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 1),
-              decoration: BoxDecoration(
-                color: AppTheme.kTextSecondaryDark.withValues(alpha: 0.15),
-                borderRadius: BorderRadius.circular(3),
-              ),
+
+            // URL
+            Padding(
+              padding: const EdgeInsets.only(left: 4, top: 4),
               child: Text(
-                provider.registryId!,
-                style: const TextStyle(fontSize: 9, color: AppTheme.kTextSecondaryDark),
+                registry.url,
+                style: const TextStyle(fontSize: 11, color: AppTheme.kTextSecondaryDark),
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
               ),
             ),
-        ],
-      ),
-      value: isEnabled,
-      onChanged: (_) => toggleProvider(provider.id, ref),
-    );
-  }
-
-  Widget _buildProviderAvatar(ProviderMeta provider) {
-    // Try to load cached icon
-    final iconFile = _getCachedIcon(provider.id);
-    if (iconFile != null) {
-      return CircleAvatar(
-        backgroundImage: FileImage(iconFile),
-        backgroundColor: Colors.transparent,
-      );
-    }
-
-    // Fallback to letter avatar
-    final color = Color(
-      provider.name.hashCode.toUnsigned(32) | 0xFF000000,
-    ).withValues(alpha: 0.7);
-
-    return CircleAvatar(
-      backgroundColor: color.withValues(alpha: 0.2),
-      child: Text(
-        provider.name.isNotEmpty ? provider.name[0].toUpperCase() : '?',
-        style: TextStyle(
-          color: color,
-          fontWeight: FontWeight.bold,
+          ],
         ),
       ),
     );
   }
 
-  File? _getCachedIcon(String providerId) {
-    // Search registries for the provider's icon
-    final home = Platform.environment['HOME'];
-    if (home == null) return null;
-    final registriesDir = Directory('$home/.config/quicknovel/registries');
-    if (!registriesDir.existsSync()) return null;
-
-    for (final entity in registriesDir.listSync()) {
-      if (entity is! Directory) continue;
-      final registryDir = entity.path;
-      final metadataFile = File('$registryDir/metadata.json');
-      if (!metadataFile.existsSync()) continue;
-
-      try {
-        final json = jsonDecode(metadataFile.readAsStringSync()) as Map<String, dynamic>;
-        final providers = json['providers'] as List? ?? [];
-        for (final p in providers) {
-          if (p['id'] == providerId && p['icon'] != null) {
-            final iconPath = '$registryDir/${p['icon']}';
-            final file = File(iconPath);
-            if (file.existsSync()) return file;
-          }
-        }
-      } catch (_) {}
+  IconData _registryStatusIcon(String? status) {
+    switch (status) {
+      case 'active':
+        return Icons.check_circle;
+      case 'unmaintained':
+        return Icons.warning_amber;
+      case 'deprecated':
+        return Icons.error;
+      default:
+        return Icons.folder;
     }
+  }
 
-    return null;
+  Color _registryStatusColor(String? status) {
+    switch (status) {
+      case 'active':
+        return Colors.green;
+      case 'unmaintained':
+        return Colors.orange;
+      case 'deprecated':
+        return Colors.red;
+      default:
+        return AppTheme.kTextSecondaryDark;
+    }
   }
 
   // ─── Import registry from local .json file ──────────────
@@ -446,16 +304,10 @@ class _ProviderManagementPageState extends ConsumerState<ProviderManagementPage>
       allowedExtensions: ['json'],
     );
 
-    if (result == null || result.files.isEmpty) {
-      Log.d(_tag, 'File picker cancelled');
-      return;
-    }
+    if (result == null || result.files.isEmpty) return;
 
     final file = result.files.first;
-    if (file.path == null) {
-      Log.e(_tag, 'File path is null');
-      return;
-    }
+    if (file.path == null) return;
 
     Log.i(_tag, 'Selected registry file: ${file.path}');
     if (!context.mounted) return;
@@ -471,91 +323,15 @@ class _ProviderManagementPageState extends ConsumerState<ProviderManagementPage>
 
     if (success) {
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Registry imported successfully')),
+        const SnackBar(content: Text('Registry imported')),
       );
     } else {
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(
-          content: Text('Failed to import registry. Check the JSON format.'),
+          content: Text('Failed to import registry'),
           backgroundColor: Colors.red,
         ),
       );
-    }
-  }
-
-  // ─── Load provider from local .js file ──────────────────
-
-  Future<void> _loadProviderFromFile(BuildContext context, WidgetRef ref) async {
-    final result = await FilePicker.pickFiles(
-      type: FileType.custom,
-      allowedExtensions: ['js'],
-    );
-
-    if (result == null || result.files.isEmpty) {
-      Log.d(_tag, 'File picker cancelled');
-      return;
-    }
-
-    final file = result.files.first;
-    if (file.path == null) {
-      Log.e(_tag, 'File path is null');
-      return;
-    }
-
-    Log.i(_tag, 'Selected file: ${file.path}');
-
-    try {
-      final content = await File(file.path!).readAsString();
-      Log.i(_tag, 'Read ${content.length} bytes from file');
-
-      final filename = p.basenameWithoutExtension(file.path!);
-      final id = filename.toLowerCase().replaceAll(RegExp(r'[^a-z0-9]'), '_');
-      Log.i(_tag, 'Provider ID: $id');
-
-      final config = await AppConfig.getInstance();
-      final providerDir = config.providerDir(id);
-      await providerDir.create(recursive: true);
-
-      final jsFile = File(config.providerJsPath(id));
-      await jsFile.writeAsString(content);
-
-      // Create a local registry with this single provider
-      final registryId = 'local_$id';
-      final metadata = RegistryMetadata(
-        name: filename,
-        providers: [
-          ProviderMeta(
-            id: id,
-            name: filename,
-            lang: 'en',
-            baseUrl: '',
-            file: '$id.js',
-            version: '0.0.1',
-            author: 'local',
-          ),
-        ],
-      );
-      final metadataFile = File(config.registryMetadataPath(registryId));
-      await metadataFile.parent.create(recursive: true);
-      await metadataFile.writeAsString(jsonEncode(metadata.toJson()));
-
-      toggleProvider(id, ref);
-      ref.invalidate(availableProvidersProvider);
-
-      if (context.mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Loaded provider: $filename')),
-        );
-      }
-    } catch (e) {
-      if (context.mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text('Failed to load file: $e'),
-            backgroundColor: Colors.red,
-          ),
-        );
-      }
     }
   }
 
@@ -596,7 +372,6 @@ class _ProviderManagementPageState extends ConsumerState<ProviderManagementPage>
             onPressed: () async {
               final url = controller.text.trim();
               if (url.isEmpty) return;
-
               Navigator.pop(context);
               await _addRegistry(context, ref, url);
             },
@@ -621,12 +396,12 @@ class _ProviderManagementPageState extends ConsumerState<ProviderManagementPage>
 
     if (success) {
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Registry added successfully')),
+        const SnackBar(content: Text('Registry added')),
       );
     } else {
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(
-          content: Text('Failed to fetch registry. Check the URL.'),
+          content: Text('Failed to fetch registry'),
           backgroundColor: Colors.red,
         ),
       );
@@ -642,8 +417,7 @@ class _ProviderManagementPageState extends ConsumerState<ProviderManagementPage>
       builder: (context) => AlertDialog(
         title: const Text('Update Registry'),
         content: Text(
-          'Update "${registry.name ?? registry.id}"?\n\n'
-          'This will re-download all provider files.',
+          'Update "${registry.name ?? registry.id}"?\n\nThis will re-download all provider files.',
         ),
         actions: [
           TextButton(
@@ -697,8 +471,7 @@ class _ProviderManagementPageState extends ConsumerState<ProviderManagementPage>
       builder: (context) => AlertDialog(
         title: const Text('Remove Registry'),
         content: Text(
-          'Remove "${registry.name ?? registry.id}"?\n\n'
-          'This will remove the cached provider data.',
+          'Remove "${registry.name ?? registry.id}"?\n\nThis will remove all cached provider data.',
         ),
         actions: [
           TextButton(
@@ -706,6 +479,7 @@ class _ProviderManagementPageState extends ConsumerState<ProviderManagementPage>
             child: const Text('Cancel'),
           ),
           FilledButton(
+            style: FilledButton.styleFrom(backgroundColor: Colors.red),
             onPressed: () {
               removeRegistry(registry.id, ref);
               Navigator.pop(context);
@@ -715,33 +489,5 @@ class _ProviderManagementPageState extends ConsumerState<ProviderManagementPage>
         ],
       ),
     );
-  }
-
-  // ─── Registry status helpers ──────────────────────────────
-
-  IconData _registryStatusIcon(String? status) {
-    switch (status) {
-      case 'active':
-        return Icons.check_circle;
-      case 'unmaintained':
-        return Icons.warning_amber;
-      case 'deprecated':
-        return Icons.error;
-      default:
-        return Icons.folder;
-    }
-  }
-
-  Color _registryStatusColor(String? status) {
-    switch (status) {
-      case 'active':
-        return Colors.green;
-      case 'unmaintained':
-        return Colors.orange;
-      case 'deprecated':
-        return Colors.red;
-      default:
-        return AppTheme.kTextSecondaryDark;
-    }
   }
 }

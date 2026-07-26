@@ -52,6 +52,7 @@ class AppTheme {
   static ThemeData light({Color primary = kPrimary}) {
     final scheme = FlexColorScheme.light(
       primary: primary,
+      usedColors: 1,
       surface: kSurfaceLight,
       scaffoldBackground: kBackgroundLight,
       appBarBackground: kSurfaceVariantLight,

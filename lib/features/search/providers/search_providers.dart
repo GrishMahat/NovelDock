@@ -65,15 +65,12 @@ class SearchNotifier extends StateNotifier<SearchState> {
         try {
           Log.i(_tag, 'Searching provider: $providerId');
 
-          // Load provider JS from cache
-          final jsSource = await registryManager.loadCachedProviderJs(providerId);
-          if (jsSource == null) {
-            Log.e(_tag, 'No cached JS for $providerId, skipping');
+          // Use cached provider instance
+          final instance = await loadProviderById(providerId, ref);
+          if (instance == null) {
+            Log.e(_tag, 'No cached provider for $providerId, skipping');
             continue;
           }
-
-          // Evaluate the provider
-          final instance = await engine.loadProvider(jsSource);
 
           List<SearchResultItem> tagResults(List<SearchResultItem> items) {
             return items.map((e) => SearchResultItem(

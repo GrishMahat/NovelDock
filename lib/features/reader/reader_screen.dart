@@ -341,8 +341,6 @@ class _ReaderScreenState extends ConsumerState<ReaderScreen> {
 
   Future<void> _loadRemoteChapter(Chapter chapter, int index) async {
     try {
-      final registry = await ref.read(registryManagerProvider.future);
-      final engine = ref.read(providerEngineProvider);
       final dio = await ref.read(dioProvider.future);
 
       final novelDao = ref.read(novelDaoProvider);
@@ -356,8 +354,9 @@ class _ReaderScreenState extends ConsumerState<ReaderScreen> {
         return;
       }
 
-      final jsSource = await registry.loadCachedProviderJs(novel.providerId);
-      if (jsSource == null) {
+      // Use cached provider instance
+      final instance = await loadProviderById(novel.providerId, ref);
+      if (instance == null) {
         Log.w(_tag, 'No provider cached for ${novel.providerId}');
         if (_currentIndex == index) {
           _error = 'Provider not available. Please sync providers in settings.';
@@ -365,8 +364,6 @@ class _ReaderScreenState extends ConsumerState<ReaderScreen> {
         }
         return;
       }
-
-      final instance = await engine.loadProvider(jsSource);
       final contentUrl = await instance.getChapterContentUrl(chapter.url);
       if (contentUrl == null) {
         Log.w(_tag, 'No content URL for chapter');

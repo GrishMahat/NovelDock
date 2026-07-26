@@ -57,19 +57,13 @@ class _ProviderScreenState extends ConsumerState<ProviderScreen> {
     Log.i(_tag, 'Fetching page $pageKey for provider: ${widget.providerId}');
 
     try {
-      // Load provider if not cached
+      // Use cached provider instance
       if (_instance == null) {
-        final registry = await ref.read(registryManagerProvider.future);
-        final engine = ref.read(providerEngineProvider);
-
-        final jsSource = await registry.loadCachedProviderJs(widget.providerId);
-        if (jsSource == null) {
-          Log.e(_tag, 'No cached JS for ${widget.providerId}');
+        _instance = await loadProviderById(widget.providerId, ref);
+        if (_instance == null) {
+          Log.e(_tag, 'No cached provider for ${widget.providerId}');
           return [];
         }
-
-        Log.i(_tag, 'Loading provider JS (${jsSource.length} chars)...');
-        _instance = await engine.loadProvider(jsSource);
         Log.ok(_tag, 'Provider loaded');
       }
 
@@ -213,11 +207,8 @@ class _ProviderScreenState extends ConsumerState<ProviderScreen> {
     );
 
     try {
-      final registry = await ref.read(registryManagerProvider.future);
-      final engine = ref.read(providerEngineProvider);
-      final jsSource = await registry.loadCachedProviderJs(item.providerId!);
-      if (jsSource != null) {
-        final instance = await engine.loadProvider(jsSource);
+      final instance = await loadProviderById(item.providerId!, ref);
+      if (instance != null) {
         final novelUrl = await instance.getNovelInfoUrl(item.url);
         if (novelUrl != null) {
           final dio = await ref.read(dioProvider.future);

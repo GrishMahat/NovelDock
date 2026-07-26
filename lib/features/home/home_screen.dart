@@ -63,12 +63,9 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
     );
 
     try {
-      final registry = await ref.read(registryManagerProvider.future);
-      final engine = ref.read(providerEngineProvider);
-      final jsSource = await registry.loadCachedProviderJs(item.providerId!);
-      Log.i(_tag, '_openNovel: jsSource=${jsSource != null ? '${jsSource.length} chars' : 'null'}');
-      if (jsSource != null) {
-        final instance = await engine.loadProvider(jsSource);
+      final instance = await loadProviderById(item.providerId!, ref);
+      Log.i(_tag, '_openNovel: instance=${instance != null ? 'loaded' : 'null'}');
+      if (instance != null) {
         final novelUrl = await instance.getNovelInfoUrl(item.url);
         Log.i(_tag, '_openNovel: novelUrl=$novelUrl');
         if (novelUrl != null) {
@@ -405,10 +402,6 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
         ),
       ),
     );
-  }
-
-  String _iconAssetPath(String providerId) {
-    return 'assets/providers/icons/icon_$providerId.png';
   }
 
   Widget _buildSearchResultItem(SearchResultItem item) {

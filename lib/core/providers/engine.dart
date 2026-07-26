@@ -357,10 +357,15 @@ final loadedProvidersProvider =
     StateProvider<Map<String, ProviderInstance>>((ref) => {});
 
 /// Load a provider's JS from disk cache, evaluate it, and cache the instance.
+/// Returns cached instance if already loaded.
 Future<ProviderInstance?> loadProviderById(
   String providerId,
-  WidgetRef ref,
+  Ref ref,
 ) async {
+  // Check cache first
+  final cached = ref.read(loadedProvidersProvider)[providerId];
+  if (cached != null) return cached;
+
   final registry = await ref.read(registryManagerProvider.future);
   final engine = ref.read(providerEngineProvider);
 
