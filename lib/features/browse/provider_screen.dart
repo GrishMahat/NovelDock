@@ -5,7 +5,6 @@ import 'package:go_router/go_router.dart';
 import 'package:infinite_scroll_pagination/infinite_scroll_pagination.dart';
 
 import '../../core/providers/engine.dart';
-import '../../core/providers/registry.dart';
 import '../../core/network/client.dart';
 import '../../core/utils/logger.dart';
 import '../../core/providers/database_providers.dart';

@@ -46,6 +46,7 @@ class HtmlChapterView extends StatelessWidget {
           color: textColor,
         ),
         customStylesBuilder: (element) {
+          // ignore: unused_local_variable
           final alignment = switch (textAlign) {
             'left' => TextAlign.left,
             'center' => TextAlign.center,

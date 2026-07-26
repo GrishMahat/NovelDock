@@ -360,7 +360,7 @@ final loadedProvidersProvider =
 /// Returns cached instance if already loaded.
 Future<ProviderInstance?> loadProviderById(
   String providerId,
-  Ref ref,
+  WidgetRef ref,
 ) async {
   // Check cache first
   final cached = ref.read(loadedProvidersProvider)[providerId];

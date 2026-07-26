@@ -4,7 +4,6 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../../theme/app_theme.dart';
-import '../reader_screen.dart' show getSystemFonts;
 import '../../settings/pages/reader/reader_settings_state.dart';
 
 /// Inline reader settings bottom sheet — shown from reader controls.
@@ -28,7 +27,7 @@ class _ReaderSettingsSheetState extends ConsumerState<ReaderSettingsSheet> {
 
   Future<void> _loadFonts() async {
     final fonts = await getSystemFonts();
-    setState(() { _systemFonts = fonts; _loadingFonts = false; });
+    if (mounted) setState(() { _systemFonts = fonts; _loadingFonts = false; });
   }
 
   @override
