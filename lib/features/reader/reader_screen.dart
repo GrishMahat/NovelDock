@@ -45,7 +45,7 @@ class _ReaderScreenState extends ConsumerState<ReaderScreen> {
   // Chapter management
   List<Chapter> _chapters = [];
   int _currentIndex = 0;
-  final LruCache<int, LoadedChapter> _chapterCache = LruCache(20);
+  final LruCache<int, LoadedChapter> _chapterCache = LruCache(30);
   final Set<int> _loadingChapters = {};
   final ScrollController _scrollController = ScrollController();
   final PageController _pageController = PageController();

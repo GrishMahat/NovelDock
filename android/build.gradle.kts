@@ -19,6 +19,11 @@ subprojects {
     project.evaluationDependsOn(":app")
 }
 
+// jni-1.0.1 skips kotlin-android on AGP 9+ but still uses kotlin {} DSL
+subprojects {
+    apply(plugin = "kotlin-android")
+}
+
 // Force consistent JVM target for plugins that ship outdated Kotlin/Java targets
 // Must run after AGP finishes configuring tasks (at task graph resolution time)
 gradle.taskGraph.whenReady {

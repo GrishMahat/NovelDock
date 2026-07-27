@@ -56,4 +56,8 @@ class NovelDao extends DatabaseAccessor<AppDatabase> with _$NovelDaoMixin {
           ..where((t) => t.title.like('%$query%')))
         .get();
   }
+
+  Future<int> deleteAllNovels() {
+    return delete(novels).go();
+  }
 }

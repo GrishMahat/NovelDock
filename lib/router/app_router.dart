@@ -20,6 +20,7 @@ import '../features/settings/pages/about_page.dart';
 import '../features/settings/pages/theme_settings_page.dart';
 import '../features/settings/pages/backup_restore_page.dart';
 import '../features/settings/pages/log_viewer_page.dart';
+import '../features/settings/pages/general_settings_page.dart';
 import '../features/import/import_screen.dart';
 import '../main.dart' show sharedFilePath;
 
@@ -154,6 +155,12 @@ final routerProvider = Provider<GoRouter>((ref) {
         name: 'logViewer',
         parentNavigatorKey: _rootNavigatorKey,
         builder: (context, state) => const LogViewerPage(),
+      ),
+      GoRoute(
+        path: '/settings/general',
+        name: 'generalSettings',
+        parentNavigatorKey: _rootNavigatorKey,
+        builder: (context, state) => const GeneralSettingsPage(),
       ),
       GoRoute(
         path: '/import',

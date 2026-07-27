@@ -9,9 +9,11 @@ part 'history_dao.g.dart';
 class HistoryDao extends DatabaseAccessor<AppDatabase> with _$HistoryDaoMixin {
   HistoryDao(AppDatabase db) : super(db);
 
-  Future<int> addHistoryEntry(ReadingHistoryCompanion entry) {
-    return into(readingHistory).insert(entry,
-        mode: InsertMode.insertOrReplace);
+  Future<int> addHistoryEntry(ReadingHistoryCompanion entry) async {
+    // Keep only ONE entry per novel in history (standard novel reader behavior)
+    final novelId = entry.novelId.value;
+    await (delete(readingHistory)..where((t) => t.novelId.equals(novelId))).go();
+    return into(readingHistory).insert(entry);
   }
 
   Future<void> deleteHistoryEntry(int id) {

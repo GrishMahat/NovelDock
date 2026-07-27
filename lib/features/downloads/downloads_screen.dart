@@ -4,6 +4,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../core/database/database.dart';
 import '../../core/providers/database_providers.dart';
 import '../../theme/app_theme.dart';
+import '../../widgets/shimmer_list.dart';
 import '../settings/pages/download_settings_page.dart';
 
 class DownloadsScreen extends ConsumerStatefulWidget {
@@ -118,7 +119,7 @@ class _DownloadsScreenState extends ConsumerState<DownloadsScreen> {
                 final downloads = snapshot.data ?? [];
 
                 if (snapshot.connectionState == ConnectionState.waiting) {
-                  return const Center(child: CircularProgressIndicator());
+                  return const ShimmerList();
                 }
 
                 if (downloads.isEmpty) {
