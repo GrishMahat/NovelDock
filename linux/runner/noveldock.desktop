@@ -1,0 +1,9 @@
+[Desktop Entry]
+Name=NovelDock
+Comment=Multi-platform novel reader and downloader
+Exec=noveldock
+Icon=noveldock
+Terminal=false
+Type=Application
+Categories=Utility;TextTools;
+StartupNotify=true

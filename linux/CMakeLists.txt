@@ -126,3 +126,17 @@ if(NOT CMAKE_BUILD_TYPE MATCHES "Debug")
   install(FILES "${AOT_LIBRARY}" DESTINATION "${INSTALL_BUNDLE_LIB_DIR}"
     COMPONENT Runtime)
 endif()
+
+# Install app icon to bundle data dir (used by window icon)
+install(FILES "${CMAKE_CURRENT_SOURCE_DIR}/runner/icons/icon.png"
+  DESTINATION "${INSTALL_BUNDLE_DATA_DIR}"
+  COMPONENT Runtime)
+
+# Install app icon to system theme for desktop launcher integration
+install(FILES "${CMAKE_CURRENT_SOURCE_DIR}/runner/icons/icon.png"
+  DESTINATION "share/icons/hicolor/256x256/apps"
+  RENAME "noveldock.png")
+
+# Install .desktop file for application launcher
+install(FILES "${CMAKE_CURRENT_SOURCE_DIR}/runner/noveldock.desktop"
+  DESTINATION "share/applications")

@@ -303,20 +303,21 @@ class _ProviderManagementPageState extends ConsumerState<ProviderManagementPage>
       const SnackBar(content: Text('Importing registry...')),
     );
 
-    final success = await addRegistryFromFile(file.path!, ref);
+    final error = await addRegistryFromFile(file.path!, ref);
 
     if (!context.mounted) return;
     ScaffoldMessenger.of(context).hideCurrentSnackBar();
 
-    if (success) {
+    if (error == null) {
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(content: Text('Registry imported')),
       );
     } else {
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text('Failed to import registry'),
+        SnackBar(
+          content: Text(error, style: const TextStyle(fontSize: 13)),
           backgroundColor: Colors.red,
+          duration: const Duration(seconds: 6),
         ),
       );
     }
@@ -326,73 +327,109 @@ class _ProviderManagementPageState extends ConsumerState<ProviderManagementPage>
 
   void _showAddRegistryUrlDialog(BuildContext context, WidgetRef ref) {
     final controller = TextEditingController();
+    ValueNotifier<bool> loading = ValueNotifier(false);
+    ValueNotifier<String?> errorMsg = ValueNotifier(null);
 
     showDialog(
       context: context,
-      builder: (context) => AlertDialog(
-        title: const Text('Add Registry'),
-        content: Column(
-          mainAxisSize: MainAxisSize.min,
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            const Text(
-              'Enter the raw URL to a registry.json file:',
-              style: TextStyle(fontSize: 13),
-            ),
-            const SizedBox(height: 16),
-            TextField(
-              controller: controller,
-              decoration: const InputDecoration(
-                hintText: 'https://raw.githubusercontent.com/user/repo/main/registry.json',
-                border: OutlineInputBorder(),
+      builder: (context) => ValueListenableBuilder(
+        valueListenable: loading,
+        builder: (context, isLoading, _) => AlertDialog(
+          title: const Text('Add Registry'),
+          content: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              const Text(
+                'Enter the raw URL to a registry.json file:',
+                style: TextStyle(fontSize: 13),
               ),
-              autofocus: true,
+              const SizedBox(height: 16),
+              TextField(
+                controller: controller,
+                enabled: !isLoading,
+                decoration: const InputDecoration(
+                  hintText: 'https://raw.githubusercontent.com/user/repo/main/registry.json',
+                  border: OutlineInputBorder(),
+                ),
+                autofocus: true,
+              ),
+              if (isLoading) ...[
+                const SizedBox(height: 16),
+                const Row(
+                  children: [
+                    SizedBox(
+                      width: 16,
+                      height: 16,
+                      child: CircularProgressIndicator(strokeWidth: 2),
+                    ),
+                    SizedBox(width: 12),
+                    Text('Fetching registry...'),
+                  ],
+                ),
+              ],
+              ValueListenableBuilder(
+                valueListenable: errorMsg,
+                builder: (context, error, _) {
+                  if (error == null) return const SizedBox.shrink();
+                  return Padding(
+                    padding: const EdgeInsets.only(top: 12),
+                    child: Container(
+                      padding: const EdgeInsets.all(10),
+                      decoration: BoxDecoration(
+                        color: Colors.red.withValues(alpha: 0.1),
+                        borderRadius: BorderRadius.circular(6),
+                        border: Border.all(color: Colors.red.withValues(alpha: 0.3)),
+                      ),
+                      child: Row(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          const Icon(Icons.error_outline, color: Colors.red, size: 18),
+                          const SizedBox(width: 8),
+                          Expanded(
+                            child: Text(
+                              error,
+                              style: const TextStyle(
+                                fontSize: 12,
+                                color: Colors.red,
+                              ),
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                  );
+                },
+              ),
+            ],
+          ),
+          actions: [
+            TextButton(
+              onPressed: isLoading ? null : () => Navigator.pop(context),
+              child: const Text('Cancel'),
+            ),
+            FilledButton(
+              onPressed: isLoading
+                  ? null
+                  : () async {
+                      final url = controller.text.trim();
+                      if (url.isEmpty) return;
+                      loading.value = true;
+                      errorMsg.value = null;
+                      final error = await addRegistry(url, ref);
+                      loading.value = false;
+                      if (error == null) {
+                        if (context.mounted) Navigator.pop(context);
+                      } else {
+                        errorMsg.value = error;
+                      }
+                    },
+              child: const Text('Add'),
             ),
           ],
         ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(context),
-            child: const Text('Cancel'),
-          ),
-          FilledButton(
-            onPressed: () async {
-              final url = controller.text.trim();
-              if (url.isEmpty) return;
-              Navigator.pop(context);
-              await _addRegistry(context, ref, url);
-            },
-            child: const Text('Add'),
-          ),
-        ],
       ),
     );
-  }
-
-  Future<void> _addRegistry(
-      BuildContext context, WidgetRef ref, String url) async {
-    if (!context.mounted) return;
-    ScaffoldMessenger.of(context).showSnackBar(
-      const SnackBar(content: Text('Fetching registry...')),
-    );
-
-    final success = await addRegistry(url, ref);
-
-    if (!context.mounted) return;
-    ScaffoldMessenger.of(context).hideCurrentSnackBar();
-
-    if (success) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Registry added')),
-      );
-    } else {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text('Failed to fetch registry'),
-          backgroundColor: Colors.red,
-        ),
-      );
-    }
   }
 
   // ─── Update registry ────────────────────────────────────

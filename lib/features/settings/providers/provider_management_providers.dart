@@ -206,7 +206,8 @@ class EnabledProvidersNotifier extends StateNotifier<Set<String>> {
 }
 
 /// Add a new registry from a URL: fetch JSON, sync providers, add to list.
-Future<bool> addRegistry(String url, WidgetRef ref) async {
+/// Returns null on success, or an error message string on failure.
+Future<String?> addRegistry(String url, WidgetRef ref) async {
   final registryManager = await ref.read(registryManagerProvider.future);
 
   final id = Uri.parse(url).pathSegments
@@ -214,10 +215,15 @@ Future<bool> addRegistry(String url, WidgetRef ref) async {
       .join('-');
 
   Log.i(_tag, 'Adding registry from URL: $url (id: $id)');
+  final error = await registryManager.fetchRegistryJsonWithError(url);
+  if (error != null) {
+    Log.e(_tag, 'Failed to fetch registry from $url: $error');
+    return error;
+  }
+
   final metadata = await registryManager.fetchRegistryJson(url);
   if (metadata == null) {
-    Log.e(_tag, 'Failed to fetch registry from $url');
-    return false;
+    return 'Failed to parse registry metadata';
   }
 
   await registryManager.syncRegistry(id, url);
@@ -235,39 +241,41 @@ Future<bool> addRegistry(String url, WidgetRef ref) async {
 
   ref.read(registriesProvider.notifier).add(registry);
   Log.ok(_tag, 'Registry added: $id');
-  return true;
+  return null;
 }
 
 /// Add a new registry from a local JSON file.
-Future<bool> addRegistryFromFile(String filePath, WidgetRef ref) async {
+/// Returns null on success, or an error message string on failure.
+Future<String?> addRegistryFromFile(String filePath, WidgetRef ref) async {
   final registryManager = await ref.read(registryManagerProvider.future);
 
   final filename = p.basenameWithoutExtension(filePath);
   final id = 'local_${filename.toLowerCase().replaceAll(RegExp(r'[^a-z0-9]'), '_')}';
 
   Log.i(_tag, 'Adding registry from file: $filePath (id: $id)');
-  final metadata = await registryManager.fetchRegistryJson(filePath);
-  if (metadata == null) {
-    // Try loading directly from local file
-    final localMeta = await _loadLocalMetadata(filePath);
-    if (localMeta == null) {
-      Log.e(_tag, 'Failed to load registry from file: $filePath');
-      return false;
-    }
-    await registryManager.syncRegistryFromFile(id, filePath);
-    final registry = RegistryInfo(
-      id: id,
-      url: filePath,
-      name: localMeta.name ?? filename,
-      description: localMeta.description,
-      status: localMeta.status,
-      enabled: true,
-      lastFetchedAt: DateTime.now().millisecondsSinceEpoch,
-      lastUpdated: localMeta.updated,
-    );
-    ref.read(registriesProvider.notifier).add(registry);
-    Log.ok(_tag, 'Local registry added: $id');
-    return true;
+
+  final file = File(filePath);
+  if (!await file.exists()) {
+    return 'File not found: $filePath';
+  }
+
+  String content;
+  try {
+    content = await file.readAsString();
+  } catch (e) {
+    return 'Failed to read file: $e';
+  }
+
+  Map<String, dynamic> json;
+  try {
+    json = jsonDecode(content) as Map<String, dynamic>;
+  } catch (e) {
+    return 'Invalid JSON in file: $e';
+  }
+
+  final metadata = RegistryMetadata.fromJson(json);
+  if (metadata.providers.isEmpty) {
+    return 'Registry file contains no providers';
   }
 
   await registryManager.syncRegistryFromFile(id, filePath);
@@ -285,7 +293,7 @@ Future<bool> addRegistryFromFile(String filePath, WidgetRef ref) async {
 
   ref.read(registriesProvider.notifier).add(registry);
   Log.ok(_tag, 'Registry added from file: $id');
-  return true;
+  return null;
 }
 
 Future<RegistryMetadata?> _loadLocalMetadata(String filePath) async {
