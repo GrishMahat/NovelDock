@@ -1,0 +1,3 @@
+[submodule "noveldock-providers"]
+	path = noveldock-providers
+	url = git@github.com:GrishMahat/noveldock-providers.git

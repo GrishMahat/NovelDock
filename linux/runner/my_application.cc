@@ -66,6 +66,13 @@ static void my_application_activate(GApplication* application) {
   gtk_window_set_default_size(window, 1280, 720);
 
   g_autoptr(FlDartProject) project = fl_dart_project_new();
+
+  g_autofree gchar* icon_path =
+      g_build_filename(fl_dart_project_get_assets_path(project),
+                       "..", "icon.png", NULL);
+  if (g_file_test(icon_path, G_FILE_TEST_EXISTS)) {
+    gtk_window_set_default_icon_from_file(icon_path, NULL);
+  }
   fl_dart_project_set_dart_entrypoint_arguments(
       project, self->dart_entrypoint_arguments);
 

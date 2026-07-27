@@ -20,7 +20,7 @@ class RegistryManager {
 
   RegistryManager(this._dio, this._config);
 
-  /// Fetch registry JSON from a URL.
+  /// Fetch registry JSON from a URL. Returns null on failure (error logged).
   Future<RegistryMetadata?> fetchRegistryJson(String url) async {
     final rawUrl = _resolveRawUrl(url, path: 'registry.json');
     if (rawUrl == null) {
@@ -50,6 +50,48 @@ class RegistryManager {
     } catch (e) {
       Log.e(_tag, 'Error parsing registry JSON: $e');
       return null;
+    }
+  }
+
+  /// Fetch registry JSON from a URL. Returns error string on failure, null on success.
+  Future<String?> fetchRegistryJsonWithError(String url) async {
+    final rawUrl = Uri.tryParse(url);
+    if (rawUrl == null || !rawUrl.hasScheme) {
+      return 'Invalid URL format';
+    }
+
+    final resolvedUrl = _resolveRawUrl(url, path: 'registry.json');
+    if (resolvedUrl == null) {
+      return 'Could not resolve registry URL: $url';
+    }
+
+    Log.i(_tag, 'Fetching registry JSON from: $resolvedUrl');
+    try {
+      final response = await _dio.get(
+        resolvedUrl,
+        options: Options(responseType: ResponseType.plain),
+      );
+
+      if (response.statusCode == 404) {
+        return 'Registry not found (404) at $resolvedUrl.\nMake sure the repo contains a registry.json file.';
+      }
+      if (response.statusCode != 200) {
+        return 'Registry fetch failed: HTTP ${response.statusCode}';
+      }
+
+      final json = jsonDecode(response.data as String) as Map<String, dynamic>;
+      final metadata = RegistryMetadata.fromJson(json);
+      Log.ok(_tag, 'Got registry "${metadata.name ?? 'unnamed'}" with ${metadata.providers.length} providers');
+      return null;
+    } on DioException catch (e) {
+      final msg = e.message ?? 'Unknown network error';
+      final statusCode = e.response?.statusCode;
+      if (statusCode == 404) {
+        return 'Registry not found (404) at $resolvedUrl.\nMake sure the repo contains a registry.json file.';
+      }
+      return 'Network error: $msg';
+    } catch (e) {
+      return 'Error parsing registry JSON: $e';
     }
   }
 
@@ -111,61 +153,62 @@ class RegistryManager {
     }
   }
 
-  /// Internal: sync metadata — download/copy JS and icon files.
+  /// Internal: sync metadata — download/copy JS and icon files in parallel.
   Future<List<ProviderMeta>> _syncMetadata(
     String registryId,
     RegistryMetadata metadata, {
     String? rawBaseUrl,
     String? localBaseDir,
   }) async {
-    // Registry directory — mirror the repo structure
     final registryDir = _config.registryDir(registryId);
     await registryDir.create(recursive: true);
 
-    // Save metadata.json as-is
     final metadataFile = File(_config.registryMetadataPath(registryId));
     await metadataFile.writeAsString(jsonEncode(metadata.toJson()));
     Log.i(_tag, 'Cached registry JSON to: ${metadataFile.path}');
 
-    final downloaded = <ProviderMeta>[];
+    final results = await Future.wait(metadata.providers.map((provider) async {
+      final futures = <Future<dynamic>>[];
+      final jsFuture = rawBaseUrl != null
+          ? _fetchString('$rawBaseUrl${provider.file}')
+          : _readLocalFile('$localBaseDir/${provider.file}');
+      futures.add(jsFuture);
 
-    for (final provider in metadata.providers) {
-      // Download/copy JS file using the path from metadata (relative to JSON)
-      String? jsSource;
-      if (rawBaseUrl != null) {
-        jsSource = await _fetchString('$rawBaseUrl${provider.file}');
-      } else if (localBaseDir != null) {
-        jsSource = await _readLocalFile('$localBaseDir/${provider.file}');
+      Future<List<int>?>? iconFuture;
+      if (provider.icon != null && rawBaseUrl != null) {
+        iconFuture = _fetchBytes('$rawBaseUrl${provider.icon}');
+        futures.add(iconFuture);
       }
 
-      if (jsSource != null) {
-        // Save to same relative path under registry dir
-        final jsPath = p.join(registryDir.path, provider.file);
-        final jsFile = File(jsPath);
-        await jsFile.parent.create(recursive: true);
-        await jsFile.writeAsString(jsSource);
-      } else {
+      final completed = await Future.wait(futures);
+      final jsSource = completed[0] as String?;
+
+      if (jsSource == null) {
         Log.w(_tag, 'Failed to load JS for provider ${provider.id}');
-        continue;
+        return null;
       }
 
-      // Download/copy icon using the path from metadata (relative to JSON)
-      if (provider.icon != null) {
-        if (rawBaseUrl != null) {
-          final iconBytes = await _fetchBytes('$rawBaseUrl${provider.icon}');
-          if (iconBytes != null) {
-            final iconPath = p.join(registryDir.path, provider.icon!);
-            final iconFile = File(iconPath);
-            await iconFile.parent.create(recursive: true);
-            await iconFile.writeAsBytes(iconBytes);
-          }
-        } else if (localBaseDir != null) {
-          final iconPath = p.join(registryDir.path, provider.icon!);
-          await _copyLocalFile('$localBaseDir/${provider.icon}', iconPath);
-        }
+      List<int>? iconBytes;
+      if (iconFuture != null && completed.length > 1) {
+        iconBytes = completed[1] as List<int>?;
       }
 
-      downloaded.add(ProviderMeta(
+      final jsPath = p.join(registryDir.path, provider.file);
+      final jsFile = File(jsPath);
+      await jsFile.parent.create(recursive: true);
+      await jsFile.writeAsString(jsSource);
+
+      if (iconBytes != null) {
+        final iconPath = p.join(registryDir.path, provider.icon!);
+        final iconFile = File(iconPath);
+        await iconFile.parent.create(recursive: true);
+        await iconFile.writeAsBytes(iconBytes);
+      } else if (provider.icon != null && localBaseDir != null) {
+        final iconPath = p.join(registryDir.path, provider.icon!);
+        await _copyLocalFile('$localBaseDir/${provider.icon}', iconPath);
+      }
+
+      return ProviderMeta(
         id: provider.id,
         name: provider.name,
         lang: provider.lang,
@@ -176,9 +219,10 @@ class RegistryManager {
         icon: provider.icon,
         nsfw: provider.nsfw,
         registryId: registryId,
-      ));
-    }
+      );
+    }));
 
+    final downloaded = results.whereType<ProviderMeta>().toList();
     Log.ok(_tag, 'Synced ${downloaded.length}/${metadata.providers.length} providers');
     return downloaded;
   }
