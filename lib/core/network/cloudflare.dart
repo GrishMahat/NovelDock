@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'dart:io' show Platform;
 
 import 'package:dio/dio.dart';
 import 'package:flutter/material.dart';
@@ -65,6 +66,15 @@ class CloudflareHandler {
 
   /// Open WebView and capture Cloudflare clearance cookies.
   Future<Map<String, String>?> _resolveWithWebView(BuildContext context, String url) async {
+    if (!Platform.isAndroid && !Platform.isIOS) {
+      if (context.mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('WebView is not available on this platform.')),
+        );
+      }
+      return null;
+    }
+
     final completer = Completer<Map<String, String>?>();
     bool resolved = false;
 
@@ -124,31 +134,36 @@ class _CloudflareWebViewState extends State<_CloudflareWebView> {
   void initState() {
     super.initState();
 
-    _controller = WebViewController()
-      ..setJavaScriptMode(JavaScriptMode.unrestricted)
-      ..setNavigationDelegate(
-        NavigationDelegate(
-          onPageStarted: (url) {
-            setState(() {
-              _isLoading = true;
-              _status = 'Loading page...';
-            });
-          },
-          onPageFinished: (url) {
-            setState(() {
-              _isLoading = false;
-              _status = 'Checking for Cloudflare...';
-            });
-            _onPageFinished();
-          },
-        ),
-      )
-      ..loadRequest(Uri.parse(widget.url));
+    try {
+      _controller = WebViewController()
+        ..setJavaScriptMode(JavaScriptMode.unrestricted)
+        ..setNavigationDelegate(
+          NavigationDelegate(
+            onPageStarted: (url) {
+              setState(() {
+                _isLoading = true;
+                _status = 'Loading page...';
+              });
+            },
+            onPageFinished: (url) {
+              setState(() {
+                _isLoading = false;
+                _status = 'Checking for Cloudflare...';
+              });
+              _onPageFinished();
+            },
+          ),
+        )
+        ..loadRequest(Uri.parse(widget.url));
 
-    // Timeout after 5 minutes
-    _timeoutTimer = Timer(const Duration(minutes: 5), () {
-      widget.onTimeout();
-    });
+      // Timeout after 5 minutes
+      _timeoutTimer = Timer(const Duration(minutes: 5), () {
+        widget.onTimeout();
+      });
+    } catch (e) {
+      _status = 'WebView not supported on this platform.';
+      widget.onComplete({});
+    }
   }
 
   @override

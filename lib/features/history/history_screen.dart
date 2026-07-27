@@ -86,24 +86,16 @@ class _HistoryScreenState extends ConsumerState<HistoryScreen> {
                 var entries = snapshot.data ?? [];
                 Log.d(_tag, 'History entries: ${entries.length}');
 
-                // Deduplicate — keep only latest per novel+chapter
-                final seen = <String, ReadingHistoryData>{};
+                // Ensure exactly one entry per novel (latest read)
+                final seen = <int, ReadingHistoryData>{};
                 for (final entry in entries) {
-                  final key = '${entry.novelId}_${entry.chapterId}';
-                  if (!seen.containsKey(key) ||
-                      entry.readAt > seen[key]!.readAt) {
-                    seen[key] = entry;
+                  if (!seen.containsKey(entry.novelId) ||
+                      entry.readAt > seen[entry.novelId]!.readAt) {
+                    seen[entry.novelId] = entry;
                   }
                 }
                 entries = seen.values.toList()
                   ..sort((a, b) => b.readAt.compareTo(a.readAt));
-
-                // Filter by search
-                if (_searchQuery.isNotEmpty) {
-                  entries = entries.where((e) =>
-                      e.novelId.toString().contains(_searchQuery) ||
-                      e.chapterId.toString().contains(_searchQuery)).toList();
-                }
 
                 if (entries.isEmpty) {
                   return Center(

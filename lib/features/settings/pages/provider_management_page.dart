@@ -5,6 +5,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../../core/providers/models.dart';
 import '../../../core/utils/logger.dart';
 import '../../../theme/app_theme.dart';
+import '../../../widgets/shimmer_list.dart';
 import '../providers/provider_management_providers.dart';
 
 const _tag = 'Registries';
@@ -90,16 +91,20 @@ class _ProviderManagementPageState extends ConsumerState<ProviderManagementPage>
           ),
         ],
       ),
-      body: registries.isEmpty
-          ? _buildEmptyState(context, ref)
-          : ListView.builder(
-              padding: const EdgeInsets.all(12),
-              itemCount: registries.length,
-              itemBuilder: (context, index) {
-                final registry = registries[index];
-                return _buildRegistryCard(context, ref, registry);
-              },
-            ),
+      body: registriesAsync.when(
+        loading: () => const ShimmerList(),
+        error: (e, _) => Center(child: Text('Error: $e')),
+        data: (registries) => registries.isEmpty
+            ? _buildEmptyState(context, ref)
+            : ListView.builder(
+                padding: const EdgeInsets.all(12),
+                itemCount: registries.length,
+                itemBuilder: (context, index) {
+                  final registry = registries[index];
+                  return _buildRegistryCard(context, ref, registry);
+                },
+              ),
+      ),
     );
   }
 

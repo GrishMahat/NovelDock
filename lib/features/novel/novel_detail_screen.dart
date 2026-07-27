@@ -8,6 +8,7 @@ import '../../core/providers/database_providers.dart';
 import '../../core/utils/logger.dart';
 import '../../core/network/cloudflare.dart';
 import '../../theme/app_theme.dart';
+import '../../widgets/shimmer_list.dart';
 import '../downloads/providers/download_provider.dart';
 import 'widgets/status_picker_sheet.dart';
 import 'widgets/download_range_sheet.dart';
@@ -21,23 +22,29 @@ class NovelDetailScreen extends ConsumerStatefulWidget {
   ConsumerState<NovelDetailScreen> createState() => _NovelDetailScreenState();
 }
 
-class _NovelDetailScreenState extends ConsumerState<NovelDetailScreen>
-    with SingleTickerProviderStateMixin {
-  late final TabController _tabController;
+class _NovelDetailScreenState extends ConsumerState<NovelDetailScreen> {
   final ItemScrollController _itemScrollController = ItemScrollController();
   final ItemPositionsListener _itemPositionsListener =
       ItemPositionsListener.create();
 
+  Novel? _novel;
+  bool _novelLoaded = false;
+
   @override
   void initState() {
     super.initState();
-    _tabController = TabController(length: 2, vsync: this);
+    _loadNovel();
   }
 
-  @override
-  void dispose() {
-    _tabController.dispose();
-    super.dispose();
+  Future<void> _loadNovel() async {
+    final novelDao = ref.read(novelDaoProvider);
+    final novel = await novelDao.getNovelById(widget.novelId);
+    if (mounted) {
+      setState(() {
+        _novel = novel;
+        _novelLoaded = true;
+      });
+    }
   }
 
   void _showDownloadDialog(BuildContext context, WidgetRef ref) {
@@ -164,184 +171,296 @@ class _NovelDetailScreenState extends ConsumerState<NovelDetailScreen>
 
   @override
   Widget build(BuildContext context) {
-    final novelDao = ref.watch(novelDaoProvider);
     final chapterDao = ref.watch(chapterDaoProvider);
     final libraryDao = ref.watch(libraryDaoProvider);
+    final novel = _novel;
 
-    Log.i('NovelDetail', 'Building for novelId=${widget.novelId}');
+    final genres = novel?.genres != null
+        ? (novel!.genres as String).split(',').where((g) => g.trim().isNotEmpty).toList()
+        : <String>[];
+
+    if (_novelLoaded && novel == null) {
+      return Scaffold(
+        appBar: AppBar(),
+        body: Center(
+          child: Column(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              Icon(Icons.book_outlined, size: 64, color: AppTheme.kTextSecondaryDark.withValues(alpha: 0.5)),
+              const SizedBox(height: 16),
+              const Text('Novel not found', style: TextStyle(fontSize: 18, fontWeight: FontWeight.w600)),
+              const SizedBox(height: 8),
+              ElevatedButton(
+                onPressed: () => context.pop(),
+                child: const Text('Go Back'),
+              ),
+            ],
+          ),
+        ),
+      );
+    }
 
     return Scaffold(
-      body: FutureBuilder<Novel?>(
-        future: novelDao.getNovelById(widget.novelId),
-        builder: (context, novelSnapshot) {
-          final novel = novelSnapshot.data;
-          Log.i('NovelDetail', 'getNovelById(${widget.novelId}): ${novel != null ? 'found title="${novel.title}"' : 'null'}');
+      appBar: AppBar(
+        actions: [
+          IconButton(
+            icon: const Icon(Icons.download),
+            onPressed: () => _showDownloadDialog(context, ref),
+            tooltip: 'Download',
+          ),
+          IconButton(
+            icon: const Icon(Icons.sort),
+            onPressed: () {},
+            tooltip: 'Filter',
+          ),
+          PopupMenuButton<String>(
+            onSelected: (value) {
+              if (value == 'cloudflare') _triggerCloudflareBypass();
+            },
+            itemBuilder: (context) => [
+              const PopupMenuItem(
+                value: 'cloudflare',
+                child: Row(
+                  children: [
+                    Icon(Icons.shield, size: 20),
+                    SizedBox(width: 8),
+                    Text('Cloudflare Bypass'),
+                  ],
+                ),
+              ),
+            ],
+          ),
+        ],
+      ),
+      body: StreamBuilder<List<Chapter>>(
+        stream: chapterDao.watchChaptersForNovel(widget.novelId),
+        builder: (context, chapterSnapshot) {
+          final chapters = chapterSnapshot.data ?? [];
+          final isLoadingChapters = chapterSnapshot.connectionState == ConnectionState.waiting;
 
-          return CustomScrollView(
-            slivers: [
-              // App bar with cover image background
-              SliverAppBar(
-                expandedHeight: 200,
-                pinned: true,
-                actions: [
-                  PopupMenuButton<String>(
-                    onSelected: (value) {
-                      if (value == 'cloudflare') _triggerCloudflareBypass();
-                    },
-                    itemBuilder: (context) => [
-                      const PopupMenuItem(
-                        value: 'cloudflare',
-                        child: Row(
+          return Stack(
+            children: [
+              ListView(
+                padding: const EdgeInsets.symmetric(horizontal: 16),
+                children: [
+                  // Header: Cover + Info
+                  Row(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      ClipRRect(
+                        borderRadius: BorderRadius.circular(12),
+                        child: novel?.coverUrl != null
+                            ? Image.network(
+                                novel!.coverUrl!,
+                                width: 105,
+                                height: 145,
+                                fit: BoxFit.cover,
+                                errorBuilder: (_, __, ___) => Container(
+                                  width: 105,
+                                  height: 145,
+                                  color: AppTheme.kSurfaceVariantDark,
+                                  child: const Icon(Icons.book, size: 40),
+                                ),
+                              )
+                            : Container(
+                                width: 105,
+                                height: 145,
+                                color: AppTheme.kSurfaceVariantDark,
+                                child: const Icon(Icons.book, size: 40),
+                              ),
+                      ),
+                      const SizedBox(width: 16),
+                      Expanded(
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
                           children: [
-                            Icon(Icons.shield, size: 20),
-                            SizedBox(width: 8),
-                            Text('Cloudflare Bypass'),
+                            Text(
+                              novel?.title ?? 'Loading...',
+                              style: const TextStyle(
+                                fontSize: 18,
+                                fontWeight: FontWeight.bold,
+                              ),
+                              maxLines: 2,
+                              overflow: TextOverflow.ellipsis,
+                            ),
+                            const SizedBox(height: 6),
+                            Row(
+                              children: [
+                                const Icon(Icons.person_outline, size: 16, color: AppTheme.kTextSecondaryDark),
+                                const SizedBox(width: 4),
+                                Expanded(
+                                  child: Text(
+                                    novel?.author ?? 'Unknown author',
+                                    style: const TextStyle(fontSize: 13, color: AppTheme.kTextSecondaryDark),
+                                    maxLines: 1,
+                                    overflow: TextOverflow.ellipsis,
+                                  ),
+                                ),
+                              ],
+                            ),
+                            const SizedBox(height: 4),
+                            Row(
+                              children: [
+                                const Icon(Icons.access_time, size: 16, color: AppTheme.kTextSecondaryDark),
+                                const SizedBox(width: 4),
+                                Text(
+                                  novel?.status ?? 'Ongoing',
+                                  style: const TextStyle(fontSize: 13, color: AppTheme.kTextSecondaryDark),
+                                ),
+                              ],
+                            ),
                           ],
                         ),
                       ),
                     ],
                   ),
-                ],
-                flexibleSpace: FlexibleSpaceBar(
-                  title: Text(
-                    novel?.title ?? 'Novel #${widget.novelId}',
-                    style: const TextStyle(fontSize: 16),
-                  ),
-                  background: novel?.coverUrl != null
-                      ? Image.network(
-                          novel!.coverUrl!,
-                          fit: BoxFit.cover,
-                          errorBuilder: (_, _, _) => Container(
-                            color: AppTheme.kSurfaceVariantDark,
-                            child:
-                                const Icon(Icons.book, size: 64),
-                          ),
-                        )
-                      : Container(
-                          color: AppTheme.kSurfaceVariantDark,
-                          child:
-                              const Icon(Icons.book, size: 64),
-                        ),
-                ),
-              ),
+                  const SizedBox(height: 20),
 
-              // Novel info header
-              SliverToBoxAdapter(
-                child: Padding(
-                  padding: const EdgeInsets.all(16),
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
+                  // Action Icon Buttons (In Library, Track, WebView, etc.)
+                  Row(
+                    mainAxisAlignment: MainAxisAlignment.spaceAround,
                     children: [
-                      Text(
-                        novel?.title ?? 'Loading...',
-                        style: const TextStyle(
-                          fontSize: 20,
-                          fontWeight: FontWeight.bold,
-                        ),
+                      _buildActionButton(
+                        icon: Icons.favorite,
+                        label: 'In library',
+                        isSelected: true,
+                        onTap: () async {
+                          final status = await showModalBottomSheet<String>(
+                            context: context,
+                            shape: const RoundedRectangleBorder(
+                              borderRadius: BorderRadius.vertical(top: Radius.circular(16)),
+                            ),
+                            builder: (ctx) => const StatusPickerSheet(),
+                          );
+                          if (status == null) return;
+                          if (status == 'None') {
+                            await libraryDao.removeFromLibrary(widget.novelId);
+                          } else {
+                            await libraryDao.addToLibrary(widget.novelId, status: status);
+                          }
+                        },
                       ),
-                      if (novel?.author != null) ...[
-                        const SizedBox(height: 4),
-                        Text(
-                          novel!.author!,
-                          style: TextStyle(
-                            fontSize: 14,
-                            color: AppTheme.kTextSecondaryDark,
-                          ),
-                        ),
-                      ],
-                      const SizedBox(height: 8),
-                      // Status
-                      if (novel?.status != null) ...[
-                        _buildStatusChip(novel!.status!),
-                        const SizedBox(height: 12),
-                      ],
-                      // Description
-                      if (novel?.description != null &&
-                          novel!.description!.isNotEmpty) ...[
-                        Text(
-                          novel.description!,
-                          style: const TextStyle(fontSize: 14, height: 1.5),
-                        ),
-                      ],
-                      const SizedBox(height: 12),
-                      // Action buttons
-                      Row(
-                        children: [
-                          Expanded(
-                            child: OutlinedButton.icon(
-                              onPressed: () async {
-                                final status = await showModalBottomSheet<String>(
-                                  context: context,
-                                  shape: const RoundedRectangleBorder(
-                                    borderRadius: BorderRadius.vertical(top: Radius.circular(16)),
-                                  ),
-                                  builder: (ctx) => const StatusPickerSheet(),
-                                );
-                                if (status == null) return;
-                                if (status == 'None') {
-                                  await libraryDao.removeFromLibrary(widget.novelId);
-                                  if (context.mounted) {
-                                    ScaffoldMessenger.of(context).showSnackBar(
-                                      const SnackBar(content: Text('Removed from Library')),
-                                    );
-                                  }
-                                } else {
-                                  await libraryDao.addToLibrary(
-                                    widget.novelId,
-                                    status: status,
-                                  );
-                                  if (context.mounted) {
-                                    ScaffoldMessenger.of(context).showSnackBar(
-                                      SnackBar(content: Text('Added to Library ($status)')),
-                                    );
-                                  }
-                                }
-                              },
-                              icon: const Icon(Icons.library_add, size: 18),
-                              label: const Text('Library'),
-                            ),
-                          ),
-                          const SizedBox(width: 8),
-                          // Play TTS button
-                          FilledButton.tonalIcon(
-                            onPressed: () => _playFromStart(ref),
-                            icon: const Icon(Icons.play_arrow, size: 20),
-                            label: const Text('Play'),
-                          ),
-                          const SizedBox(width: 8),
-                          Expanded(
-                            child: FilledButton.icon(
-                              onPressed: () => _showDownloadDialog(context, ref),
-                              icon: const Icon(Icons.download, size: 18),
-                              label: const Text('Download'),
-                            ),
-                          ),
-                        ],
+                      _buildActionButton(
+                        icon: Icons.hourglass_empty,
+                        label: 'Soon',
+                        isSelected: false,
+                        onTap: () {},
+                      ),
+                      _buildActionButton(
+                        icon: Icons.sync,
+                        label: 'Tracking',
+                        isSelected: false,
+                        onTap: () {},
+                      ),
+                      _buildActionButton(
+                        icon: Icons.language,
+                        label: 'WebView',
+                        isSelected: false,
+                        onTap: _triggerCloudflareBypass,
                       ),
                     ],
                   ),
-                ),
+                  const SizedBox(height: 16),
+
+                  // Description
+                  if (novel?.description != null && novel!.description!.isNotEmpty) ...[
+                    Text(
+                      novel.description!,
+                      maxLines: 3,
+                      overflow: TextOverflow.ellipsis,
+                      style: TextStyle(
+                        fontSize: 13,
+                        height: 1.4,
+                        color: Colors.white.withValues(alpha: 0.85),
+                      ),
+                    ),
+                    const SizedBox(height: 12),
+                  ],
+
+                  // Genres / Tags Chips
+                  if (genres.isNotEmpty) ...[
+                    SingleChildScrollView(
+                      scrollDirection: Axis.horizontal,
+                      child: Row(
+                        children: genres
+                            .map((g) => Container(
+                                  margin: const EdgeInsets.only(right: 8),
+                                  padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+                                  decoration: BoxDecoration(
+                                    borderRadius: BorderRadius.circular(12),
+                                    border: Border.all(color: Colors.white24),
+                                  ),
+                                  child: Text(
+                                    g.trim(),
+                                    style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w500),
+                                  ),
+                                ))
+                            .toList(),
+                      ),
+                    ),
+                    const SizedBox(height: 20),
+                  ],
+
+                  // Chapter Header count
+                  Text(
+                    '${chapters.length} chapters',
+                    style: const TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
+                  ),
+                  const SizedBox(height: 12),
+
+                  // Chapters inline list or shimmer loading
+                  if (isLoadingChapters)
+                    const ShimmerList()
+                  else if (chapters.isEmpty)
+                    const Padding(
+                      padding: EdgeInsets.symmetric(vertical: 24),
+                      child: Center(
+                        child: Text(
+                          'No chapters available.',
+                          style: TextStyle(color: AppTheme.kTextSecondaryDark),
+                        ),
+                      ),
+                    )
+                  else
+                    ...chapters.map((chapter) => ListTile(
+                          contentPadding: EdgeInsets.zero,
+                          title: Text(
+                            chapter.name,
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                            style: TextStyle(
+                              fontSize: 14,
+                              fontWeight: chapter.read ? FontWeight.normal : FontWeight.w600,
+                              color: chapter.read ? AppTheme.kTextSecondaryDark : Colors.white,
+                            ),
+                          ),
+                          subtitle: const Text(
+                            'Available',
+                            style: TextStyle(fontSize: 11, color: AppTheme.kTextSecondaryDark),
+                          ),
+                          trailing: IconButton(
+                            icon: Icon(
+                              chapter.downloaded ? Icons.download_done : Icons.arrow_circle_down_outlined,
+                              size: 20,
+                              color: AppTheme.kTextSecondaryDark,
+                            ),
+                            onPressed: () {},
+                          ),
+                          onTap: () => context.push('/reader/${widget.novelId}/${chapter.id}'),
+                        )),
+                  const SizedBox(height: 80),
+                ],
               ),
 
-              // Tab bar
-              SliverToBoxAdapter(
-                child: TabBar(
-                  controller: _tabController,
-                  tabs: const [
-                    Tab(text: 'Info'),
-                    Tab(text: 'Chapters'),
-                  ],
-                ),
-              ),
-
-              // Tab content
-              SliverFillRemaining(
-                child: TabBarView(
-                  controller: _tabController,
-                  children: [
-                    _buildInfoTab(novel),
-                    _buildChaptersTab(chapterDao),
-                  ],
+              // Floating Play / Resume Button
+              Positioned(
+                right: 16,
+                bottom: 16,
+                child: FloatingActionButton.extended(
+                  onPressed: () => _playFromStart(ref),
+                  backgroundColor: Theme.of(context).colorScheme.primaryContainer,
+                  icon: const Icon(Icons.play_arrow),
+                  label: const Text('Resume', style: TextStyle(fontWeight: FontWeight.bold)),
                 ),
               ),
             ],
@@ -351,153 +470,29 @@ class _NovelDetailScreenState extends ConsumerState<NovelDetailScreen>
     );
   }
 
-  Widget _buildStatusChip(String status) {
-    final color =
-        status.toLowerCase().contains('ongoing') ? AppTheme.kOngoing : Colors.green;
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
-      decoration: BoxDecoration(
-        color: color.withValues(alpha: 0.15),
-        borderRadius: BorderRadius.circular(4),
-      ),
-      child: Text(
-        status,
-        style: TextStyle(
-          fontSize: 12,
-          color: color,
-          fontWeight: FontWeight.w500,
+  Widget _buildActionButton({
+    required IconData icon,
+    required String label,
+    required bool isSelected,
+    required VoidCallback onTap,
+  }) {
+    final color = isSelected ? AppTheme.kPrimary : AppTheme.kTextSecondaryDark;
+    return InkWell(
+      onTap: onTap,
+      borderRadius: BorderRadius.circular(8),
+      child: Padding(
+        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+        child: Column(
+          children: [
+            Icon(icon, color: color, size: 24),
+            const SizedBox(height: 4),
+            Text(
+              label,
+              style: TextStyle(fontSize: 11, color: color, fontWeight: isSelected ? FontWeight.w600 : FontWeight.normal),
+            ),
+          ],
         ),
       ),
-    );
-  }
-
-  Widget _buildInfoTab(Novel? novel) {
-    if (novel == null) {
-      return const Center(child: CircularProgressIndicator());
-    }
-
-    final genres = novel.genres != null
-        ? (novel.genres as String).split(',').where((g) => g.trim().isNotEmpty).toList()
-        : <String>[];
-
-    return SingleChildScrollView(
-      padding: const EdgeInsets.all(16),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          if (genres.isNotEmpty) ...[
-            const Text(
-              'Genres',
-              style: TextStyle(fontSize: 16, fontWeight: FontWeight.w600),
-            ),
-            const SizedBox(height: 8),
-            Wrap(
-              spacing: 6,
-              runSpacing: 6,
-              children: genres
-                  .map((g) => Chip(
-                        label: Text(g.trim(),
-                            style: const TextStyle(fontSize: 11)),
-                        materialTapTargetSize: MaterialTapTargetSize.shrinkWrap,
-                        visualDensity: VisualDensity.compact,
-                      ))
-                  .toList(),
-            ),
-          ],
-          if (novel.description != null &&
-              novel.description!.isNotEmpty) ...[
-            const SizedBox(height: 16),
-            const Text(
-              'Description',
-              style: TextStyle(fontSize: 16, fontWeight: FontWeight.w600),
-            ),
-            const SizedBox(height: 8),
-            Text(
-              novel.description!,
-              style: const TextStyle(fontSize: 14, height: 1.5),
-            ),
-          ],
-        ],
-      ),
-    );
-  }
-
-  Widget _buildChaptersTab(ChapterDao chapterDao) {
-    return StreamBuilder<List<Chapter>>(
-      stream: chapterDao.watchChaptersForNovel(widget.novelId),
-      builder: (context, snapshot) {
-        final chapters = snapshot.data ?? [];
-        Log.i('NovelDetail', 'Chapters tab: connectionState=${snapshot.connectionState} chapters=${chapters.length}');
-
-        if (snapshot.connectionState == ConnectionState.waiting) {
-          return const Center(child: CircularProgressIndicator());
-        }
-
-        if (chapters.isEmpty) {
-          return const Center(
-            child: Text(
-              'No chapters available.\nThis novel may not have been loaded yet.',
-              textAlign: TextAlign.center,
-              style: TextStyle(color: AppTheme.kTextSecondaryDark),
-            ),
-          );
-        }
-
-        return Stack(
-          children: [
-            ScrollablePositionedList.builder(
-              itemScrollController: _itemScrollController,
-              itemPositionsListener: _itemPositionsListener,
-              itemCount: chapters.length,
-              itemBuilder: (context, index) {
-                final chapter = chapters[index];
-                final isRead = chapter.read;
-                return ListTile(
-                  leading: CircleAvatar(
-                    radius: 16,
-                    backgroundColor: isRead
-                        ? Colors.green.withValues(alpha: 0.15)
-                        : AppTheme.kSurfaceVariantDark,
-                    child: isRead
-                        ? const Icon(Icons.check, size: 14, color: Colors.green)
-                        : Text(
-                            '${index + 1}',
-                            style: const TextStyle(fontSize: 12),
-                          ),
-                  ),
-                  title: Text(
-                    chapter.name,
-                    maxLines: 1,
-                    overflow: TextOverflow.ellipsis,
-                    style: TextStyle(
-                      color: isRead ? AppTheme.kTextSecondaryDark : null,
-                      fontWeight: isRead ? FontWeight.normal : FontWeight.w500,
-                    ),
-                  ),
-                  subtitle: isRead ? const Text('Read', style: TextStyle(fontSize: 11, color: Colors.green)) : null,
-                  trailing: Icon(
-                    chapter.downloaded ? Icons.download_done : null,
-                    size: 16,
-                    color: AppTheme.kTextSecondaryDark,
-                  ),
-                  onTap: () {
-                    context.push('/reader/${widget.novelId}/${chapter.id}');
-                  },
-                );
-              },
-            ),
-            Positioned(
-              right: 16,
-              bottom: 16,
-              child: FloatingActionButton.small(
-                heroTag: 'jump_to_chapter',
-                onPressed: () => _jumpToChapter(chapters.length),
-                child: const Icon(Icons.sort),
-              ),
-            ),
-          ],
-        );
-      },
     );
   }
 }

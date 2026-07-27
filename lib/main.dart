@@ -50,6 +50,14 @@ void main() async {
         importance: Importance.low,
       ),
     );
+    await androidPlugin?.createNotificationChannel(
+      const AndroidNotificationChannel(
+        'updates',
+        'Updates',
+        description: 'Registry and provider update notifications',
+        importance: Importance.low,
+      ),
+    );
   }
 
   // Initialize background download service (Android foreground service)

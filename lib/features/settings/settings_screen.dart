@@ -1,10 +1,33 @@
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
+import 'package:package_info_plus/package_info_plus.dart';
 
 import '../../theme/app_theme.dart';
 
-class SettingsScreen extends StatelessWidget {
+class SettingsScreen extends StatefulWidget {
   const SettingsScreen({super.key});
+
+  @override
+  State<SettingsScreen> createState() => _SettingsScreenState();
+}
+
+class _SettingsScreenState extends State<SettingsScreen> {
+  String _version = '';
+
+  @override
+  void initState() {
+    super.initState();
+    _loadVersion();
+  }
+
+  Future<void> _loadVersion() async {
+    try {
+      final info = await PackageInfo.fromPlatform();
+      if (mounted) {
+        setState(() => _version = 'v${info.version}');
+      }
+    } catch (_) {}
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -14,11 +37,19 @@ class SettingsScreen extends StatelessWidget {
         children: [
           _buildSection(context, 'General', [
             _SettingsTile(
+              icon: Icons.tune,
+              title: 'General',
+              subtitle: 'Startup tab, display defaults, app behavior',
+              onTap: () => context.push('/settings/general'),
+            ),
+            const Divider(height: 0.5, indent: 16, endIndent: 16),
+            _SettingsTile(
               icon: Icons.language,
               title: 'Providers',
               subtitle: 'Manage registries and enable/disable providers',
               onTap: () => context.push('/settings/providers'),
             ),
+            const Divider(height: 0.5, indent: 16, endIndent: 16),
             _SettingsTile(
               icon: Icons.download,
               title: 'Downloads',
@@ -26,6 +57,7 @@ class SettingsScreen extends StatelessWidget {
               onTap: () => context.push('/downloads'),
             ),
           ]),
+          const SizedBox(height: 8),
           _buildSection(context, 'Reader', [
             _SettingsTile(
               icon: Icons.text_fields,
@@ -34,6 +66,7 @@ class SettingsScreen extends StatelessWidget {
               onTap: () => context.push('/settings/reader'),
             ),
           ]),
+          const SizedBox(height: 8),
           _buildSection(context, 'Appearance', [
             _SettingsTile(
               icon: Icons.palette,
@@ -42,6 +75,7 @@ class SettingsScreen extends StatelessWidget {
               onTap: () => context.push('/settings/theme'),
             ),
           ]),
+          const SizedBox(height: 8),
           _buildSection(context, 'Data', [
             _SettingsTile(
               icon: Icons.backup,
@@ -49,6 +83,7 @@ class SettingsScreen extends StatelessWidget {
               subtitle: 'Export or import library data',
               onTap: () => context.push('/settings/backup'),
             ),
+            const Divider(height: 0.5, indent: 16, endIndent: 16),
             _SettingsTile(
               icon: Icons.translate,
               title: 'Translation',
@@ -56,6 +91,7 @@ class SettingsScreen extends StatelessWidget {
               onTap: () => context.push('/settings/translation'),
             ),
           ]),
+          const SizedBox(height: 8),
           _buildSection(context, 'About', [
             _SettingsTile(
               icon: Icons.bug_report,
@@ -63,10 +99,13 @@ class SettingsScreen extends StatelessWidget {
               subtitle: 'View in-app debug logs',
               onTap: () => context.push('/settings/logs'),
             ),
+            const Divider(height: 0.5, indent: 16, endIndent: 16),
             _SettingsTile(
               icon: Icons.info_outline,
               title: 'About',
-              subtitle: 'Version and licenses',
+              subtitle: _version.isEmpty
+                  ? 'Version and licenses'
+                  : 'Version and licenses ($_version)',
               onTap: () => context.push('/settings/about'),
             ),
           ]),
@@ -84,7 +123,12 @@ class SettingsScreen extends StatelessWidget {
           padding: const EdgeInsets.fromLTRB(16, 24, 16, 4),
           child: Text(title, style: const TextStyle(fontSize: 14, fontWeight: FontWeight.w600, color: AppTheme.kPrimary)),
         ),
-        ...children,
+        Card(
+          margin: const EdgeInsets.symmetric(horizontal: 8),
+          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+          elevation: 0,
+          child: Column(children: children),
+        ),
       ],
     );
   }
