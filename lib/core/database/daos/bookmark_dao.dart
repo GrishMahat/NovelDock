@@ -8,7 +8,7 @@ part 'bookmark_dao.g.dart';
 @DriftAccessor(tables: [Bookmarks, Novels, Chapters])
 class BookmarkDao extends DatabaseAccessor<AppDatabase>
     with _$BookmarkDaoMixin {
-  BookmarkDao(AppDatabase db) : super(db);
+  BookmarkDao(super.db);
 
   Future<int> addBookmark(BookmarksCompanion bookmark) {
     return into(bookmarks).insert(bookmark,
