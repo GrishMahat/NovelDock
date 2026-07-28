@@ -1,3 +1,6 @@
+import 'dart:async';
+
+import 'package:drift/drift.dart' hide Column;
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
@@ -5,13 +8,16 @@ import 'package:scrollable_positioned_list/scrollable_positioned_list.dart';
 
 import '../../core/database/database.dart';
 import '../../core/providers/database_providers.dart';
-import '../../core/utils/logger.dart';
+import '../../core/providers/engine.dart';
+import '../../core/network/client.dart';
 import '../../core/network/cloudflare.dart';
 import '../../theme/app_theme.dart';
 import '../../widgets/shimmer_list.dart';
 import '../downloads/providers/download_provider.dart';
 import 'widgets/status_picker_sheet.dart';
 import 'widgets/download_range_sheet.dart';
+
+enum ChapterSort { indexAsc, indexDesc, nameAsc, nameDesc }
 
 /// Novel detail screen — shows novel info with tabs: Novel, Reviews, Related, Chapters.
 class NovelDetailScreen extends ConsumerStatefulWidget {
@@ -27,24 +33,36 @@ class _NovelDetailScreenState extends ConsumerState<NovelDetailScreen> {
   final ItemPositionsListener _itemPositionsListener =
       ItemPositionsListener.create();
 
+  StreamSubscription? _novelSubscription;
+
   Novel? _novel;
   bool _novelLoaded = false;
+  bool _isRefreshing = false;
+  bool _initialLoading = true;
+  ChapterSort _chapterSort = ChapterSort.indexAsc;
 
   @override
   void initState() {
     super.initState();
-    _loadNovel();
+    _watchNovel();
   }
 
-  Future<void> _loadNovel() async {
+  void _watchNovel() {
     final novelDao = ref.read(novelDaoProvider);
-    final novel = await novelDao.getNovelById(widget.novelId);
-    if (mounted) {
-      setState(() {
-        _novel = novel;
-        _novelLoaded = true;
-      });
-    }
+    _novelSubscription = novelDao.watchNovelById(widget.novelId).listen((novel) {
+      if (mounted) {
+        setState(() {
+          _novel = novel;
+          _novelLoaded = true;
+        });
+      }
+    });
+  }
+
+  @override
+  void dispose() {
+    _novelSubscription?.cancel();
+    super.dispose();
   }
 
   void _showDownloadDialog(BuildContext context, WidgetRef ref) {
@@ -103,7 +121,6 @@ class _NovelDetailScreenState extends ConsumerState<NovelDetailScreen> {
       }
       return;
     }
-    // Open the first chapter in reader — TTS will start from there
     if (mounted) {
       context.push('/reader/${widget.novelId}/${chapters.first.id}');
     }
@@ -169,6 +186,56 @@ class _NovelDetailScreenState extends ConsumerState<NovelDetailScreen> {
     }
   }
 
+  Future<void> _refreshNovel() async {
+    if (_novel == null) return;
+    setState(() => _isRefreshing = true);
+
+    try {
+      final novelDao = ref.read(novelDaoProvider);
+      final chapterDao = ref.read(chapterDaoProvider);
+      final instance = await loadProviderById(_novel!.providerId, ref);
+      if (instance != null) {
+        final novelUrl = await instance.getNovelInfoUrl(_novel!.url);
+        if (novelUrl != null) {
+          final dio = await ref.read(dioProvider.future);
+          final response = await dio.get(novelUrl);
+          final info = await instance.parseNovelInfo(response.data.toString());
+          if (info != null && mounted) {
+            await novelDao.updateNovel(NovelsCompanion(
+              id: Value(widget.novelId),
+              providerId: Value(_novel!.providerId),
+              url: Value(_novel!.url),
+              title: Value(info.title),
+              author: Value(info.author),
+              coverUrl: Value(info.cover ?? _novel!.coverUrl),
+              description: Value(info.description),
+              genres: Value(info.genres.join(',')),
+              status: Value(info.status),
+              addedAt: Value(DateTime.now().millisecondsSinceEpoch),
+            ));
+            final chapterList = <ChaptersCompanion>[];
+            for (var i = 0; i < info.chapters.length; i++) {
+              final ch = info.chapters[i];
+              chapterList.add(ChaptersCompanion(
+                novelId: Value(widget.novelId),
+                name: Value(ch.name),
+                url: Value(ch.url),
+                index: Value(i.toDouble()),
+              ));
+            }
+            await chapterDao.insertChaptersForNovel(widget.novelId, chapterList);
+            if (mounted) {
+              final updated = await novelDao.getNovelById(widget.novelId);
+              setState(() => _novel = updated);
+            }
+          }
+        }
+      }
+    } catch (_) {}
+
+    if (mounted) setState(() => _isRefreshing = false);
+  }
+
   @override
   Widget build(BuildContext context) {
     final chapterDao = ref.watch(chapterDaoProvider);
@@ -208,10 +275,33 @@ class _NovelDetailScreenState extends ConsumerState<NovelDetailScreen> {
             onPressed: () => _showDownloadDialog(context, ref),
             tooltip: 'Download',
           ),
-          IconButton(
+          PopupMenuButton<ChapterSort>(
             icon: const Icon(Icons.sort),
-            onPressed: () {},
-            tooltip: 'Filter',
+            initialValue: _chapterSort,
+            tooltip: 'Sort chapters',
+            onSelected: (value) => setState(() => _chapterSort = value),
+            itemBuilder: (context) => [
+              PopupMenuItem(value: ChapterSort.indexAsc, child: Row(children: [
+                Icon(_chapterSort == ChapterSort.indexAsc ? Icons.check : null, size: 18),
+                const SizedBox(width: 8),
+                const Text('Index 1\u21929'),
+              ])),
+              PopupMenuItem(value: ChapterSort.indexDesc, child: Row(children: [
+                Icon(_chapterSort == ChapterSort.indexDesc ? Icons.check : null, size: 18),
+                const SizedBox(width: 8),
+                const Text('Index 9\u21921'),
+              ])),
+              PopupMenuItem(value: ChapterSort.nameAsc, child: Row(children: [
+                Icon(_chapterSort == ChapterSort.nameAsc ? Icons.check : null, size: 18),
+                const SizedBox(width: 8),
+                const Text('Name A\u2192Z'),
+              ])),
+              PopupMenuItem(value: ChapterSort.nameDesc, child: Row(children: [
+                Icon(_chapterSort == ChapterSort.nameDesc ? Icons.check : null, size: 18),
+                const SizedBox(width: 8),
+                const Text('Name Z\u2192A'),
+              ])),
+            ],
           ),
           PopupMenuButton<String>(
             onSelected: (value) {
@@ -236,12 +326,35 @@ class _NovelDetailScreenState extends ConsumerState<NovelDetailScreen> {
         stream: chapterDao.watchChaptersForNovel(widget.novelId),
         builder: (context, chapterSnapshot) {
           final chapters = chapterSnapshot.data ?? [];
+          final sortedChapters = List<Chapter>.from(chapters)..sort((a, b) {
+            switch (_chapterSort) {
+              case ChapterSort.indexAsc:
+                return a.index.compareTo(b.index);
+              case ChapterSort.indexDesc:
+                return b.index.compareTo(a.index);
+              case ChapterSort.nameAsc:
+                return a.name.compareTo(b.name);
+              case ChapterSort.nameDesc:
+                return b.name.compareTo(a.name);
+            }
+            return 0;
+          });
           final isLoadingChapters = chapterSnapshot.connectionState == ConnectionState.waiting;
+          final hasDescription = novel?.description != null && novel!.description!.isNotEmpty;
+          final showChapterShimmer = isLoadingChapters || (sortedChapters.isEmpty && (!hasDescription || _initialLoading || _isRefreshing));
+
+          if (sortedChapters.isNotEmpty) {
+            _initialLoading = false;
+          } else if (chapterSnapshot.connectionState == ConnectionState.active && hasDescription) {
+            _initialLoading = false;
+          }
 
           return Stack(
             children: [
-              ListView(
-                padding: const EdgeInsets.symmetric(horizontal: 16),
+              RefreshIndicator(
+                onRefresh: _refreshNovel,
+                child: ListView(
+                  padding: const EdgeInsets.symmetric(horizontal: 16),
                 children: [
                   // Header: Cover + Info
                   Row(
@@ -364,16 +477,7 @@ class _NovelDetailScreenState extends ConsumerState<NovelDetailScreen> {
 
                   // Description
                   if (novel?.description != null && novel!.description!.isNotEmpty) ...[
-                    Text(
-                      novel.description!,
-                      maxLines: 3,
-                      overflow: TextOverflow.ellipsis,
-                      style: TextStyle(
-                        fontSize: 13,
-                        height: 1.4,
-                        color: Colors.white.withValues(alpha: 0.85),
-                      ),
-                    ),
+                    _ExpandableDescription(description: novel.description!),
                     const SizedBox(height: 12),
                   ],
 
@@ -402,16 +506,21 @@ class _NovelDetailScreenState extends ConsumerState<NovelDetailScreen> {
                   ],
 
                   // Chapter Header count
-                  Text(
-                    '${chapters.length} chapters',
-                    style: const TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
-                  ),
-                  const SizedBox(height: 12),
+                  if (!showChapterShimmer) ...[
+                    Text(
+                      '${sortedChapters.length} chapters',
+                      style: const TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
+                    ),
+                    const SizedBox(height: 12),
+                  ],
 
                   // Chapters inline list or shimmer loading
-                  if (isLoadingChapters)
-                    const ShimmerList()
-                  else if (chapters.isEmpty)
+                  if (showChapterShimmer)
+                    ...List.generate(
+                      8,
+                      (_) => const ShimmerChapterTile(),
+                    )
+                  else if (sortedChapters.isEmpty)
                     const Padding(
                       padding: EdgeInsets.symmetric(vertical: 24),
                       child: Center(
@@ -422,7 +531,7 @@ class _NovelDetailScreenState extends ConsumerState<NovelDetailScreen> {
                       ),
                     )
                   else
-                    ...chapters.map((chapter) => ListTile(
+                    ...sortedChapters.map((chapter) => ListTile(
                           contentPadding: EdgeInsets.zero,
                           title: Text(
                             chapter.name,
@@ -450,6 +559,7 @@ class _NovelDetailScreenState extends ConsumerState<NovelDetailScreen> {
                         )),
                   const SizedBox(height: 80),
                 ],
+              ),
               ),
 
               // Floating Play / Resume Button
@@ -492,6 +602,49 @@ class _NovelDetailScreenState extends ConsumerState<NovelDetailScreen> {
             ),
           ],
         ),
+      ),
+    );
+  }
+}
+
+class _ExpandableDescription extends StatefulWidget {
+  final String description;
+  const _ExpandableDescription({required this.description});
+
+  @override
+  State<_ExpandableDescription> createState() => _ExpandableDescriptionState();
+}
+
+class _ExpandableDescriptionState extends State<_ExpandableDescription> {
+  bool _expanded = false;
+
+  @override
+  Widget build(BuildContext context) {
+    final clean = widget.description.replaceAll(RegExp(r'\s+'), ' ').trim();
+    return GestureDetector(
+      onTap: () => setState(() => _expanded = !_expanded),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(
+            clean,
+            maxLines: _expanded ? null : 2,
+            overflow: _expanded ? null : TextOverflow.ellipsis,
+            style: TextStyle(
+              fontSize: 13,
+              height: 1.4,
+              color: Colors.white.withValues(alpha: 0.85),
+            ),
+          ),
+          const SizedBox(height: 4),
+          Center(
+            child: Icon(
+              _expanded ? Icons.expand_less : Icons.expand_more,
+              size: 18,
+              color: Colors.white54,
+            ),
+          ),
+        ],
       ),
     );
   }

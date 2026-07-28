@@ -199,15 +199,21 @@ class _ProviderScreenState extends ConsumerState<ProviderScreen> {
     );
     if (!mounted) return;
 
-    showDialog(
-      context: context,
-      barrierDismissible: false,
-      builder: (_) => const Center(child: CircularProgressIndicator()),
-    );
+    // Navigate immediately with local data
+    context.push('/novel/$id');
 
+    // Fetch novel details and chapters in the background
+    _fetchNovelDetails(id, item);
+  }
+
+  Future<void> _fetchNovelDetails(int id, SearchResultItem item) async {
+    if (!mounted) return;
     try {
       final instance = await loadProviderById(item.providerId!, ref);
       if (instance != null) {
+        final novelDao = ref.read(novelDaoProvider);
+        final chapterDao = ref.read(chapterDaoProvider);
+
         final novelUrl = await instance.getNovelInfoUrl(item.url);
         if (novelUrl != null) {
           final dio = await ref.read(dioProvider.future);
@@ -227,8 +233,7 @@ class _ProviderScreenState extends ConsumerState<ProviderScreen> {
               addedAt: Value(DateTime.now().millisecondsSinceEpoch),
             ));
             final bookId = item.url.split('/').last.split('.').first;
-            // Delete existing chapters before re-inserting to prevent duplicates
-            await chapterDao.deleteChaptersForNovel(id);
+            final chapterList = <ChaptersCompanion>[];
             if (info.chapters.isEmpty && bookId.isNotEmpty) {
               var page = 0;
               var chapterIndex = 0;
@@ -242,7 +247,7 @@ class _ProviderScreenState extends ConsumerState<ProviderScreen> {
                 if (chList == null || chList is! List || chList.isEmpty) break;
                 for (var i = 0; i < chList.length; i++) {
                   final ch = chList[i] as Map<String, dynamic>;
-                  await chapterDao.insertChapter(ChaptersCompanion(
+                  chapterList.add(ChaptersCompanion(
                     novelId: Value(id),
                     name: Value(ch['name'] as String? ?? ''),
                     url: Value(ch['url'] as String? ?? ''),
@@ -255,7 +260,7 @@ class _ProviderScreenState extends ConsumerState<ProviderScreen> {
             } else {
               for (var i = 0; i < info.chapters.length; i++) {
                 final ch = info.chapters[i];
-                await chapterDao.insertChapter(ChaptersCompanion(
+                chapterList.add(ChaptersCompanion(
                   novelId: Value(id),
                   name: Value(ch.name),
                   url: Value(ch.url),
@@ -263,15 +268,11 @@ class _ProviderScreenState extends ConsumerState<ProviderScreen> {
                 ));
               }
             }
+            await chapterDao.insertChaptersForNovel(id, chapterList);
           }
         }
       }
     } catch (_) {}
-
-    if (mounted) {
-      Navigator.pop(context);
-      context.push('/novel/$id');
-    }
   }
 
   Widget _buildGridItem(SearchResultItem item) {

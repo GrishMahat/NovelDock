@@ -124,7 +124,7 @@ class ShimmerChapterTile extends StatelessWidget {
       baseColor: AppTheme.kSurfaceVariantDark,
       highlightColor: AppTheme.kSurfaceDark,
       child: Padding(
-        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
+        padding: const EdgeInsets.symmetric(vertical: 10),
         child: Row(
           children: [
             Container(
@@ -134,10 +134,24 @@ class ShimmerChapterTile extends StatelessWidget {
             ),
             const SizedBox(width: 12),
             Expanded(
-              child: Container(height: 14, color: AppTheme.kSurfaceDark),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Container(height: 14, color: AppTheme.kSurfaceDark),
+                  const SizedBox(height: 6),
+                  Container(width: 80, height: 11, color: AppTheme.kSurfaceDark),
+                ],
+              ),
             ),
             const SizedBox(width: 8),
-            Container(width: 60, height: 12, color: AppTheme.kSurfaceDark),
+            Container(
+              width: 20,
+              height: 20,
+              decoration: BoxDecoration(
+                color: AppTheme.kSurfaceDark,
+                borderRadius: BorderRadius.circular(4),
+              ),
+            ),
           ],
         ),
       ),

@@ -78,6 +78,15 @@ class ChapterDao extends DatabaseAccessor<AppDatabase> with _$ChapterDaoMixin {
         ChaptersCompanion(bookmarked: Value(bookmarked)));
   }
 
+  Future<void> insertChaptersForNovel(int novelId, List<ChaptersCompanion> chapterList) async {
+    await transaction(() async {
+      await (delete(chapters)..where((t) => t.novelId.equals(novelId))).go();
+      for (final ch in chapterList) {
+        await into(this.chapters).insert(ch, mode: InsertMode.insertOrReplace);
+      }
+    });
+  }
+
   Stream<List<Chapter>> watchChaptersForNovel(int novelId) {
     return (select(chapters)
           ..where((t) => t.novelId.equals(novelId))

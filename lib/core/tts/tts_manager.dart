@@ -3,6 +3,7 @@ import 'package:flutter_riverpod/legacy.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 import '../../main.dart';
+import 'background_audio_handler.dart';
 import 'microsoft_tts_provider.dart';
 import 'tts_notification.dart';
 import 'tts_mpris.dart';
@@ -87,6 +88,7 @@ class TtsManagerState {
 class TtsManager extends StateNotifier<TtsManagerState> {
   final Ref ref;
   MicrosoftTtsProvider? _provider;
+  bool _notificationsInitialized = false;
 
   /// Paragraph-level display texts — one entry per HTML paragraph chunk.
   List<String> _chunkTexts = [];
@@ -100,10 +102,12 @@ class TtsManager extends StateNotifier<TtsManagerState> {
 
   TtsManager(this.ref) : super(const TtsManagerState()) {
     _loadSettings();
-    _initNotifications();
   }
 
-  void _initNotifications() async {
+  Future<void> _ensureNotifications() async {
+    if (_notificationsInitialized) return;
+    _notificationsInitialized = true;
+
     await TtsNotification.init();
     TtsNotification.onPause = () => pause();
     TtsNotification.onResume = () => resume();
@@ -111,26 +115,30 @@ class TtsManager extends StateNotifier<TtsManagerState> {
     TtsNotification.onSkipForward = () => skipForward();
     TtsNotification.onSkipBackward = () => skipBackward();
 
+    if (audioHandler == null) {
+      audioHandler = await initAudioService();
+    }
+    audioHandler!.onPlay = () => resume();
+    audioHandler!.onPause = () => pause();
+    audioHandler!.onStop = () => stop();
+    audioHandler!.onSkipNext = () => skipForward();
+    audioHandler!.onSkipPrevious = () => skipBackward();
+
     await TtsMpris.init();
     TtsMpris.onPlay = () => resume();
     TtsMpris.onPause = () => pause();
     TtsMpris.onStop = () => stop();
     TtsMpris.onNext = () => skipForward();
     TtsMpris.onPrevious = () => skipBackward();
-
-    // Wire audio_service (Android foreground service / media notification)
-    audioHandler.onPlay = () => resume();
-    audioHandler.onPause = () => pause();
-    audioHandler.onStop = () => stop();
-    audioHandler.onSkipNext = () => skipForward();
-    audioHandler.onSkipPrevious = () => skipBackward();
   }
 
   void _updateNotification() {
     if (!state.isSpeaking && !state.isPaused) {
       TtsNotification.hide();
       TtsMpris.hide();
-      audioHandler.stop();
+      if (audioHandler != null) {
+        audioHandler!.stop();
+      }
       return;
     }
     final isPlaying = state.isSpeaking && !state.isPaused;
@@ -159,13 +167,15 @@ class TtsManager extends StateNotifier<TtsManagerState> {
     );
 
     // Update audio_service notification (Android foreground service / lock screen)
-    audioHandler.updateMediaInfo(
-      title: novelTitle,
-      artist: '$currentText (${state.currentChunkIndex + 1}/${state.totalChunks})',
-      isPlaying: isPlaying,
-      position: position,
-      duration: state.totalDuration,
-    );
+    if (audioHandler != null) {
+      audioHandler!.updateMediaInfo(
+        title: novelTitle,
+        artist: '$currentText (${state.currentChunkIndex + 1}/${state.totalChunks})',
+        isPlaying: isPlaying,
+        position: position,
+        duration: state.totalDuration,
+      );
+    }
   }
 
   Future<void> _loadSettings() async {
@@ -246,6 +256,8 @@ class TtsManager extends StateNotifier<TtsManagerState> {
 
     final provider = _getProvider();
     await provider.init();
+
+    await _ensureNotifications();
 
     if (coverUrl != null) {
       await TtsNotification.setCoverArt(coverUrl);
