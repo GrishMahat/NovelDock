@@ -12,14 +12,13 @@ import 'features/downloads/background_service.dart';
 final FlutterLocalNotificationsPlugin flutterLocalNotificationsPlugin =
     FlutterLocalNotificationsPlugin();
 
-late final BackgroundAudioHandler audioHandler;
+BackgroundAudioHandler? audioHandler;
 
 /// File path received from Android share intent, if any.
 String? sharedFilePath;
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
-  audioHandler = await initAudioService();
 
   // Initialize notification channels
   const androidSettings = AndroidInitializationSettings('@mipmap/ic_launcher');

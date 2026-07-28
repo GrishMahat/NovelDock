@@ -58,28 +58,36 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
     Log.i(_tag, '_openNovel: inserted/got novel DB id=$id');
     if (!mounted) return;
 
-    // Show loading dialog
-    showDialog(
-      context: context,
-      barrierDismissible: false,
-      builder: (_) => const Center(child: CircularProgressIndicator()),
-    );
+    // Navigate immediately with local data
+    Log.i(_tag, '_openNovel: navigating to /novel/$id');
+    context.push('/novel/$id');
+
+    // Fetch novel details and chapters in the background
+    _fetchNovelDetails(id, item);
+  }
+
+  Future<void> _fetchNovelDetails(int id, SearchResultItem item) async {
+    if (!mounted) return;
+    Log.i(_tag, '_fetchNovelDetails: id=$id');
 
     try {
       final instance = await loadProviderById(item.providerId!, ref);
-      Log.i(_tag, '_openNovel: instance=${instance != null ? 'loaded' : 'null'}');
+      Log.i(_tag, '_fetchNovelDetails: instance=${instance != null ? 'loaded' : 'null'}');
       if (instance != null) {
+        final novelDao = ref.read(novelDaoProvider);
+        final chapterDao = ref.read(chapterDaoProvider);
+
         final novelUrl = await instance.getNovelInfoUrl(item.url);
-        Log.i(_tag, '_openNovel: novelUrl=$novelUrl');
+        Log.i(_tag, '_fetchNovelDetails: novelUrl=$novelUrl');
         if (novelUrl != null) {
           final dio = await ref.read(dioProvider.future);
           final response = await dio.get(novelUrl);
           final html = response.data.toString();
-          Log.i(_tag, '_openNovel: fetched ${html.length} chars from $novelUrl');
+          Log.i(_tag, '_fetchNovelDetails: fetched ${html.length} chars from $novelUrl');
           final info = await instance.parseNovelInfo(html);
-          Log.i(_tag, '_openNovel: parsed info=${info != null ? 'title="${info.title}" chapters=${info.chapters.length}' : 'null'}');
+          Log.i(_tag, '_fetchNovelDetails: parsed info=${info != null ? 'title="${info.title}" chapters=${info.chapters.length}' : 'null'}');
           if (info != null && mounted) {
-            Log.i(_tag, '_openNovel: updating novel id=$id description len=${info.description.length} genres=${info.genres} status=${info.status}');
+            Log.i(_tag, '_fetchNovelDetails: updating novel id=$id description len=${info.description.length} genres=${info.genres} status=${info.status}');
             await novelDao.updateNovel(NovelsCompanion(
               id: Value(id),
               providerId: Value(item.providerId!),
@@ -93,11 +101,10 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
               addedAt: Value(DateTime.now().millisecondsSinceEpoch),
             ));
             final bookId = item.url.split('/').last.split('.').first;
-            Log.i(_tag, '_openNovel: info.chapters=${info.chapters.length}, bookId=$bookId');
-            // Delete existing chapters before re-inserting to prevent duplicates
-            await chapterDao.deleteChaptersForNovel(id);
+            Log.i(_tag, '_fetchNovelDetails: info.chapters=${info.chapters.length}, bookId=$bookId');
+            final chapterList = <ChaptersCompanion>[];
             if (info.chapters.isEmpty && bookId.isNotEmpty) {
-              Log.i(_tag, '_openNovel: loading chapters via AJAX for bookId=$bookId');
+              Log.i(_tag, '_fetchNovelDetails: loading chapters via AJAX for bookId=$bookId');
               var page = 0;
               var chapterIndex = 0;
               while (true) {
@@ -108,10 +115,10 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
                 if (chHtml.trim().isEmpty) break;
                 final chList = await instance.call('parseChapterList', [chHtml]);
                 if (chList == null || chList is! List || chList.isEmpty) break;
-                Log.i(_tag, '_openNovel: parsed ${chList.length} chapters from page $page');
+                Log.i(_tag, '_fetchNovelDetails: parsed ${chList.length} chapters from page $page');
                 for (var i = 0; i < chList.length; i++) {
                   final ch = chList[i] as Map<String, dynamic>;
-                  await chapterDao.insertChapter(ChaptersCompanion(
+                  chapterList.add(ChaptersCompanion(
                     novelId: Value(id),
                     name: Value(ch['name'] as String? ?? ''),
                     url: Value(ch['url'] as String? ?? ''),
@@ -121,11 +128,11 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
                 }
                 page++;
               }
-              Log.i(_tag, '_openNovel: done loading chapters, total=$chapterIndex');
+              Log.i(_tag, '_fetchNovelDetails: done loading chapters, total=$chapterIndex');
             } else {
               for (var i = 0; i < info.chapters.length; i++) {
                 final ch = info.chapters[i];
-                await chapterDao.insertChapter(ChaptersCompanion(
+                chapterList.add(ChaptersCompanion(
                   novelId: Value(id),
                   name: Value(ch.name),
                   url: Value(ch.url),
@@ -133,26 +140,20 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
                 ));
               }
             }
-            Log.i(_tag, '_openNovel: done inserting chapters');
+            await chapterDao.insertChaptersForNovel(id, chapterList);
+            Log.i(_tag, '_fetchNovelDetails: done inserting chapters');
           } else {
-            Log.w(_tag, '_openNovel: info was null or not mounted');
+            Log.w(_tag, '_fetchNovelDetails: info was null or not mounted');
           }
         } else {
-          Log.e(_tag, '_openNovel: novelUrl returned null');
+          Log.e(_tag, '_fetchNovelDetails: novelUrl returned null');
         }
       } else {
-        Log.e(_tag, '_openNovel: no cached JS for provider ${item.providerId}');
+        Log.e(_tag, '_fetchNovelDetails: no cached JS for provider ${item.providerId}');
       }
     } catch (e, stack) {
-      Log.e(_tag, '_openNovel: error', e);
-      Log.e(_tag, '_openNovel: stack', stack);
-    }
-
-    if (mounted) {
-      // Dismiss loading dialog
-      Navigator.of(context, rootNavigator: true).pop();
-      Log.i(_tag, '_openNovel: navigating to /novel/$id');
-      context.push('/novel/$id');
+      Log.e(_tag, '_fetchNovelDetails: error', e);
+      Log.e(_tag, '_fetchNovelDetails: stack', stack);
     }
   }
 

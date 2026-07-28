@@ -24,6 +24,10 @@ class NovelDao extends DatabaseAccessor<AppDatabase> with _$NovelDaoMixin {
     return (select(novels)..where((t) => t.id.equals(id))).getSingleOrNull();
   }
 
+  Stream<Novel?> watchNovelById(int id) {
+    return (select(novels)..where((t) => t.id.equals(id))).watchSingleOrNull();
+  }
+
   Future<Novel?> getNovelByUrl(String url) {
     return (select(novels)..where((t) => t.url.equals(url))).getSingleOrNull();
   }
