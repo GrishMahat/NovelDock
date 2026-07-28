@@ -7,7 +7,7 @@ part 'chapter_dao.g.dart';
 
 @DriftAccessor(tables: [Chapters, Novels])
 class ChapterDao extends DatabaseAccessor<AppDatabase> with _$ChapterDaoMixin {
-  ChapterDao(AppDatabase db) : super(db);
+  ChapterDao(super.db);
 
   Future<int> insertChapter(ChaptersCompanion chapter) {
     return into(chapters).insert(chapter, mode: InsertMode.insertOrReplace);
@@ -82,7 +82,7 @@ class ChapterDao extends DatabaseAccessor<AppDatabase> with _$ChapterDaoMixin {
     await transaction(() async {
       await (delete(chapters)..where((t) => t.novelId.equals(novelId))).go();
       for (final ch in chapterList) {
-        await into(this.chapters).insert(ch, mode: InsertMode.insertOrReplace);
+        await into(chapters).insert(ch, mode: InsertMode.insertOrReplace);
       }
     });
   }

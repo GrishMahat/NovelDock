@@ -20,7 +20,12 @@ String? sharedFilePath;
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
-  MediaKit.ensureInitialized();
+  try {
+    MediaKit.ensureInitialized();
+  } catch (e) {
+    // media_kit native libs may be missing; TTS will fall back gracefully
+    debugPrint('MediaKit init failed: $e');
+  }
 
   // Initialize notification channels
   const androidSettings = AndroidInitializationSettings('@mipmap/ic_launcher');
