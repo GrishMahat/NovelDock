@@ -3,6 +3,7 @@ import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_local_notifications/flutter_local_notifications.dart';
+import 'package:media_kit/media_kit.dart';
 
 import 'app.dart';
 import 'core/utils/log_buffer.dart';
@@ -19,6 +20,7 @@ String? sharedFilePath;
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
+  MediaKit.ensureInitialized();
 
   // Initialize notification channels
   const androidSettings = AndroidInitializationSettings('@mipmap/ic_launcher');

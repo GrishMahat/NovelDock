@@ -1,7 +1,7 @@
 import 'dart:io';
 
 import 'package:drift/drift.dart' show Value;
-import 'package:epubx/epubx.dart';
+import 'package:epubx_kuebiko/epubx_kuebiko.dart';
 import 'package:file_picker/file_picker.dart';
 import 'package:image/image.dart' as img;
 

@@ -2,7 +2,7 @@ import 'dart:async';
 import 'dart:io';
 import 'dart:typed_data';
 
-import 'package:audioplayers/audioplayers.dart';
+import 'package:media_kit/media_kit.dart';
 import 'package:flutter_edge_tts/flutter_edge_tts.dart';
 import 'package:path_provider/path_provider.dart';
 import 'package:path/path.dart' as p;
@@ -52,13 +52,13 @@ class _SynthResult {
 /// - Text is split into sentence-level chunks by the caller
 /// - Each chunk is synthesized and played one at a time (streaming)
 /// - Audio starts in ~3s instead of waiting for all chunks to synthesize
-/// - Word boundary timings are tracked per-chunk via Stopwatch
+/// - Word boundary timings are tracked per-chunk via player.position
 class MicrosoftTtsProvider {
   String _currentVoice = 'en-US-BrianMultilingualNeural';
   String? _tempDir;
   bool _speaking = false;
   bool _paused = false;
-  AudioPlayer? _player;
+  Player? _player;
   bool _stopRequested = false;
 
   bool get isSpeaking => _speaking;
@@ -199,38 +199,35 @@ class MicrosoftTtsProvider {
     _cleanupTempFiles();
   }
 
-  /// Play a single chunk's audio file and track word position via Stopwatch.
+  /// Play a single chunk's audio file and track word position via player position.
   Future<void> _playChunkAndWait(
     String audioPath,
     _SynthResult result,
     void Function(int lineIndex, int wordIndex)? onWordStart,
   ) async {
-    final player = AudioPlayer();
+    final player = Player();
     _player = player;
     try {
-      await player.setSourceDeviceFile(audioPath);
+      await player.open(Media('file://$audioPath'));
 
       final completer = Completer<void>();
-      player.onPlayerComplete.listen((_) {
+      final sub = player.stream.completed.listen((_) {
         if (!completer.isCompleted) completer.complete();
       });
 
-      await player.resume();
+      await player.play();
 
-      final stopwatch = Stopwatch()..start();
       int lastWordIndex = -1;
 
       while (!completer.isCompleted && !_stopRequested) {
         if (_paused) {
-          if (stopwatch.isRunning) stopwatch.stop();
           await Future.delayed(const Duration(milliseconds: 50));
           continue;
         }
-        if (!stopwatch.isRunning) stopwatch.start();
 
         await Future.delayed(const Duration(milliseconds: 50));
 
-        final elapsed = stopwatch.elapsed;
+        final elapsed = player.state.position;
         int currentWord = -1;
         for (int wi = result.wordTimings.length - 1; wi >= 0; wi--) {
           if (elapsed >= result.wordTimings[wi].offset) {
@@ -245,7 +242,7 @@ class MicrosoftTtsProvider {
         }
       }
 
-      stopwatch.stop();
+      await sub.cancel();
     } catch (e) {
       Log.e(_tag, 'Chunk playback failed: $e');
     } finally {
@@ -293,7 +290,7 @@ class MicrosoftTtsProvider {
     final player = _player;
     if (player != null) {
       try {
-        await player.resume();
+        await player.play();
         _paused = false;
       } catch (_) {}
     }
@@ -337,14 +334,14 @@ class MicrosoftTtsProvider {
       _speaking = true;
       _paused = false;
 
-      final player = AudioPlayer();
+      final player = Player();
       _player = player;
-      await player.setSourceDeviceFile(audioPath);
+      await player.open(Media('file://$audioPath'));
       final completer = Completer<void>();
-      player.onPlayerComplete.listen((_) {
+      player.stream.completed.listen((_) {
         if (!completer.isCompleted) completer.complete();
       });
-      await player.resume();
+      await player.play();
       await completer.future;
       await player.dispose();
       _player = null;

@@ -5,7 +5,7 @@ import 'package:audio_service/audio_service.dart';
 /// On Android this runs a foreground service, keeping audio alive when the
 /// screen is off. It also provides lock screen / notification media controls.
 ///
-/// Actual audio playback is handled by audioplayers in MicrosoftTtsProvider.
+/// Actual audio playback is handled by media_kit in MicrosoftTtsProvider.
 /// This handler only manages the notification/state that audio_service exposes.
 class BackgroundAudioHandler extends BaseAudioHandler with QueueHandler, SeekHandler {
   /// Callbacks wired from TtsManager.
