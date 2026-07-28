@@ -2,7 +2,7 @@ import 'dart:async';
 import 'dart:io';
 
 import 'package:drift/drift.dart' show Value;
-import 'package:epubx/epubx.dart';
+import 'package:epubx_kuebiko/epubx_kuebiko.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_riverpod/legacy.dart';
 import 'package:path_provider/path_provider.dart';

@@ -37,7 +37,7 @@ dependencies:
 
   # Content Rendering
   flutter_widget_from_html: ^0.17.2
-  epubx: ^4.0.0
+  epubx_kuebiko: ^4.2.1
   scrollable_positioned_list: ^0.3.8
 
   # UI Components
@@ -71,7 +71,8 @@ dependencies:
 
   # Cupertino icons
   cupertino_icons: ^1.0.8
-  audioplayers: ^6.8.1
+  media_kit: ^1.2.6
+  media_kit_native_event_loop: ^1.0.9
   audio_service: ^0.18.19
   audio_session: ^0.2.4
   flutter_background_service_android: ^6.3.1
@@ -86,7 +87,7 @@ dev_dependencies:
   drift_dev: 2.34.0
   freezed: ^3.2.5
   json_serializable: ^6.14.0
-  flutter_launcher_icons: ^0.9.3
+  flutter_launcher_icons: ^0.14.4
 
 flutter_launcher_icons:
   android: true
