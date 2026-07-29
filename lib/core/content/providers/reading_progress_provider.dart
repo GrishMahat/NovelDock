@@ -1,7 +1,13 @@
+import 'dart:async';
+
+import 'package:drift/drift.dart' show Value;
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:flutter_riverpod/legacy.dart';
 
 import '../../../core/database/database.dart';
 import '../../../core/providers/database_providers.dart';
+import '../../../core/providers/engine.dart';
+import '../../../core/providers/registry.dart';
 import '../../../core/utils/logger.dart';
 
 const _tag = 'ReadingProgress';
@@ -116,14 +122,17 @@ class ReadingProgressNotifier extends StateNotifier<ReadingProgressState> {
       final novel = await novelDao.getNovelById(novelId);
       if (novel == null) return;
 
-      final registryManager = await ref.read(registryManagerProvider.future);
-      final provider = await registryManager.loadProvider(novel.providerId);
-      if (provider == null) {
+      final registry = await ref.read(registryManagerProvider.future);
+      final engine = ref.read(providerEngineProvider);
+      final jsSource = await registry.loadCachedProviderJs(novel.providerId);
+      if (jsSource == null) {
         state = state.copyWith(isSyncing: false, syncError: 'Provider not found');
         return;
       }
+      final provider = await engine.loadProvider(jsSource);
 
-      final chapterUrls = await provider.getChapterList(novel.url);
+      final result = await provider.call('getChapterList', [novel.url]);
+      final chapterUrls = result as List<dynamic>?;
       if (chapterUrls == null) {
         state = state.copyWith(isSyncing: false, syncError: 'Failed to fetch chapter list');
         return;
@@ -134,13 +143,13 @@ class ReadingProgressNotifier extends StateNotifier<ReadingProgressState> {
 
       var newChapters = 0;
       for (final chapterUrl in chapterUrls) {
-        if (!existingUrls.contains(chapterUrl.url)) {
+        if (!existingUrls.contains(chapterUrl['url'])) {
           await chapterDao.insertChaptersForNovel(novelId, [
             ChaptersCompanion(
               novelId: Value(novelId),
-              name: Value(chapterUrl.name),
-              url: Value(chapterUrl.url),
-              index: Value(chapterUrl.index.toDouble()),
+              name: Value(chapterUrl['name'] as String),
+              url: Value(chapterUrl['url'] as String),
+              index: Value((chapterUrl['index'] as num).toDouble()),
             ),
           ]);
           newChapters++;
