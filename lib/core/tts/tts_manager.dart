@@ -274,6 +274,62 @@ class TtsManager extends StateNotifier<TtsManagerState> {
     TtsNotification.hide();
   }
 
+  /// Start TTS from a list of paragraph texts (no HTML chunking needed).
+  Future<void> startFromParagraphs(
+    List<String> paragraphs, {
+    int startParagraph = 0,
+    String? coverUrl,
+    String? novelTitle,
+    String? novelAuthor,
+  }) async {
+    if (paragraphs.isEmpty) return;
+    if (state.isSpeaking) return;
+
+    _chunkTexts = paragraphs;
+    _totalParagraphs = paragraphs.length;
+
+    _ttsChunks = TtsTextChunker.chunkForParagraphs(paragraphs);
+    if (_ttsChunks.isEmpty) return;
+
+    final startTtsChunk = _findFirstTtsChunkOfParagraph(
+      startParagraph.clamp(0, _totalParagraphs - 1),
+    );
+    if (startTtsChunk < 0) return;
+
+    final totalChars = paragraphs.fold(0, (s, t) => s + t.length);
+    final estimatedSeconds = (totalChars / 15.0 / state.speed).round();
+
+    state = state.copyWith(
+      isSpeaking: true,
+      isPaused: false,
+      currentChunkIndex: startParagraph.clamp(0, _totalParagraphs - 1),
+      currentWordIndex: 0,
+      totalChunks: _totalParagraphs,
+      currentText: paragraphs[state.currentChunkIndex],
+      novelTitle: novelTitle ?? '',
+      novelAuthor: novelAuthor ?? '',
+      totalDuration: Duration(seconds: estimatedSeconds),
+    );
+
+    final provider = _getProvider();
+    await provider.init();
+
+    await _ensureNotifications();
+
+    if (coverUrl != null) {
+      await TtsNotification.setCoverArt(coverUrl);
+      await TtsMpris.setCoverArt(coverUrl);
+    }
+    _updateNotification();
+
+    await _speakFromTtsChunk(startTtsChunk);
+
+    if (state.isSpeaking) {
+      state = state.copyWith(isSpeaking: false);
+    }
+    TtsNotification.hide();
+  }
+
   /// Synthesize and play from a specific TTS chunk index.
   Future<void> _speakFromTtsChunk(int ttsChunkStart) async {
     if (ttsChunkStart < 0 || ttsChunkStart >= _ttsChunks.length) return;

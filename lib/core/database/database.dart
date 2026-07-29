@@ -13,6 +13,7 @@ import 'daos/download_dao.dart';
 import 'daos/bookmark_dao.dart';
 import 'daos/settings_dao.dart';
 import 'daos/provider_cache_dao.dart';
+import 'daos/novel_progress_dao.dart';
 
 export 'tables.dart';
 export 'daos/novel_dao.dart';
@@ -23,6 +24,7 @@ export 'daos/download_dao.dart';
 export 'daos/bookmark_dao.dart';
 export 'daos/settings_dao.dart';
 export 'daos/provider_cache_dao.dart';
+export 'daos/novel_progress_dao.dart';
 
 part 'database.g.dart';
 
@@ -35,6 +37,7 @@ part 'database.g.dart';
   Bookmarks,
   Settings,
   ProviderCache,
+  NovelProgress,
 ], daos: [
   NovelDao,
   ChapterDao,
@@ -44,19 +47,34 @@ part 'database.g.dart';
   BookmarkDao,
   SettingsDao,
   ProviderCacheDao,
+  NovelProgressDao,
 ])
 class AppDatabase extends _$AppDatabase {
   AppDatabase() : super(_openConnection());
 
   @override
-  int get schemaVersion => 1;
+  int get schemaVersion => 2;
 
   @override
   MigrationStrategy get migration => MigrationStrategy(
         onCreate: (m) async {
           await m.createAll();
         },
-        onUpgrade: (m, from, to) async {},
+        onUpgrade: (m, from, to) async {
+          if (from < 2) {
+            // Add new columns to Chapters table if they don't exist
+            try {
+              await m.addColumn(chapters, chapters.ttsRead);
+            } catch (_) {}
+            try {
+              await m.addColumn(chapters, chapters.bookmarked);
+            } catch (_) {}
+            // Create NovelProgress table
+            try {
+              await m.createTable(novelProgress);
+            } catch (_) {}
+          }
+        },
       );
 }
 

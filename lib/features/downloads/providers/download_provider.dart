@@ -2,18 +2,19 @@ import 'dart:async';
 import 'dart:io';
 
 import 'package:drift/drift.dart' show Value;
-import 'package:epubx_kuebiko/epubx_kuebiko.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_riverpod/legacy.dart';
 import 'package:path_provider/path_provider.dart';
 import 'package:path/path.dart' as p;
 
+import '../../../core/content/markdown/html2md.dart';
 import '../../../core/database/database.dart';
 import '../../../core/providers/database_providers.dart';
 import '../../../core/providers/engine.dart';
 import '../../../core/providers/registry.dart';
 import '../../../core/network/client.dart';
 import '../../../core/utils/logger.dart';
+import '../../settings/pages/download_settings_page.dart';
 import '../background_service.dart';
 import 'download_notification.dart';
 
@@ -237,45 +238,19 @@ class DownloadNotifier extends StateNotifier<Map<int, NovelDownloadProgress>> {
         return;
       }
 
-      // Save as EPUB
+      // Save as Markdown
       final dir = await _getDownloadDir(novel);
-      final fileName = '${task.chapterId}.epub';
+      final fileName = '${task.chapterId}.md';
       final file = File(p.join(dir.path, fileName));
 
-      final chapterHtml = content.html;
-      final chapterTitle = chapter.name;
-      final novelAuthor = novel.author ?? '';
+      final markdown = Html2Md.convert(content.html);
+      await file.writeAsString(markdown);
 
-      final epubBook = EpubBook()
-        ..Title = chapterTitle
-        ..Author = novelAuthor
-        ..Chapters = [
-          EpubChapter()
-            ..Title = chapterTitle
-            ..ContentFileName = '${task.chapterId}.xhtml'
-            ..HtmlContent = chapterHtml,
-        ]
-        ..Content = (EpubContent()
-          ..Html = {
-            '${task.chapterId}.xhtml': (EpubTextContentFile()
-              ..Content = chapterHtml
-              ..ContentMimeType = 'application/xhtml+xml'),
-          });
-
-      final epubBytes = EpubWriter.writeBook(epubBook);
-      if (epubBytes != null) {
-        await file.writeAsBytes(epubBytes);
-      } else {
-        // Fallback: save as HTML if EPUB generation fails
-        final chapterDaoFallback = ref.read(chapterDaoProvider);
-        final htmlFile = File(p.join(dir.path, '${task.chapterId}.html'));
-        await htmlFile.writeAsString(content.html);
-        await chapterDaoFallback.markChapterAsDownloaded(task.chapterId, htmlFile.path);
-        await downloadDao.updateDownloadStatus(task.id, 'done', progress: 1.0);
-        _updateProgress(task.novelId);
-        Log.ok(_tag, 'Chapter ${chapter.name} downloaded (HTML fallback) to ${htmlFile.path}');
-        return;
-      }
+      // Clean up old format files
+      final oldEpub = File(p.join(dir.path, '${task.chapterId}.epub'));
+      final oldHtml = File(p.join(dir.path, '${task.chapterId}.html'));
+      if (await oldEpub.exists()) await oldEpub.delete();
+      if (await oldHtml.exists()) await oldHtml.delete();
 
       // Update chapter as downloaded
       final chapterDao2 = ref.read(chapterDaoProvider);
@@ -295,10 +270,14 @@ class DownloadNotifier extends StateNotifier<Map<int, NovelDownloadProgress>> {
   }
 
   Future<Directory> _getDownloadDir(Novel novel) async {
-    final appDir = await getApplicationDocumentsDirectory();
+    final settings = ref.read(downloadSettingsProvider);
+    var basePath = settings.downloadPath;
+    if (basePath.isEmpty) {
+      final appDir = await getApplicationDocumentsDirectory();
+      basePath = p.join(appDir.path, 'downloads');
+    }
     final dir = Directory(p.join(
-      appDir.path,
-      'downloads',
+      basePath,
       novel.providerId,
       novel.title.replaceAll(RegExp(r'[^\w\s-]'), ''),
     ));

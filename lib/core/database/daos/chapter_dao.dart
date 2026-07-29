@@ -61,6 +61,11 @@ class ChapterDao extends DatabaseAccessor<AppDatabase> with _$ChapterDaoMixin {
         .write(ChaptersCompanion(read: const Value(true)));
   }
 
+  Future<void> markChapterAsTtsRead(int chapterId) {
+    return (update(chapters)..where((t) => t.id.equals(chapterId)))
+        .write(ChaptersCompanion(ttsRead: const Value(true)));
+  }
+
   Future<void> markChapterAsDownloaded(int chapterId, String path) {
     return (update(chapters)..where((t) => t.id.equals(chapterId))).write(
         ChaptersCompanion(
@@ -85,6 +90,13 @@ class ChapterDao extends DatabaseAccessor<AppDatabase> with _$ChapterDaoMixin {
         await into(chapters).insert(ch, mode: InsertMode.insertOrReplace);
       }
     });
+  }
+
+  Future<int> getChapterCount(int novelId) {
+    return (selectOnly(chapters)
+          ..where(chapters.novelId.equals(novelId))
+          ..addColumns([chapters.id.count()]))
+        .map((row) => row.read(chapters.id.count()) ?? 0).getSingle();
   }
 
   Stream<List<Chapter>> watchChaptersForNovel(int novelId) {

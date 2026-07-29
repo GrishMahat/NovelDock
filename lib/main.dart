@@ -22,9 +22,10 @@ void main() async {
   WidgetsFlutterBinding.ensureInitialized();
   try {
     MediaKit.ensureInitialized();
+    debugPrint('MediaKit initialized successfully');
   } catch (e) {
-    // media_kit native libs may be missing; TTS will fall back gracefully
     debugPrint('MediaKit init failed: $e');
+    debugPrint('TTS may not work without media_kit native libs');
   }
 
   // Initialize notification channels

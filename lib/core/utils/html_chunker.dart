@@ -78,7 +78,11 @@ class HtmlChunker {
         .replaceAll('&quot;', '"').replaceAll('&apos;', "'")
         .replaceAll('&nbsp;', ' ').replaceAll('&#160;', ' ');
 
-    return decoded.replaceAll(RegExp(r'<[^>]*>'), ' ').replaceAll(RegExp(r'\s+'), ' ').trim();
+    return decoded
+        .replaceAll(RegExp(r'<[^>]*>'), ' ')
+        .replaceAll(RegExp(r'\s+'), ' ')
+        .replaceAllMapped(RegExp(r'\s+([.,!?;:])'), (m) => m.group(1)!)
+        .trim();
   }
 
   static List<String> _extractSentences(String text) {
@@ -149,22 +153,26 @@ class TtsTextChunker {
 
   static List<TtsChunk> chunkForTts(String html) {
     final paragraphs = HtmlChunker.chunkHtml(html);
+    return chunkForParagraphs(paragraphs.map((p) => p.plainText).toList());
+  }
+
+  static List<TtsChunk> chunkForParagraphs(List<String> paragraphs) {
     final result = <TtsChunk>[];
     int chunkIndex = 0;
 
-    for (final para in paragraphs) {
-      final sentences = para.sentences;
+    for (int pi = 0; pi < paragraphs.length; pi++) {
+      final text = paragraphs[pi];
+      if (text.isEmpty) continue;
+      final sentences = _extractSentences(text);
       String buffer = '';
       int paragraphWordOffset = 0;
 
       for (final sentence in sentences) {
-        // If adding this sentence would exceed target and buffer is non-empty,
-        // flush the buffer as a chunk first.
         if (buffer.length + sentence.length > _targetChunkSize &&
             buffer.isNotEmpty) {
           result.add(TtsChunk(
             index: chunkIndex++,
-            paragraphIndex: para.index,
+            paragraphIndex: pi,
             text: buffer.trim(),
             paragraphWordOffset: paragraphWordOffset,
           ));
@@ -177,13 +185,38 @@ class TtsTextChunker {
       if (buffer.trim().isNotEmpty) {
         result.add(TtsChunk(
           index: chunkIndex++,
-          paragraphIndex: para.index,
+          paragraphIndex: pi,
           text: buffer.trim(),
           paragraphWordOffset: paragraphWordOffset,
         ));
       }
     }
 
+    return result;
+  }
+
+  static List<String> _extractSentences(String text) {
+    if (text.isEmpty) return [];
+    final result = <String>[];
+    for (var s in text.split(RegExp(r'(?<=[.!?])\s+'))) {
+      final trimmed = s.trim();
+      if (trimmed.isEmpty) continue;
+      if (trimmed.length > 300) {
+        final subParts = trimmed.split(RegExp(r'(?<=[,;])\s+'));
+        String buffer = '';
+        for (final part in subParts) {
+          if (buffer.length + part.length > 280) {
+            if (buffer.isNotEmpty) result.add(buffer.trim());
+            buffer = part;
+          } else {
+            buffer = buffer.isEmpty ? part : '$buffer $part';
+          }
+        }
+        if (buffer.isNotEmpty) result.add(buffer.trim());
+      } else {
+        result.add(trimmed);
+      }
+    }
     return result;
   }
 
