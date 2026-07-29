@@ -1,136 +1,67 @@
 import 'package:flutter/material.dart';
-import 'package:flutter_widget_from_html/flutter_widget_from_html.dart';
 import 'package:url_launcher/url_launcher.dart';
 
-import '../../../core/database/database.dart';
+import '../../../core/content/content_model.dart';
+import '../../../core/content/markdown/md_parser.dart';
+import '../../../core/content/markdown/md_renderer.dart';
 import '../../../core/tts/tts_manager.dart';
-import '../../../core/tts/tts_highlighter.dart';
-import '../../../core/utils/html_chunker.dart';
-import '../../settings/pages/reader_settings_page.dart';
-
-/// A loaded chapter with its HTML content.
-class LoadedChapter {
-  final Chapter chapter;
-  final String html;
-  const LoadedChapter({required this.chapter, required this.html});
-}
-
-Map<String, String>? _alignmentStyles(ReaderSettings settings) {
-  final alignment = settings.textAlignment;
-  if (alignment == 'left' || alignment == 'center' || alignment == 'right' || alignment == 'justify') {
-    return {'text-align': alignment};
-  }
-  return null;
-}
-
-TextStyle buildTextStyle(ReaderSettings settings) {
-  return TextStyle(
-    fontSize: settings.fontSize,
-    fontFamily: settings.fontFamily.isEmpty ? null : settings.fontFamily,
-    height: settings.lineHeight,
-    color: settings.textColor,
-  );
-}
+import '../../../core/database/database.dart';
+import '../../settings/pages/reader/reader_settings_state.dart';
 
 Widget buildChapterContent({
-  required LoadedChapter loaded,
-  required ReaderSettings settings,
-  required TextStyle textStyle,
-  required TtsManagerState ttsState,
+  required ChapterContent content,
   required int currentChapterId,
+  required ReaderSettings settings,
+  required TtsManagerState ttsState,
   required Map<String, GlobalKey> chunkKeys,
   required int settingsVersion,
 }) {
-  // PDF chapter
-  if (loaded.html.startsWith('PDF:')) {
-    final filePath = loaded.html.replaceFirst('PDF:', '');
-    return Center(
-      child: Column(
-        mainAxisAlignment: MainAxisAlignment.center,
-        children: [
-          Icon(Icons.picture_as_pdf, size: 64, color: settings.textColor.withValues(alpha: 0.5)),
-          const SizedBox(height: 16),
-          Text(
-            'PDF Document',
-            style: TextStyle(fontSize: 18, fontWeight: FontWeight.w600, color: settings.textColor),
-          ),
-          const SizedBox(height: 8),
-          Text(
-            filePath.split('/').last,
-            style: TextStyle(color: settings.textColor.withValues(alpha: 0.5), fontSize: 12),
-          ),
-          const SizedBox(height: 24),
-          FilledButton.icon(
-            onPressed: () async {
-              final uri = Uri.file(filePath);
-              if (await canLaunchUrl(uri)) {
-                await launchUrl(uri, mode: LaunchMode.externalApplication);
-              }
-            },
-            icon: const Icon(Icons.open_in_new, size: 18),
-            label: const Text('Open in PDF Viewer'),
-          ),
-        ],
-      ),
-    );
+  if (content.isPdf) {
+    return _buildPdfView(content.data, settings);
   }
 
-  // HTML/EPUB chapter — chunk and render paragraph by paragraph
-  final isCurrentChapter = loaded.chapter.id == currentChapterId;
+  final doc = MDParser.parse(content.data);
 
-  final chunks = HtmlChunker.chunkHtml(loaded.html);
-  final highlightKey = ttsState.isSpeaking ? '-${ttsState.currentChunkIndex}-${ttsState.currentWordIndex}' : '';
+  return buildDocument(
+    doc: doc,
+    chapterId: content.chapterId,
+    currentChapterId: currentChapterId,
+    settings: settings,
+    ttsState: ttsState,
+    chunkKeys: chunkKeys,
+    settingsVersion: settingsVersion,
+  );
+}
 
-  return Column(
-    crossAxisAlignment: CrossAxisAlignment.start,
-    children: [
-      for (final chunk in chunks) ...[
-        Builder(
-          builder: (context) {
-            final isCurrentChunk = isCurrentChapter &&
-                ttsState.isSpeaking &&
-                chunk.index == ttsState.currentChunkIndex;
-
-            var chunkHtml = chunk.rawHtml;
-            if (isCurrentChunk) {
-              chunkHtml = TtsHighlighter.highlightFromWordIndex(
-                chunk.rawHtml,
-                ttsState.currentWordIndex,
-                ttsState.highlightMode,
-              );
+Widget _buildPdfView(String filePath, ReaderSettings settings) {
+  return Center(
+    child: Column(
+      mainAxisAlignment: MainAxisAlignment.center,
+      children: [
+        Icon(Icons.picture_as_pdf, size: 64, color: settings.textColor.withValues(alpha: 0.5)),
+        const SizedBox(height: 16),
+        Text(
+          'PDF Document',
+          style: TextStyle(fontSize: 18, fontWeight: FontWeight.w600, color: settings.textColor),
+        ),
+        const SizedBox(height: 8),
+        Text(
+          filePath.split('/').last,
+          style: TextStyle(color: settings.textColor.withValues(alpha: 0.5), fontSize: 12),
+        ),
+        const SizedBox(height: 24),
+        FilledButton.icon(
+          onPressed: () async {
+            final uri = Uri.file(filePath);
+            if (await canLaunchUrl(uri)) {
+              await launchUrl(uri, mode: LaunchMode.externalApplication);
             }
-
-            return KeyedSubtree(
-              key: chunkKeys.putIfAbsent('${loaded.chapter.id}-${chunk.index}', () => GlobalKey()),
-              child: HtmlWidget(
-                chunkHtml,
-                key: ValueKey('$settingsVersion-${settings.textAlignment}-${settings.fontSize}-${settings.fontFamily}${isCurrentChunk ? highlightKey : ''}'),
-                textStyle: textStyle,
-                customStylesBuilder: (element) {
-                  final styles = _alignmentStyles(settings);
-                  if (element.localName == 'span') {
-                    final cls = element.attributes['class'] ?? '';
-                    if (cls.contains('tts-highlight-word')) {
-                      return <String, String>{
-                        'background-color': 'rgba(61, 80, 250, 0.75)',
-                        'color': '#ffffff',
-                        'font-weight': 'bold',
-                      };
-                    } else if (cls.contains('tts-highlight')) {
-                      return <String, String>{
-                        'background-color': 'rgba(61, 80, 250, 0.22)',
-                        'color': 'inherit',
-                      };
-                    }
-                  }
-                  return styles;
-                },
-              ),
-            );
           },
+          icon: const Icon(Icons.open_in_new, size: 18),
+          label: const Text('Open in PDF Viewer'),
         ),
       ],
-    ],
+    ),
   );
 }
 
@@ -141,24 +72,26 @@ Widget buildContinuousContent({
   required ReaderSettings settings,
   required List<Chapter> chapters,
   required int currentIndex,
-  required Map<int, LoadedChapter> chapterCache,
+  required Map<int, ChapterContent>? contentCache,
+  required Map<int, String>? errorCache,
   required ScrollController scrollController,
   required void Function(int) loadChapter,
   required Map<String, GlobalKey> chunkKeys,
   required int settingsVersion,
   required TtsManagerState ttsState,
 }) {
-  final textStyle = buildTextStyle(settings);
-
   return ListView.builder(
     controller: scrollController,
     padding: EdgeInsets.symmetric(horizontal: settings.paddingH, vertical: settings.paddingV),
     itemCount: chapters.length,
     itemBuilder: (context, index) {
-      final loaded = chapterCache[chapters[index].id];
-      if (loaded == null) {
+      final chapterId = chapters[index].id;
+      final contentEntry = contentCache?[chapterId];
+      final chapterError = errorCache?[chapterId];
+
+      if (contentEntry == null && chapterError == null) {
         if (index <= currentIndex + 3) {
-          loadChapter(index);
+          loadChapter(chapterId);
         }
         if (index == currentIndex + 1) {
           return const Padding(
@@ -169,7 +102,11 @@ Widget buildContinuousContent({
         return const SizedBox(height: 300);
       }
 
-      final isEpub = loaded.chapter.url.startsWith('epub://');
+      if (chapterError != null) {
+        return _buildChapterError(chapterError, settings);
+      }
+
+      final isEpub = chapters[index].url.startsWith('epub://');
       if (index > 0 && !isEpub) {
         final currentChapterId = (chapters.isNotEmpty && currentIndex < chapters.length)
             ? chapters[currentIndex].id
@@ -182,21 +119,15 @@ Widget buildContinuousContent({
               padding: const EdgeInsets.symmetric(vertical: 24),
               child: Column(
                 children: [
-                  Container(
-                    height: 1,
-                    color: settings.textColor.withValues(alpha: 0.2),
-                  ),
+                  Container(height: 1, color: settings.textColor.withValues(alpha: 0.2)),
                   const SizedBox(height: 24),
                   Text(
                     'Chapter ${index + 1}',
-                    style: TextStyle(
-                      color: settings.textColor.withValues(alpha: 0.4),
-                      fontSize: 12,
-                    ),
+                    style: TextStyle(color: settings.textColor.withValues(alpha: 0.4), fontSize: 12),
                   ),
                   const SizedBox(height: 8),
                   Text(
-                    loaded.chapter.name,
+                    chapters[index].name,
                     textAlign: TextAlign.center,
                     style: TextStyle(
                       color: settings.textColor,
@@ -205,20 +136,16 @@ Widget buildContinuousContent({
                     ),
                   ),
                   const SizedBox(height: 24),
-                  Container(
-                    height: 1,
-                    color: settings.textColor.withValues(alpha: 0.2),
-                  ),
+                  Container(height: 1, color: settings.textColor.withValues(alpha: 0.2)),
                 ],
               ),
             ),
             const SizedBox(height: 48),
             buildChapterContent(
-              loaded: loaded,
-              settings: settings,
-              textStyle: textStyle,
-              ttsState: ttsState,
+              content: contentEntry!,
               currentChapterId: currentChapterId,
+              settings: settings,
+              ttsState: ttsState,
               chunkKeys: chunkKeys,
               settingsVersion: settingsVersion,
             ),
@@ -230,15 +157,28 @@ Widget buildContinuousContent({
           ? chapters[currentIndex].id
           : -1;
       return buildChapterContent(
-        loaded: loaded,
-        settings: settings,
-        textStyle: textStyle,
-        ttsState: ttsState,
+        content: contentEntry!,
         currentChapterId: currentChapterId,
+        settings: settings,
+        ttsState: ttsState,
         chunkKeys: chunkKeys,
         settingsVersion: settingsVersion,
       );
     },
+  );
+}
+
+Widget _buildChapterError(String error, ReaderSettings settings) {
+  return Center(
+    child: Column(
+      mainAxisAlignment: MainAxisAlignment.center,
+      children: [
+        const Icon(Icons.error_outline, size: 48, color: Colors.red),
+        const SizedBox(height: 16),
+        Text(error, style: TextStyle(color: settings.textColor), textAlign: TextAlign.center),
+        const SizedBox(height: 16),
+      ],
+    ),
   );
 }
 
@@ -249,7 +189,8 @@ Widget buildPagedContent({
   required ReaderSettings settings,
   required List<Chapter> chapters,
   required int currentIndex,
-  required Map<int, LoadedChapter> chapterCache,
+  required Map<int, ChapterContent>? contentCache,
+  required Map<int, String>? errorCache,
   required PageController pageController,
   required void Function(int) onPageChanged,
   required void Function(int) loadChapter,
@@ -259,8 +200,6 @@ Widget buildPagedContent({
   required int settingsVersion,
   required TtsManagerState ttsState,
 }) {
-  final textStyle = buildTextStyle(settings);
-
   return Column(
     children: [
       Expanded(
@@ -269,14 +208,19 @@ Widget buildPagedContent({
           itemCount: chapters.length,
           onPageChanged: (index) {
             onPageChanged(index);
-            loadChapter(index);
-            if (index > 0) loadChapter(index - 1);
-            if (index < chapters.length - 1) loadChapter(index + 1);
+            loadChapter(chapters[index].id);
+            if (index > 0) loadChapter(chapters[index - 1].id);
+            if (index < chapters.length - 1) loadChapter(chapters[index + 1].id);
           },
           itemBuilder: (context, index) {
-            final loaded = chapterCache[chapters[index].id];
-            if (loaded == null) {
+            final chapterId = chapters[index].id;
+            final content = contentCache?[chapterId];
+            final error = errorCache?[chapterId];
+            if (content == null && error == null) {
               return const Center(child: CircularProgressIndicator());
+            }
+            if (error != null) {
+              return _buildChapterError(error, settings);
             }
             final currentChapterId = (chapters.isNotEmpty && currentIndex < chapters.length)
                 ? chapters[currentIndex].id
@@ -289,7 +233,7 @@ Widget buildPagedContent({
                   Padding(
                     padding: const EdgeInsets.only(bottom: 16),
                     child: Text(
-                      loaded.chapter.name,
+                      chapters[index].name,
                       style: TextStyle(
                         color: settings.textColor,
                         fontSize: settings.fontSize + 4,
@@ -298,11 +242,10 @@ Widget buildPagedContent({
                     ),
                   ),
                   buildChapterContent(
-                    loaded: loaded,
-                    settings: settings,
-                    textStyle: textStyle,
-                    ttsState: ttsState,
+                    content: content!,
                     currentChapterId: currentChapterId,
+                    settings: settings,
+                    ttsState: ttsState,
                     chunkKeys: chunkKeys,
                     settingsVersion: settingsVersion,
                   ),
@@ -312,7 +255,6 @@ Widget buildPagedContent({
           },
         ),
       ),
-
       Container(
         color: settings.bgColor,
         padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),

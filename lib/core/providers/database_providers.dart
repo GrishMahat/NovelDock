@@ -9,6 +9,7 @@ import '../database/daos/download_dao.dart';
 import '../database/daos/bookmark_dao.dart';
 import '../database/daos/settings_dao.dart';
 import '../database/daos/provider_cache_dao.dart';
+import '../database/daos/novel_progress_dao.dart';
 import '../utils/logger.dart';
 
 const _tag = 'DB';
@@ -56,4 +57,8 @@ final settingsDaoProvider = Provider<SettingsDao>((ref) {
 
 final providerCacheDaoProvider = Provider<ProviderCacheDao>((ref) {
   return ProviderCacheDao(ref.watch(appDatabaseProvider));
+});
+
+final novelProgressDaoProvider = Provider<NovelProgressDao>((ref) {
+  return NovelProgressDao(ref.watch(appDatabaseProvider));
 });
