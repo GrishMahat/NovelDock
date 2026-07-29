@@ -1,5 +1,4 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:flutter_riverpod/legacy.dart';
 
 import '../../../core/database/database.dart';
 import '../../../core/providers/database_providers.dart';
@@ -17,7 +16,7 @@ class ContentState {
   final String? error;
 
   const ContentState({
-    this.chapters = const {},
+    this.chapters = const <int, AsyncValue<ChapterContent>>{},
     this.isLoading = false,
     this.error,
   });

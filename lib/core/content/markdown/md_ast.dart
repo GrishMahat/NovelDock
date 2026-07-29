@@ -18,10 +18,15 @@ class BlockquoteNode extends BlockNode {
 
 class HorizontalRuleNode extends BlockNode {}
 
-class ImageNode extends BlockNode {
-  final String src;
-  final String alt;
-  ImageNode({required this.src, required this.alt});
+class ListNode extends BlockNode {
+  final bool ordered;
+  final List<ListItemNode> items;
+  ListNode(this.ordered, this.items);
+}
+
+class ListItemNode extends BlockNode {
+  final List<InlineNode> children;
+  ListItemNode(this.children);
 }
 
 class CodeFenceNode extends BlockNode {
@@ -31,6 +36,12 @@ class CodeFenceNode extends BlockNode {
 }
 
 sealed class InlineNode {}
+
+class ImageNode extends InlineNode {
+  final String src;
+  final String alt;
+  ImageNode({required this.src, required this.alt});
+}
 
 class TextNode extends InlineNode {
   final String text;

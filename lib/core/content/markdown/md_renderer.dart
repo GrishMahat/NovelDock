@@ -90,8 +90,8 @@ Widget _buildBlock(
           textStyle: textStyle,
           settings: settings,
         ),
+      ListNode() => _buildList(block, textStyle: textStyle, settings: settings),
       HorizontalRuleNode() => _buildHR(settings),
-      ImageNode() => _buildImage(block, settings),
       CodeFenceNode() => _buildCodeFence(block, settings),
     },
   );
@@ -199,6 +199,47 @@ Widget _buildBlockquote(
   );
 }
 
+Widget _buildList(
+  ListNode node, {
+  required TextStyle textStyle,
+  required ReaderSettings settings,
+}) {
+  return Padding(
+    padding: const EdgeInsets.symmetric(vertical: 4),
+    child: Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        for (var i = 0; i < node.items.length; i++)
+          Padding(
+            padding: const EdgeInsets.symmetric(vertical: 2),
+            child: Row(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                SizedBox(
+                  width: 24,
+                  child: Text(
+                    node.ordered ? '${i + 1}.' : '\u2022',
+                    style: textStyle.copyWith(fontWeight: FontWeight.w600),
+                    textAlign: TextAlign.right,
+                  ),
+                ),
+                const SizedBox(width: 8),
+                Expanded(
+                  child: _richText(
+                    node.items[i].children,
+                    textStyle: textStyle,
+                    align: TextAlign.left,
+                    settings: settings,
+                  ),
+                ),
+              ],
+            ),
+          ),
+      ],
+    ),
+  );
+}
+
 Widget _buildHR(ReaderSettings settings) {
   return Padding(
     padding: const EdgeInsets.symmetric(vertical: 16),
@@ -230,9 +271,9 @@ Widget _buildCodeFence(CodeFenceNode node, ReaderSettings settings) {
   );
 }
 
-Widget _buildImage(ImageNode node, ReaderSettings settings) {
+Widget _buildInlineImage(ImageNode node, ReaderSettings settings) {
   return Padding(
-    padding: const EdgeInsets.symmetric(vertical: 8),
+    padding: const EdgeInsets.symmetric(vertical: 4),
     child: ClipRRect(
       borderRadius: BorderRadius.circular(4),
       child: Image.network(
@@ -269,7 +310,7 @@ Widget _richText(
   );
 }
 
-List<TextSpan> _buildSpans(InlineNode node, TextStyle baseStyle, ReaderSettings settings) {
+List<InlineSpan> _buildSpans(InlineNode node, TextStyle baseStyle, ReaderSettings settings) {
   return switch (node) {
     TextNode() => [
         if (settings.bionicReading)
@@ -305,6 +346,12 @@ List<TextSpan> _buildSpans(InlineNode node, TextStyle baseStyle, ReaderSettings 
             fontFamily: 'monospace',
             backgroundColor: baseStyle.color?.withValues(alpha: 0.08),
           ),
+        ),
+      ],
+    ImageNode() => [
+        // Images inside inline context use widget span
+        WidgetSpan(
+          child: _buildInlineImage(node, settings),
         ),
       ],
   };
@@ -359,7 +406,11 @@ Widget _highlightedRichText(
     final spanEnd = offset + text.length;
     offset = spanEnd;
 
-    if (span is TextSpan && span.children != null && span.children!.isNotEmpty) {
+    if (span is! TextSpan) {
+      highlighted.add(span);
+      continue;
+    }
+    if (span.children != null && span.children!.isNotEmpty) {
       highlighted.add(span);
       continue;
     }

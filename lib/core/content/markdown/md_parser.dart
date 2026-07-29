@@ -119,6 +119,7 @@ class MDParser {
   }
 
   static (BlockNode, int) _parseList(List<String> lines, int start) {
+    final isOrdered = RegExp(r'^\d+\.\s').hasMatch(lines[start].trim());
     final items = <_ListItem>[];
     int i = start;
 
@@ -156,14 +157,14 @@ class MDParser {
       }
     }
 
-    final children = <ParagraphNode>[];
+    final listItems = <ListItemNode>[];
     for (final item in items) {
       final text = item.textLines.join(' ').trim();
       final inlines = text.isNotEmpty ? _parseInlines(text) : <InlineNode>[TextNode('')];
-      children.add(ParagraphNode(inlines));
+      listItems.add(ListItemNode(inlines));
     }
 
-    return (ParagraphNode(children.expand((p) => p.children).toList()), i);
+    return (ListNode(isOrdered, listItems), i);
   }
 
   static (BlockNode, int) _parseParagraph(List<String> lines, int start) {
@@ -254,7 +255,7 @@ class MDParser {
             final alt = text.substring(i + 2, close);
             final src = text.substring(close + 2, parenClose);
             flushText();
-            result.add(TextNode('![$alt]($src)'));
+            result.add(ImageNode(src: src, alt: alt));
             i = parenClose + 1;
             continue;
           }
@@ -316,26 +317,17 @@ class MDParser {
   }
 
   static int _findDelimiter(String text, String delimiter, int start) {
-    if (delimiter.length == 2) {
-      int depth = 0;
-      for (int i = start; i < text.length - 1; i++) {
-        if (text[i] == '\\') { i++; continue; }
-        if (text[i] == '*' && text[i + 1] == '*') {
-          if (depth == 0 && text.substring(i, i + 2) == delimiter) return i;
-          depth++;
-          i++;
-          continue;
-        }
-        if (text[i] == '_' && text[i + 1] == '_') {
-          if (depth == 0 && text.substring(i, i + 2) == delimiter) return i;
-          depth++;
-          i++;
-          continue;
-        }
+    final isDouble = delimiter.length == 2;
+    for (int i = start; i < text.length - (isDouble ? 1 : 0); i++) {
+      if (text[i] == '\\') {
+        i++;
+        continue;
       }
-    } else {
-      for (int i = start; i < text.length; i++) {
-        if (text[i] == '\\') { i++; continue; }
+      if (isDouble) {
+        if (text[i] == delimiter[0] && text[i + 1] == delimiter[1]) {
+          return i;
+        }
+      } else {
         if (text[i] == delimiter) {
           if (i + 1 < text.length && text[i + 1] == delimiter) {
             i++;

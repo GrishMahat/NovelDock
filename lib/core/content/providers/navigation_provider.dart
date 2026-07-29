@@ -1,6 +1,5 @@
 import 'package:drift/drift.dart' show Value;
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:flutter_riverpod/legacy.dart';
 
 import '../../../core/database/database.dart';
 import '../../../core/providers/database_providers.dart';
@@ -18,7 +17,7 @@ class ReaderNavigationState {
   final double? restoredScrollPosition;
 
   const ReaderNavigationState({
-    this.chapters = const [],
+    this.chapters = const <Chapter>[],
     this.currentIndex = 0,
     this.isLoading = true,
     this.error,

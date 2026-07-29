@@ -49,11 +49,31 @@ void main() {
     });
   });
 
-  group('ImageNode', () {
-    test('stores src and alt', () {
-      final node = ImageNode(src: 'pic.jpg', alt: 'A picture');
-      expect(node.src, 'pic.jpg');
-      expect(node.alt, 'A picture');
+  group('ListNode', () {
+    test('stores ordered flag and items', () {
+      final node = ListNode(true, [
+        ListItemNode([TextNode('one')]),
+        ListItemNode([TextNode('two')]),
+      ]);
+      expect(node.ordered, isTrue);
+      expect(node.items.length, 2);
+      expect((node.items[0].children[0] as TextNode).text, 'one');
+    });
+
+    test('unordered list', () {
+      final node = ListNode(false, [
+        ListItemNode([TextNode('a')]),
+        ListItemNode([TextNode('b')]),
+      ]);
+      expect(node.ordered, isFalse);
+    });
+  });
+
+  group('ListItemNode', () {
+    test('stores inline children', () {
+      final node = ListItemNode([TextNode('item')]);
+      expect(node.children.length, 1);
+      expect((node.children[0] as TextNode).text, 'item');
     });
   });
 
@@ -95,6 +115,12 @@ void main() {
     test('CodeNode stores text', () {
       final node = CodeNode('var x = 1;');
       expect(node.text, 'var x = 1;');
+    });
+
+    test('ImageNode stores src and alt', () {
+      final node = ImageNode(src: 'pic.jpg', alt: 'A picture');
+      expect(node.src, 'pic.jpg');
+      expect(node.alt, 'A picture');
     });
   });
 }
