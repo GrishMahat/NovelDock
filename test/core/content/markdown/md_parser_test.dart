@@ -116,12 +116,13 @@ void main() {
     test('parses unordered list', () {
       final md = '- Item one\n- Item two\n- Item three';
       final doc = MDParser.parse(md);
-      expect(doc.blocks[0], isA<ParagraphNode>());
-      final p = doc.blocks[0] as ParagraphNode;
-      expect(p.children.length, 3);
-      expect((p.children[0] as TextNode).text, 'Item one');
-      expect((p.children[1] as TextNode).text, 'Item two');
-      expect((p.children[2] as TextNode).text, 'Item three');
+      expect(doc.blocks[0], isA<ListNode>());
+      final list = doc.blocks[0] as ListNode;
+      expect(list.ordered, isFalse);
+      expect(list.items.length, 3);
+      expect((list.items[0].children[0] as TextNode).text, 'Item one');
+      expect((list.items[1].children[0] as TextNode).text, 'Item two');
+      expect((list.items[2].children[0] as TextNode).text, 'Item three');
     });
 
     test('parses horizontal rule', () {
@@ -207,14 +208,16 @@ void main() {
       expect((p.children[3] as CodeNode).text, 'more code');
     });
 
-    test('parses image as plain text', () {
+    test('parses image', () {
       final doc = MDParser.parse('An image: ![alt](img.jpg)');
       final p = doc.blocks[0] as ParagraphNode;
       expect(p.children.length, 2);
       expect(p.children[0], isA<TextNode>());
       expect((p.children[0] as TextNode).text, 'An image: ');
-      expect(p.children[1], isA<TextNode>());
-      expect((p.children[1] as TextNode).text, '![alt](img.jpg)');
+      expect(p.children[1], isA<ImageNode>());
+      final img = p.children[1] as ImageNode;
+      expect(img.src, 'img.jpg');
+      expect(img.alt, 'alt');
     });
 
     test('handles only whitespace input', () {
@@ -224,12 +227,13 @@ void main() {
 
     test('parses ordered list', () {
       final doc = MDParser.parse('1. First\n2. Second\n3. Third');
-      expect(doc.blocks[0], isA<ParagraphNode>());
-      final p = doc.blocks[0] as ParagraphNode;
-      expect(p.children.length, 3);
-      expect((p.children[0] as TextNode).text, 'First');
-      expect((p.children[1] as TextNode).text, 'Second');
-      expect((p.children[2] as TextNode).text, 'Third');
+      expect(doc.blocks[0], isA<ListNode>());
+      final list = doc.blocks[0] as ListNode;
+      expect(list.ordered, isTrue);
+      expect(list.items.length, 3);
+      expect((list.items[0].children[0] as TextNode).text, 'First');
+      expect((list.items[1].children[0] as TextNode).text, 'Second');
+      expect((list.items[2].children[0] as TextNode).text, 'Third');
     });
 
     test('parses heading without space after #', () {
