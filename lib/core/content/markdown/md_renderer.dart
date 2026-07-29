@@ -93,6 +93,14 @@ Widget _buildBlock(
       ListNode() => _buildList(block, textStyle: textStyle, settings: settings),
       HorizontalRuleNode() => _buildHR(settings),
       CodeFenceNode() => _buildCodeFence(block, settings),
+      ListItemNode() => _buildParagraph(
+          ParagraphNode(block.children),
+          textStyle: textStyle,
+          align: align,
+          settings: settings,
+          isHighlighted: isHighlighted,
+          ttsState: ttsState,
+        ),
     },
   );
 }

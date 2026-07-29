@@ -4038,6 +4038,7 @@ abstract class _$AppDatabase extends GeneratedDatabase {
   late final $ProviderCacheTable providerCache = $ProviderCacheTable(this);
   late final $NovelProgressTable novelProgress = $NovelProgressTable(this);
   late final NovelDao novelDao = NovelDao(this as AppDatabase);
+  late final ChapterDao chapterDao = ChapterDao(this as AppDatabase);
   late final LibraryDao libraryDao = LibraryDao(this as AppDatabase);
   late final HistoryDao historyDao = HistoryDao(this as AppDatabase);
   late final DownloadDao downloadDao = DownloadDao(this as AppDatabase);

@@ -1,5 +1,6 @@
 import 'package:drift/drift.dart' show Value;
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:flutter_riverpod/legacy.dart';
 
 import '../../../core/database/database.dart';
 import '../../../core/providers/database_providers.dart';
@@ -38,21 +39,22 @@ class ReaderNavigationState {
       isLoading: isLoading ?? this.isLoading,
       error: error,
       novelId: novelId,
-      restoredScrollPosition: restoredScrollPosition ?? this.restoredScrollPosition,
+      restoredScrollPosition:
+          restoredScrollPosition ?? this.restoredScrollPosition,
     );
   }
 
   Chapter? get currentChapter =>
       currentIndex >= 0 && currentIndex < chapters.length
-          ? chapters[currentIndex]
-          : null;
+      ? chapters[currentIndex]
+      : null;
 }
 
 class ReaderNavigationNotifier extends StateNotifier<ReaderNavigationState> {
   final Ref ref;
 
   ReaderNavigationNotifier(this.ref, int novelId)
-      : super(ReaderNavigationState(novelId: novelId));
+    : super(ReaderNavigationState(novelId: novelId));
 
   Future<void> loadChapters(int startChapterId) async {
     try {
@@ -75,7 +77,9 @@ class ReaderNavigationNotifier extends StateNotifier<ReaderNavigationState> {
         final position = await restoreReadingPosition(chapter.id);
         if (position != null) {
           ref.read(contentProvider.notifier).loadChapter(chapter.id).then((_) {
-            ref.read(readerNavigationProvider(state.novelId).notifier).setRestoredScrollPosition(position);
+            ref
+                .read(readerNavigationProvider(state.novelId).notifier)
+                .setRestoredScrollPosition(position);
           });
         }
       }
@@ -95,11 +99,13 @@ class ReaderNavigationNotifier extends StateNotifier<ReaderNavigationState> {
     final chapter = state.currentChapter;
     if (chapter == null) return;
     final historyDao = ref.read(historyDaoProvider);
-    await historyDao.addHistoryEntry(ReadingHistoryCompanion(
-      novelId: Value(state.novelId),
-      chapterId: Value(chapter.id),
-      readAt: Value(DateTime.now().millisecondsSinceEpoch),
-    ));
+    await historyDao.addHistoryEntry(
+      ReadingHistoryCompanion(
+        novelId: Value(state.novelId),
+        chapterId: Value(chapter.id),
+        readAt: Value(DateTime.now().millisecondsSinceEpoch),
+      ),
+    );
 
     // Mark chapter as read
     await _markChapterAsRead(chapter.id);
@@ -128,12 +134,14 @@ class ReaderNavigationNotifier extends StateNotifier<ReaderNavigationState> {
     final chapter = state.currentChapter;
     if (chapter == null) return;
     final historyDao = ref.read(historyDaoProvider);
-    await historyDao.addHistoryEntry(ReadingHistoryCompanion(
-      novelId: Value(state.novelId),
-      chapterId: Value(chapter.id),
-      readAt: Value(DateTime.now().millisecondsSinceEpoch),
-      scrollPosition: Value(scrollProgress),
-    ));
+    await historyDao.addHistoryEntry(
+      ReadingHistoryCompanion(
+        novelId: Value(state.novelId),
+        chapterId: Value(chapter.id),
+        readAt: Value(DateTime.now().millisecondsSinceEpoch),
+        scrollPosition: Value(scrollProgress),
+      ),
+    );
   }
 
   Future<double?> restoreReadingPosition(int chapterId) async {
@@ -172,10 +180,9 @@ class ReaderNavigationNotifier extends StateNotifier<ReaderNavigationState> {
     final chapter = state.currentChapter;
     if (chapter == null) return;
     ref.read(contentProvider.notifier).loadChapter(chapter.id);
-    ref.read(contentProvider.notifier).preloadSurrounding(
-      chapter.id,
-      state.chapters,
-    );
+    ref
+        .read(contentProvider.notifier)
+        .preloadSurrounding(chapter.id, state.chapters);
   }
 
   void setRestoredScrollPosition(double position) {
@@ -187,7 +194,11 @@ class ReaderNavigationNotifier extends StateNotifier<ReaderNavigationState> {
   }
 }
 
-final readerNavigationProvider = StateNotifierProvider.family<
-    ReaderNavigationNotifier, ReaderNavigationState, int>((ref, novelId) {
-  return ReaderNavigationNotifier(ref, novelId);
-});
+final readerNavigationProvider =
+    StateNotifierProvider.family<
+      ReaderNavigationNotifier,
+      ReaderNavigationState,
+      int
+    >((ref, novelId) {
+      return ReaderNavigationNotifier(ref, novelId);
+    });
