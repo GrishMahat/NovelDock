@@ -145,5 +145,55 @@ void main() {
       final md = Html2Md.convert('<html><head></head></html>');
       expect(md, '');
     });
+
+    test('escapes asterisks in inline text', () {
+      final md = Html2Md.convert('<p>Value is 3 * 4 or 2 ** 5</p>');
+      expect(md, 'Value is 3 \\* 4 or 2 \\*\\* 5');
+    });
+
+    test('escapes underscores in inline text', () {
+      final md = Html2Md.convert('<p>file_name and __init__</p>');
+      expect(md, 'file\\_name and \\_\\_init\\_\\_');
+    });
+
+    test('escapes brackets and parens in inline text', () {
+      final md = Html2Md.convert('<p>Note [1] (see below) !important</p>');
+      expect(md, 'Note \\[1\\] \\(see below\\) \\!important');
+    });
+
+    test('escapes backslash in inline text', () {
+      final md = Html2Md.convert('<p>Path is C:\\Users\\me</p>');
+      expect(md, 'Path is C:\\\\Users\\\\me');
+    });
+
+    test('escapes text inside strong', () {
+      final md = Html2Md.convert('<p><strong>a * b</strong></p>');
+      expect(md, '**a \\* b**');
+    });
+
+    test('escapes link text', () {
+      final md = Html2Md.convert('<p><a href="https://example.com">a [b]</a></p>');
+      expect(md, '[a \\[b\\]](https://example.com)');
+    });
+
+    test('escapes blockquote text', () {
+      final md = Html2Md.convert('<blockquote><p>a * b</p></blockquote>');
+      expect(md, '> a \\* b');
+    });
+
+    test('escapes list item text', () {
+      final md = Html2Md.convert('<ul><li>a * b</li></ul>');
+      expect(md, '- a \\* b');
+    });
+
+    test('escapes table cell text', () {
+      final md = Html2Md.convert('<table><tr><td>a * b</td></tr></table>');
+      expect(md, contains('a \\* b'));
+    });
+
+    test('escaped output parses back to literal text', () {
+      final md = Html2Md.convert('<p>Literal *stars* _and_ [brackets]</p>');
+      expect(md, 'Literal \\*stars\\* \\_and\\_ \\[brackets\\]');
+    });
   });
 }

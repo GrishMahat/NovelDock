@@ -179,7 +179,7 @@ class Html2Md {
   static void _renderInline(List<dom.Node> nodes, StringBuffer buf) {
     for (final node in nodes) {
       if (node is dom.Text) {
-        buf.write(node.text);
+        buf.write(_escapeMd(node.text));
       } else if (node is dom.Element) {
         _renderElement(node, buf);
       }
@@ -205,7 +205,7 @@ class Html2Md {
           }
         }
       } else if (node is dom.Text) {
-        final text = node.text.trim();
+        final text = _escapeMd(node.text.trim());
         if (text.isNotEmpty) {
           buf.writeln('> $text');
         }
@@ -249,7 +249,7 @@ class Html2Md {
         } else if (child is dom.Element) {
           _renderElement(child, innerBuf);
         } else if (child is dom.Text) {
-          innerBuf.write(child.text);
+          innerBuf.write(_escapeMd(child.text));
         }
       }
       final innerText = innerBuf.toString().trim();
@@ -293,7 +293,7 @@ class Html2Md {
       final cells = row.querySelectorAll('th, td');
       for (var i = 0; i < cells.length; i++) {
         if (i > 0) buf.write(' | ');
-        buf.write(cells[i].text.trim());
+        buf.write(_escapeMd(cells[i].text.trim()));
       }
       buf.writeln();
     }
