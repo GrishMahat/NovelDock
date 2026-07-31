@@ -50,8 +50,8 @@ class _ReaderSettingsSheetState extends ConsumerState<ReaderSettingsSheet> {
               ListTile(
                 dense: true, contentPadding: EdgeInsets.zero,
                 title: const Text('Font Family'),
-                subtitle: Text(settings.fontFamily.isEmpty ? 'System Default' : settings.fontFamily,
-                    style: TextStyle(fontFamily: settings.fontFamily.isEmpty ? null : settings.fontFamily)),
+                subtitle: Text(settings.fontFamily.isEmpty ? kDefaultReaderFont : settings.fontFamily,
+                    style: TextStyle(fontFamily: settings.fontFamily.isEmpty ? kDefaultReaderFont : settings.fontFamily)),
                 trailing: const Icon(Icons.chevron_right),
                 onTap: () => _showFontPicker(settings, notifier),
               ),
@@ -120,10 +120,15 @@ class _ReaderSettingsSheetState extends ConsumerState<ReaderSettingsSheet> {
                 itemCount: _systemFonts.length + 1,
                 itemBuilder: (context, index) {
                   if (index == 0) {
+                    final isDefault = settings.fontFamily.isEmpty ||
+                        settings.fontFamily == kDefaultReaderFont;
                     return ListTile(
-                      leading: Icon(settings.fontFamily.isEmpty ? Icons.check_circle : Icons.circle_outlined, color: settings.fontFamily.isEmpty ? AppTheme.kPrimary : null),
-                      title: const Text('System Default'),
-                      onTap: () { notifier.updateFontFamily(''); Navigator.pop(context); },
+                      leading: Icon(isDefault ? Icons.check_circle : Icons.circle_outlined,
+                          color: isDefault ? AppTheme.kPrimary : null),
+                      title: Text(kDefaultReaderFont,
+                          style: const TextStyle(fontFamily: kDefaultReaderFont, fontSize: 16)),
+                      subtitle: const Text('Bundled default'),
+                      onTap: () { notifier.updateFontFamily(kDefaultReaderFont); Navigator.pop(context); },
                     );
                   }
                   final font = _systemFonts[index - 1];

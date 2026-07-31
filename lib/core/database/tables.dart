@@ -23,11 +23,9 @@ class Chapters extends Table {
   RealColumn get index => real()();
   BoolColumn get downloaded => boolean().withDefault(const Constant(false))();
   BoolColumn get read => boolean().withDefault(const Constant(false))();
+  BoolColumn get ttsRead => boolean().withDefault(const Constant(false))();
   BoolColumn get bookmarked => boolean().withDefault(const Constant(false))();
   TextColumn get downloadedPath => text().nullable()();
-
-  @override
-  Set<Column> get primaryKey => {id};
 
   @override
   List<Set<Column>> get uniqueKeys => [{novelId, url}];
@@ -79,6 +77,22 @@ class Bookmarks extends Table {
 class Settings extends Table {
   TextColumn get key => text()();
   TextColumn get value => text()();
+}
+
+// ─── novel_progress ───────────────────────────────────────
+class NovelProgress extends Table {
+  IntColumn get novelId => integer().references(Novels, #id)();
+  IntColumn get totalChapters => integer()();
+  IntColumn get readChapters => integer().withDefault(const Constant(0))();
+  IntColumn get ttsReadChapters => integer().withDefault(const Constant(0))();
+  IntColumn get currentChapterIndex => integer().withDefault(const Constant(0))();
+  IntColumn get lastReadChapterId => integer().nullable()();
+  IntColumn get lastTtsChapterId => integer().nullable()();
+  IntColumn get lastReadAt => integer().nullable()();
+  IntColumn get lastTtsAt => integer().nullable()();
+
+  @override
+  Set<Column> get primaryKey => {novelId};
 }
 
 // ─── provider_cache ───────────────────────────────────────

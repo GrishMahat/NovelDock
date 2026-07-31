@@ -152,6 +152,7 @@ class MicrosoftTtsProvider {
     _paused = false;
 
     await init();
+    Log.i(_tag, 'TTS temp dir: $_tempDir');
 
     final buffer = <int, _SynthResult>{};
     final synthesizing = <int>{};
@@ -189,6 +190,7 @@ class MicrosoftTtsProvider {
 
       final audioPath = p.join(_tempDir!, 'tts_chunk_$i.mp3');
       await File(audioPath).writeAsBytes(result.audioBytes);
+      Log.i(_tag, 'Wrote audio file: $audioPath (${result.audioBytes.length} bytes)');
 
       onLineStart?.call(i);
 
@@ -208,7 +210,9 @@ class MicrosoftTtsProvider {
     final player = Player();
     _player = player;
     try {
+      Log.i(_tag, 'Opening media: $audioPath');
       await player.open(Media('file://$audioPath'));
+      Log.i(_tag, 'Media opened, starting playback');
 
       final completer = Completer<void>();
       final sub = player.stream.completed.listen((_) {
@@ -216,6 +220,7 @@ class MicrosoftTtsProvider {
       });
 
       await player.play();
+      Log.i(_tag, 'Playback started');
 
       int lastWordIndex = -1;
 
@@ -243,11 +248,14 @@ class MicrosoftTtsProvider {
       }
 
       await sub.cancel();
+      Log.i(_tag, 'Chunk playback completed');
     } catch (e) {
       Log.e(_tag, 'Chunk playback failed: $e');
     } finally {
-      await player.dispose();
-      _player = null;
+      if (_player == player) _player = null;
+      try {
+        await player.dispose();
+      } catch (_) {}
     }
   }
 
@@ -343,8 +351,11 @@ class MicrosoftTtsProvider {
       });
       await player.play();
       await completer.future;
-      await player.dispose();
-      _player = null;
+      if (_player == player) _player = null;
+      try {
+        await player.dispose();
+      } catch (_) {}
+
 
       _speaking = false;
     } catch (e) {

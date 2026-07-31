@@ -80,17 +80,19 @@ class _ProviderScreenState extends ConsumerState<ProviderScreen> {
           if (!results.hasNextPage) _hasReachedEnd = true;
           Log.ok(_tag, 'Got ${results.results.length} results');
           return results.results
-              .map((e) => SearchResultItem(
-                    title: e.title,
-                    url: e.url,
-                    cover: e.cover,
-                    author: e.author,
-                    summary: e.summary,
-                    rating: e.rating,
-                    latestChapter: e.latestChapter,
-                    providerId: widget.providerId,
-                    coverHeaders: e.coverHeaders,
-                  ))
+              .map(
+                (e) => SearchResultItem(
+                  title: e.title,
+                  url: e.url,
+                  cover: e.cover,
+                  author: e.author,
+                  summary: e.summary,
+                  rating: e.rating,
+                  latestChapter: e.latestChapter,
+                  providerId: widget.providerId,
+                  coverHeaders: e.coverHeaders,
+                ),
+              )
               .toList();
         }
       }
@@ -110,17 +112,19 @@ class _ProviderScreenState extends ConsumerState<ProviderScreen> {
           if (!results.hasNextPage) _hasReachedEnd = true;
           Log.ok(_tag, 'Got ${results.results.length} results');
           return results.results
-              .map((e) => SearchResultItem(
-                    title: e.title,
-                    url: e.url,
-                    cover: e.cover,
-                    author: e.author,
-                    summary: e.summary,
-                    rating: e.rating,
-                    latestChapter: e.latestChapter,
-                    providerId: widget.providerId,
-                    coverHeaders: e.coverHeaders,
-                  ))
+              .map(
+                (e) => SearchResultItem(
+                  title: e.title,
+                  url: e.url,
+                  cover: e.cover,
+                  author: e.author,
+                  summary: e.summary,
+                  rating: e.rating,
+                  latestChapter: e.latestChapter,
+                  providerId: widget.providerId,
+                  coverHeaders: e.coverHeaders,
+                ),
+              )
               .toList();
         }
       }
@@ -161,9 +165,8 @@ class _ProviderScreenState extends ConsumerState<ProviderScreen> {
               padding: const EdgeInsets.all(8),
               builderDelegate: PagedChildBuilderDelegate<SearchResultItem>(
                 itemBuilder: (context, item, index) => _buildGridItem(item),
-                noItemsFoundIndicatorBuilder: (context) => const Center(
-                  child: Text('No items found'),
-                ),
+                noItemsFoundIndicatorBuilder: (context) =>
+                    const Center(child: Text('No items found')),
                 firstPageProgressIndicatorBuilder: (context) =>
                     const Center(child: CircularProgressIndicator()),
               ),
@@ -220,39 +223,48 @@ class _ProviderScreenState extends ConsumerState<ProviderScreen> {
           final response = await dio.get(novelUrl);
           final info = await instance.parseNovelInfo(response.data.toString());
           if (info != null && mounted) {
-            novelDao.updateNovel(NovelsCompanion(
-              id: Value(id),
-              providerId: Value(item.providerId!),
-              url: Value(item.url),
-              title: Value(item.title),
-              author: Value(item.author ?? info.author),
-              coverUrl: Value(item.cover ?? info.cover),
-              description: Value(info.description),
-              genres: Value(info.genres.join(',')),
-              status: Value(info.status),
-              addedAt: Value(DateTime.now().millisecondsSinceEpoch),
-            ));
+            novelDao.updateNovel(
+              NovelsCompanion(
+                id: Value(id),
+                providerId: Value(item.providerId!),
+                url: Value(item.url),
+                title: Value(item.title),
+                author: Value(item.author ?? info.author),
+                coverUrl: Value(item.cover ?? info.cover),
+                description: Value(info.description),
+                genres: Value(info.genres.join(',')),
+                status: Value(info.status),
+                addedAt: Value(DateTime.now().millisecondsSinceEpoch),
+              ),
+            );
             final bookId = item.url.split('/').last.split('.').first;
             final chapterList = <ChaptersCompanion>[];
             if (info.chapters.isEmpty && bookId.isNotEmpty) {
               var page = 0;
               var chapterIndex = 0;
               while (true) {
-                final chaptersUrl = await instance.call('getChaptersApiUrl', [bookId, page]);
+                final chaptersUrl = await instance.call('getChaptersApiUrl', [
+                  bookId,
+                  page,
+                ]);
                 if (chaptersUrl == null || chaptersUrl is! String) break;
                 final chResponse = await dio.get(chaptersUrl);
                 final chHtml = chResponse.data.toString();
                 if (chHtml.trim().isEmpty) break;
-                final chList = await instance.call('parseChapterList', [chHtml]);
+                final chList = await instance.call('parseChapterList', [
+                  chHtml,
+                ]);
                 if (chList == null || chList is! List || chList.isEmpty) break;
                 for (var i = 0; i < chList.length; i++) {
                   final ch = chList[i] as Map<String, dynamic>;
-                  chapterList.add(ChaptersCompanion(
-                    novelId: Value(id),
-                    name: Value(ch['name'] as String? ?? ''),
-                    url: Value(ch['url'] as String? ?? ''),
-                    index: Value(chapterIndex.toDouble()),
-                  ));
+                  chapterList.add(
+                    ChaptersCompanion(
+                      novelId: Value(id),
+                      name: Value(ch['name'] as String? ?? ''),
+                      url: Value(ch['url'] as String? ?? ''),
+                      index: Value(chapterIndex.toDouble()),
+                    ),
+                  );
                   chapterIndex++;
                 }
                 page++;
@@ -260,12 +272,14 @@ class _ProviderScreenState extends ConsumerState<ProviderScreen> {
             } else {
               for (var i = 0; i < info.chapters.length; i++) {
                 final ch = info.chapters[i];
-                chapterList.add(ChaptersCompanion(
-                  novelId: Value(id),
-                  name: Value(ch.name),
-                  url: Value(ch.url),
-                  index: Value(i.toDouble()),
-                ));
+                chapterList.add(
+                  ChaptersCompanion(
+                    novelId: Value(id),
+                    name: Value(ch.name),
+                    url: Value(ch.url),
+                    index: Value(i.toDouble()),
+                  ),
+                );
               }
             }
             await chapterDao.insertChaptersForNovel(id, chapterList);
@@ -302,7 +316,10 @@ class _ProviderScreenState extends ConsumerState<ProviderScreen> {
               padding: const EdgeInsets.all(6),
               child: Text(
                 item.title,
-                style: const TextStyle(fontSize: 11, fontWeight: FontWeight.w500),
+                style: const TextStyle(
+                  fontSize: 11,
+                  fontWeight: FontWeight.w500,
+                ),
                 maxLines: 2,
                 overflow: TextOverflow.ellipsis,
               ),

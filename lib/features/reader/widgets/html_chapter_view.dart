@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_widget_from_html/flutter_widget_from_html.dart';
 
 import '../../../theme/app_theme.dart';
+import '../../settings/pages/reader/reader_settings_state.dart';
 
 /// Renders HTML chapter content with customizable styling.
 class HtmlChapterView extends StatelessWidget {
@@ -41,7 +42,7 @@ class HtmlChapterView extends StatelessWidget {
         key: ValueKey('html-$settingsVersion'),
         textStyle: TextStyle(
           fontSize: fontSize,
-          fontFamily: fontFamily.isEmpty ? null : fontFamily,
+          fontFamily: fontFamily.isEmpty ? kDefaultReaderFont : fontFamily,
           height: lineHeight,
           color: textColor,
         ),
