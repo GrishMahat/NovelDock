@@ -1,6 +1,3 @@
-import 'dart:convert';
-import 'dart:io';
-
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
@@ -8,6 +5,7 @@ import 'package:go_router/go_router.dart';
 import '../../core/providers/models.dart';
 import '../../theme/app_theme.dart';
 import '../../widgets/error_view.dart';
+import '../../widgets/provider_avatar.dart';
 import '../../widgets/shimmer_list.dart';
 import '../settings/providers/provider_management_providers.dart';
 import 'webview_screen.dart';
@@ -208,7 +206,7 @@ class _SourceTile extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return ListTile(
-      leading: providerAvatar(provider),
+      leading: ProviderAvatar(provider: provider),
       title: Text(provider.name),
       subtitle: Text(
         provider.lang.toUpperCase(),
@@ -321,7 +319,7 @@ class _ExtensionTile extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return ListTile(
-      leading: providerAvatar(provider),
+      leading: ProviderAvatar(provider: provider),
       title: Text(provider.name),
       subtitle: Row(
         children: [
@@ -394,7 +392,7 @@ class _ExtensionTile extends StatelessWidget {
               padding: const EdgeInsets.all(16),
               child: Row(
                 children: [
-                  providerAvatar(provider),
+                  ProviderAvatar(provider: provider),
                   const SizedBox(width: 12),
                   Expanded(
                     child: Column(
@@ -478,68 +476,3 @@ class _ExtensionTile extends StatelessWidget {
   }
 }
 
-// ═══════════════════════════════════════════════════════════
-// Shared — provider avatar with icon from registry
-// ═══════════════════════════════════════════════════════════
-
-Widget providerAvatar(ProviderMeta provider) {
-  // Use AppConfig's platform-aware registries directory
-  try {
-    final registriesDir = Directory(_resolveRegistriesDir());
-    if (registriesDir.existsSync()) {
-      for (final entity in registriesDir.listSync()) {
-        if (entity is! Directory) continue;
-        final metadataFile = File('${entity.path}/metadata.json');
-        if (!metadataFile.existsSync()) continue;
-        try {
-          final json = jsonDecode(metadataFile.readAsStringSync()) as Map<String, dynamic>;
-          final providers = json['providers'] as List? ?? [];
-          for (final p in providers) {
-            if (p['id'] == provider.id && p['icon'] != null) {
-              final iconFile = File('${entity.path}/icons/${provider.id}.png');
-              if (iconFile.existsSync()) {
-                return CircleAvatar(
-                  backgroundImage: FileImage(iconFile),
-                  backgroundColor: Colors.transparent,
-                );
-              }
-            }
-          }
-        } catch (_) {}
-      }
-    }
-  } catch (_) {}
-
-  // Fallback to letter avatar
-  final color = Color(
-    provider.name.hashCode.toUnsigned(32) | 0xFF000000,
-  ).withValues(alpha: 0.7);
-
-  return CircleAvatar(
-    backgroundColor: color.withValues(alpha: 0.2),
-    child: Text(
-      provider.name.isNotEmpty ? provider.name[0].toUpperCase() : '?',
-      style: TextStyle(color: color, fontWeight: FontWeight.bold),
-    ),
-  );
-}
-
-/// Resolves the registries directory path in a platform-aware manner,
-/// mirroring the logic in [AppConfig._resolveConfigDir].
-String _resolveRegistriesDir() {
-  if (Platform.isLinux) {
-    final home = Platform.environment['HOME'];
-    if (home != null) return '$home/.config/noveldock/registries';
-  }
-  if (Platform.isMacOS) {
-    final home = Platform.environment['HOME'];
-    if (home != null) return '$home/Library/Application Support/noveldock/registries';
-  }
-  if (Platform.isWindows) {
-    final appData = Platform.environment['APPDATA'];
-    if (appData != null) return '$appData/noveldock/registries';
-  }
-  // Android/iOS: registry metadata is not stored locally in the same way;
-  // the letter-avatar fallback is appropriate on mobile.
-  return '';
-}
