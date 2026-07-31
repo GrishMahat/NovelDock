@@ -690,6 +690,21 @@ class $ChaptersTable extends Chapters with TableInfo<$ChaptersTable, Chapter> {
     ),
     defaultValue: const Constant(false),
   );
+  static const VerificationMeta _ttsReadMeta = const VerificationMeta(
+    'ttsRead',
+  );
+  @override
+  late final GeneratedColumn<bool> ttsRead = GeneratedColumn<bool>(
+    'tts_read',
+    aliasedName,
+    false,
+    type: DriftSqlType.bool,
+    requiredDuringInsert: false,
+    defaultConstraints: GeneratedColumn.constraintIsAlways(
+      'CHECK ("tts_read" IN (0, 1))',
+    ),
+    defaultValue: const Constant(false),
+  );
   static const VerificationMeta _bookmarkedMeta = const VerificationMeta(
     'bookmarked',
   );
@@ -725,6 +740,7 @@ class $ChaptersTable extends Chapters with TableInfo<$ChaptersTable, Chapter> {
     index,
     downloaded,
     read,
+    ttsRead,
     bookmarked,
     downloadedPath,
   ];
@@ -787,6 +803,12 @@ class $ChaptersTable extends Chapters with TableInfo<$ChaptersTable, Chapter> {
         read.isAcceptableOrUnknown(data['read']!, _readMeta),
       );
     }
+    if (data.containsKey('tts_read')) {
+      context.handle(
+        _ttsReadMeta,
+        ttsRead.isAcceptableOrUnknown(data['tts_read']!, _ttsReadMeta),
+      );
+    }
     if (data.containsKey('bookmarked')) {
       context.handle(
         _bookmarkedMeta,
@@ -843,6 +865,10 @@ class $ChaptersTable extends Chapters with TableInfo<$ChaptersTable, Chapter> {
         DriftSqlType.bool,
         data['${effectivePrefix}read'],
       )!,
+      ttsRead: attachedDatabase.typeMapping.read(
+        DriftSqlType.bool,
+        data['${effectivePrefix}tts_read'],
+      )!,
       bookmarked: attachedDatabase.typeMapping.read(
         DriftSqlType.bool,
         data['${effectivePrefix}bookmarked'],
@@ -868,6 +894,7 @@ class Chapter extends DataClass implements Insertable<Chapter> {
   final double index;
   final bool downloaded;
   final bool read;
+  final bool ttsRead;
   final bool bookmarked;
   final String? downloadedPath;
   const Chapter({
@@ -878,6 +905,7 @@ class Chapter extends DataClass implements Insertable<Chapter> {
     required this.index,
     required this.downloaded,
     required this.read,
+    required this.ttsRead,
     required this.bookmarked,
     this.downloadedPath,
   });
@@ -891,6 +919,7 @@ class Chapter extends DataClass implements Insertable<Chapter> {
     map['index'] = Variable<double>(index);
     map['downloaded'] = Variable<bool>(downloaded);
     map['read'] = Variable<bool>(read);
+    map['tts_read'] = Variable<bool>(ttsRead);
     map['bookmarked'] = Variable<bool>(bookmarked);
     if (!nullToAbsent || downloadedPath != null) {
       map['downloaded_path'] = Variable<String>(downloadedPath);
@@ -907,6 +936,7 @@ class Chapter extends DataClass implements Insertable<Chapter> {
       index: Value(index),
       downloaded: Value(downloaded),
       read: Value(read),
+      ttsRead: Value(ttsRead),
       bookmarked: Value(bookmarked),
       downloadedPath: downloadedPath == null && nullToAbsent
           ? const Value.absent()
@@ -927,6 +957,7 @@ class Chapter extends DataClass implements Insertable<Chapter> {
       index: serializer.fromJson<double>(json['index']),
       downloaded: serializer.fromJson<bool>(json['downloaded']),
       read: serializer.fromJson<bool>(json['read']),
+      ttsRead: serializer.fromJson<bool>(json['ttsRead']),
       bookmarked: serializer.fromJson<bool>(json['bookmarked']),
       downloadedPath: serializer.fromJson<String?>(json['downloadedPath']),
     );
@@ -942,6 +973,7 @@ class Chapter extends DataClass implements Insertable<Chapter> {
       'index': serializer.toJson<double>(index),
       'downloaded': serializer.toJson<bool>(downloaded),
       'read': serializer.toJson<bool>(read),
+      'ttsRead': serializer.toJson<bool>(ttsRead),
       'bookmarked': serializer.toJson<bool>(bookmarked),
       'downloadedPath': serializer.toJson<String?>(downloadedPath),
     };
@@ -955,6 +987,7 @@ class Chapter extends DataClass implements Insertable<Chapter> {
     double? index,
     bool? downloaded,
     bool? read,
+    bool? ttsRead,
     bool? bookmarked,
     Value<String?> downloadedPath = const Value.absent(),
   }) => Chapter(
@@ -965,6 +998,7 @@ class Chapter extends DataClass implements Insertable<Chapter> {
     index: index ?? this.index,
     downloaded: downloaded ?? this.downloaded,
     read: read ?? this.read,
+    ttsRead: ttsRead ?? this.ttsRead,
     bookmarked: bookmarked ?? this.bookmarked,
     downloadedPath: downloadedPath.present
         ? downloadedPath.value
@@ -981,6 +1015,7 @@ class Chapter extends DataClass implements Insertable<Chapter> {
           ? data.downloaded.value
           : this.downloaded,
       read: data.read.present ? data.read.value : this.read,
+      ttsRead: data.ttsRead.present ? data.ttsRead.value : this.ttsRead,
       bookmarked: data.bookmarked.present
           ? data.bookmarked.value
           : this.bookmarked,
@@ -1000,6 +1035,7 @@ class Chapter extends DataClass implements Insertable<Chapter> {
           ..write('index: $index, ')
           ..write('downloaded: $downloaded, ')
           ..write('read: $read, ')
+          ..write('ttsRead: $ttsRead, ')
           ..write('bookmarked: $bookmarked, ')
           ..write('downloadedPath: $downloadedPath')
           ..write(')'))
@@ -1015,6 +1051,7 @@ class Chapter extends DataClass implements Insertable<Chapter> {
     index,
     downloaded,
     read,
+    ttsRead,
     bookmarked,
     downloadedPath,
   );
@@ -1029,6 +1066,7 @@ class Chapter extends DataClass implements Insertable<Chapter> {
           other.index == this.index &&
           other.downloaded == this.downloaded &&
           other.read == this.read &&
+          other.ttsRead == this.ttsRead &&
           other.bookmarked == this.bookmarked &&
           other.downloadedPath == this.downloadedPath);
 }
@@ -1041,6 +1079,7 @@ class ChaptersCompanion extends UpdateCompanion<Chapter> {
   final Value<double> index;
   final Value<bool> downloaded;
   final Value<bool> read;
+  final Value<bool> ttsRead;
   final Value<bool> bookmarked;
   final Value<String?> downloadedPath;
   const ChaptersCompanion({
@@ -1051,6 +1090,7 @@ class ChaptersCompanion extends UpdateCompanion<Chapter> {
     this.index = const Value.absent(),
     this.downloaded = const Value.absent(),
     this.read = const Value.absent(),
+    this.ttsRead = const Value.absent(),
     this.bookmarked = const Value.absent(),
     this.downloadedPath = const Value.absent(),
   });
@@ -1062,6 +1102,7 @@ class ChaptersCompanion extends UpdateCompanion<Chapter> {
     required double index,
     this.downloaded = const Value.absent(),
     this.read = const Value.absent(),
+    this.ttsRead = const Value.absent(),
     this.bookmarked = const Value.absent(),
     this.downloadedPath = const Value.absent(),
   }) : novelId = Value(novelId),
@@ -1076,6 +1117,7 @@ class ChaptersCompanion extends UpdateCompanion<Chapter> {
     Expression<double>? index,
     Expression<bool>? downloaded,
     Expression<bool>? read,
+    Expression<bool>? ttsRead,
     Expression<bool>? bookmarked,
     Expression<String>? downloadedPath,
   }) {
@@ -1087,6 +1129,7 @@ class ChaptersCompanion extends UpdateCompanion<Chapter> {
       if (index != null) 'index': index,
       if (downloaded != null) 'downloaded': downloaded,
       if (read != null) 'read': read,
+      if (ttsRead != null) 'tts_read': ttsRead,
       if (bookmarked != null) 'bookmarked': bookmarked,
       if (downloadedPath != null) 'downloaded_path': downloadedPath,
     });
@@ -1100,6 +1143,7 @@ class ChaptersCompanion extends UpdateCompanion<Chapter> {
     Value<double>? index,
     Value<bool>? downloaded,
     Value<bool>? read,
+    Value<bool>? ttsRead,
     Value<bool>? bookmarked,
     Value<String?>? downloadedPath,
   }) {
@@ -1111,6 +1155,7 @@ class ChaptersCompanion extends UpdateCompanion<Chapter> {
       index: index ?? this.index,
       downloaded: downloaded ?? this.downloaded,
       read: read ?? this.read,
+      ttsRead: ttsRead ?? this.ttsRead,
       bookmarked: bookmarked ?? this.bookmarked,
       downloadedPath: downloadedPath ?? this.downloadedPath,
     );
@@ -1140,6 +1185,9 @@ class ChaptersCompanion extends UpdateCompanion<Chapter> {
     if (read.present) {
       map['read'] = Variable<bool>(read.value);
     }
+    if (ttsRead.present) {
+      map['tts_read'] = Variable<bool>(ttsRead.value);
+    }
     if (bookmarked.present) {
       map['bookmarked'] = Variable<bool>(bookmarked.value);
     }
@@ -1159,6 +1207,7 @@ class ChaptersCompanion extends UpdateCompanion<Chapter> {
           ..write('index: $index, ')
           ..write('downloaded: $downloaded, ')
           ..write('read: $read, ')
+          ..write('ttsRead: $ttsRead, ')
           ..write('bookmarked: $bookmarked, ')
           ..write('downloadedPath: $downloadedPath')
           ..write(')'))
@@ -3381,6 +3430,600 @@ class ProviderCacheCompanion extends UpdateCompanion<ProviderCacheData> {
   }
 }
 
+class $NovelProgressTable extends NovelProgress
+    with TableInfo<$NovelProgressTable, NovelProgressData> {
+  @override
+  final GeneratedDatabase attachedDatabase;
+  final String? _alias;
+  $NovelProgressTable(this.attachedDatabase, [this._alias]);
+  static const VerificationMeta _novelIdMeta = const VerificationMeta(
+    'novelId',
+  );
+  @override
+  late final GeneratedColumn<int> novelId = GeneratedColumn<int>(
+    'novel_id',
+    aliasedName,
+    false,
+    type: DriftSqlType.int,
+    requiredDuringInsert: false,
+    defaultConstraints: GeneratedColumn.constraintIsAlways(
+      'REFERENCES novels (id)',
+    ),
+  );
+  static const VerificationMeta _totalChaptersMeta = const VerificationMeta(
+    'totalChapters',
+  );
+  @override
+  late final GeneratedColumn<int> totalChapters = GeneratedColumn<int>(
+    'total_chapters',
+    aliasedName,
+    false,
+    type: DriftSqlType.int,
+    requiredDuringInsert: true,
+  );
+  static const VerificationMeta _readChaptersMeta = const VerificationMeta(
+    'readChapters',
+  );
+  @override
+  late final GeneratedColumn<int> readChapters = GeneratedColumn<int>(
+    'read_chapters',
+    aliasedName,
+    false,
+    type: DriftSqlType.int,
+    requiredDuringInsert: false,
+    defaultValue: const Constant(0),
+  );
+  static const VerificationMeta _ttsReadChaptersMeta = const VerificationMeta(
+    'ttsReadChapters',
+  );
+  @override
+  late final GeneratedColumn<int> ttsReadChapters = GeneratedColumn<int>(
+    'tts_read_chapters',
+    aliasedName,
+    false,
+    type: DriftSqlType.int,
+    requiredDuringInsert: false,
+    defaultValue: const Constant(0),
+  );
+  static const VerificationMeta _currentChapterIndexMeta =
+      const VerificationMeta('currentChapterIndex');
+  @override
+  late final GeneratedColumn<int> currentChapterIndex = GeneratedColumn<int>(
+    'current_chapter_index',
+    aliasedName,
+    false,
+    type: DriftSqlType.int,
+    requiredDuringInsert: false,
+    defaultValue: const Constant(0),
+  );
+  static const VerificationMeta _lastReadChapterIdMeta = const VerificationMeta(
+    'lastReadChapterId',
+  );
+  @override
+  late final GeneratedColumn<int> lastReadChapterId = GeneratedColumn<int>(
+    'last_read_chapter_id',
+    aliasedName,
+    true,
+    type: DriftSqlType.int,
+    requiredDuringInsert: false,
+  );
+  static const VerificationMeta _lastTtsChapterIdMeta = const VerificationMeta(
+    'lastTtsChapterId',
+  );
+  @override
+  late final GeneratedColumn<int> lastTtsChapterId = GeneratedColumn<int>(
+    'last_tts_chapter_id',
+    aliasedName,
+    true,
+    type: DriftSqlType.int,
+    requiredDuringInsert: false,
+  );
+  static const VerificationMeta _lastReadAtMeta = const VerificationMeta(
+    'lastReadAt',
+  );
+  @override
+  late final GeneratedColumn<int> lastReadAt = GeneratedColumn<int>(
+    'last_read_at',
+    aliasedName,
+    true,
+    type: DriftSqlType.int,
+    requiredDuringInsert: false,
+  );
+  static const VerificationMeta _lastTtsAtMeta = const VerificationMeta(
+    'lastTtsAt',
+  );
+  @override
+  late final GeneratedColumn<int> lastTtsAt = GeneratedColumn<int>(
+    'last_tts_at',
+    aliasedName,
+    true,
+    type: DriftSqlType.int,
+    requiredDuringInsert: false,
+  );
+  @override
+  List<GeneratedColumn> get $columns => [
+    novelId,
+    totalChapters,
+    readChapters,
+    ttsReadChapters,
+    currentChapterIndex,
+    lastReadChapterId,
+    lastTtsChapterId,
+    lastReadAt,
+    lastTtsAt,
+  ];
+  @override
+  String get aliasedName => _alias ?? actualTableName;
+  @override
+  String get actualTableName => $name;
+  static const String $name = 'novel_progress';
+  @override
+  VerificationContext validateIntegrity(
+    Insertable<NovelProgressData> instance, {
+    bool isInserting = false,
+  }) {
+    final context = VerificationContext();
+    final data = instance.toColumns(true);
+    if (data.containsKey('novel_id')) {
+      context.handle(
+        _novelIdMeta,
+        novelId.isAcceptableOrUnknown(data['novel_id']!, _novelIdMeta),
+      );
+    }
+    if (data.containsKey('total_chapters')) {
+      context.handle(
+        _totalChaptersMeta,
+        totalChapters.isAcceptableOrUnknown(
+          data['total_chapters']!,
+          _totalChaptersMeta,
+        ),
+      );
+    } else if (isInserting) {
+      context.missing(_totalChaptersMeta);
+    }
+    if (data.containsKey('read_chapters')) {
+      context.handle(
+        _readChaptersMeta,
+        readChapters.isAcceptableOrUnknown(
+          data['read_chapters']!,
+          _readChaptersMeta,
+        ),
+      );
+    }
+    if (data.containsKey('tts_read_chapters')) {
+      context.handle(
+        _ttsReadChaptersMeta,
+        ttsReadChapters.isAcceptableOrUnknown(
+          data['tts_read_chapters']!,
+          _ttsReadChaptersMeta,
+        ),
+      );
+    }
+    if (data.containsKey('current_chapter_index')) {
+      context.handle(
+        _currentChapterIndexMeta,
+        currentChapterIndex.isAcceptableOrUnknown(
+          data['current_chapter_index']!,
+          _currentChapterIndexMeta,
+        ),
+      );
+    }
+    if (data.containsKey('last_read_chapter_id')) {
+      context.handle(
+        _lastReadChapterIdMeta,
+        lastReadChapterId.isAcceptableOrUnknown(
+          data['last_read_chapter_id']!,
+          _lastReadChapterIdMeta,
+        ),
+      );
+    }
+    if (data.containsKey('last_tts_chapter_id')) {
+      context.handle(
+        _lastTtsChapterIdMeta,
+        lastTtsChapterId.isAcceptableOrUnknown(
+          data['last_tts_chapter_id']!,
+          _lastTtsChapterIdMeta,
+        ),
+      );
+    }
+    if (data.containsKey('last_read_at')) {
+      context.handle(
+        _lastReadAtMeta,
+        lastReadAt.isAcceptableOrUnknown(
+          data['last_read_at']!,
+          _lastReadAtMeta,
+        ),
+      );
+    }
+    if (data.containsKey('last_tts_at')) {
+      context.handle(
+        _lastTtsAtMeta,
+        lastTtsAt.isAcceptableOrUnknown(data['last_tts_at']!, _lastTtsAtMeta),
+      );
+    }
+    return context;
+  }
+
+  @override
+  Set<GeneratedColumn> get $primaryKey => {novelId};
+  @override
+  NovelProgressData map(Map<String, dynamic> data, {String? tablePrefix}) {
+    final effectivePrefix = tablePrefix != null ? '$tablePrefix.' : '';
+    return NovelProgressData(
+      novelId: attachedDatabase.typeMapping.read(
+        DriftSqlType.int,
+        data['${effectivePrefix}novel_id'],
+      )!,
+      totalChapters: attachedDatabase.typeMapping.read(
+        DriftSqlType.int,
+        data['${effectivePrefix}total_chapters'],
+      )!,
+      readChapters: attachedDatabase.typeMapping.read(
+        DriftSqlType.int,
+        data['${effectivePrefix}read_chapters'],
+      )!,
+      ttsReadChapters: attachedDatabase.typeMapping.read(
+        DriftSqlType.int,
+        data['${effectivePrefix}tts_read_chapters'],
+      )!,
+      currentChapterIndex: attachedDatabase.typeMapping.read(
+        DriftSqlType.int,
+        data['${effectivePrefix}current_chapter_index'],
+      )!,
+      lastReadChapterId: attachedDatabase.typeMapping.read(
+        DriftSqlType.int,
+        data['${effectivePrefix}last_read_chapter_id'],
+      ),
+      lastTtsChapterId: attachedDatabase.typeMapping.read(
+        DriftSqlType.int,
+        data['${effectivePrefix}last_tts_chapter_id'],
+      ),
+      lastReadAt: attachedDatabase.typeMapping.read(
+        DriftSqlType.int,
+        data['${effectivePrefix}last_read_at'],
+      ),
+      lastTtsAt: attachedDatabase.typeMapping.read(
+        DriftSqlType.int,
+        data['${effectivePrefix}last_tts_at'],
+      ),
+    );
+  }
+
+  @override
+  $NovelProgressTable createAlias(String alias) {
+    return $NovelProgressTable(attachedDatabase, alias);
+  }
+}
+
+class NovelProgressData extends DataClass
+    implements Insertable<NovelProgressData> {
+  final int novelId;
+  final int totalChapters;
+  final int readChapters;
+  final int ttsReadChapters;
+  final int currentChapterIndex;
+  final int? lastReadChapterId;
+  final int? lastTtsChapterId;
+  final int? lastReadAt;
+  final int? lastTtsAt;
+  const NovelProgressData({
+    required this.novelId,
+    required this.totalChapters,
+    required this.readChapters,
+    required this.ttsReadChapters,
+    required this.currentChapterIndex,
+    this.lastReadChapterId,
+    this.lastTtsChapterId,
+    this.lastReadAt,
+    this.lastTtsAt,
+  });
+  @override
+  Map<String, Expression> toColumns(bool nullToAbsent) {
+    final map = <String, Expression>{};
+    map['novel_id'] = Variable<int>(novelId);
+    map['total_chapters'] = Variable<int>(totalChapters);
+    map['read_chapters'] = Variable<int>(readChapters);
+    map['tts_read_chapters'] = Variable<int>(ttsReadChapters);
+    map['current_chapter_index'] = Variable<int>(currentChapterIndex);
+    if (!nullToAbsent || lastReadChapterId != null) {
+      map['last_read_chapter_id'] = Variable<int>(lastReadChapterId);
+    }
+    if (!nullToAbsent || lastTtsChapterId != null) {
+      map['last_tts_chapter_id'] = Variable<int>(lastTtsChapterId);
+    }
+    if (!nullToAbsent || lastReadAt != null) {
+      map['last_read_at'] = Variable<int>(lastReadAt);
+    }
+    if (!nullToAbsent || lastTtsAt != null) {
+      map['last_tts_at'] = Variable<int>(lastTtsAt);
+    }
+    return map;
+  }
+
+  NovelProgressCompanion toCompanion(bool nullToAbsent) {
+    return NovelProgressCompanion(
+      novelId: Value(novelId),
+      totalChapters: Value(totalChapters),
+      readChapters: Value(readChapters),
+      ttsReadChapters: Value(ttsReadChapters),
+      currentChapterIndex: Value(currentChapterIndex),
+      lastReadChapterId: lastReadChapterId == null && nullToAbsent
+          ? const Value.absent()
+          : Value(lastReadChapterId),
+      lastTtsChapterId: lastTtsChapterId == null && nullToAbsent
+          ? const Value.absent()
+          : Value(lastTtsChapterId),
+      lastReadAt: lastReadAt == null && nullToAbsent
+          ? const Value.absent()
+          : Value(lastReadAt),
+      lastTtsAt: lastTtsAt == null && nullToAbsent
+          ? const Value.absent()
+          : Value(lastTtsAt),
+    );
+  }
+
+  factory NovelProgressData.fromJson(
+    Map<String, dynamic> json, {
+    ValueSerializer? serializer,
+  }) {
+    serializer ??= driftRuntimeOptions.defaultSerializer;
+    return NovelProgressData(
+      novelId: serializer.fromJson<int>(json['novelId']),
+      totalChapters: serializer.fromJson<int>(json['totalChapters']),
+      readChapters: serializer.fromJson<int>(json['readChapters']),
+      ttsReadChapters: serializer.fromJson<int>(json['ttsReadChapters']),
+      currentChapterIndex: serializer.fromJson<int>(
+        json['currentChapterIndex'],
+      ),
+      lastReadChapterId: serializer.fromJson<int?>(json['lastReadChapterId']),
+      lastTtsChapterId: serializer.fromJson<int?>(json['lastTtsChapterId']),
+      lastReadAt: serializer.fromJson<int?>(json['lastReadAt']),
+      lastTtsAt: serializer.fromJson<int?>(json['lastTtsAt']),
+    );
+  }
+  @override
+  Map<String, dynamic> toJson({ValueSerializer? serializer}) {
+    serializer ??= driftRuntimeOptions.defaultSerializer;
+    return <String, dynamic>{
+      'novelId': serializer.toJson<int>(novelId),
+      'totalChapters': serializer.toJson<int>(totalChapters),
+      'readChapters': serializer.toJson<int>(readChapters),
+      'ttsReadChapters': serializer.toJson<int>(ttsReadChapters),
+      'currentChapterIndex': serializer.toJson<int>(currentChapterIndex),
+      'lastReadChapterId': serializer.toJson<int?>(lastReadChapterId),
+      'lastTtsChapterId': serializer.toJson<int?>(lastTtsChapterId),
+      'lastReadAt': serializer.toJson<int?>(lastReadAt),
+      'lastTtsAt': serializer.toJson<int?>(lastTtsAt),
+    };
+  }
+
+  NovelProgressData copyWith({
+    int? novelId,
+    int? totalChapters,
+    int? readChapters,
+    int? ttsReadChapters,
+    int? currentChapterIndex,
+    Value<int?> lastReadChapterId = const Value.absent(),
+    Value<int?> lastTtsChapterId = const Value.absent(),
+    Value<int?> lastReadAt = const Value.absent(),
+    Value<int?> lastTtsAt = const Value.absent(),
+  }) => NovelProgressData(
+    novelId: novelId ?? this.novelId,
+    totalChapters: totalChapters ?? this.totalChapters,
+    readChapters: readChapters ?? this.readChapters,
+    ttsReadChapters: ttsReadChapters ?? this.ttsReadChapters,
+    currentChapterIndex: currentChapterIndex ?? this.currentChapterIndex,
+    lastReadChapterId: lastReadChapterId.present
+        ? lastReadChapterId.value
+        : this.lastReadChapterId,
+    lastTtsChapterId: lastTtsChapterId.present
+        ? lastTtsChapterId.value
+        : this.lastTtsChapterId,
+    lastReadAt: lastReadAt.present ? lastReadAt.value : this.lastReadAt,
+    lastTtsAt: lastTtsAt.present ? lastTtsAt.value : this.lastTtsAt,
+  );
+  NovelProgressData copyWithCompanion(NovelProgressCompanion data) {
+    return NovelProgressData(
+      novelId: data.novelId.present ? data.novelId.value : this.novelId,
+      totalChapters: data.totalChapters.present
+          ? data.totalChapters.value
+          : this.totalChapters,
+      readChapters: data.readChapters.present
+          ? data.readChapters.value
+          : this.readChapters,
+      ttsReadChapters: data.ttsReadChapters.present
+          ? data.ttsReadChapters.value
+          : this.ttsReadChapters,
+      currentChapterIndex: data.currentChapterIndex.present
+          ? data.currentChapterIndex.value
+          : this.currentChapterIndex,
+      lastReadChapterId: data.lastReadChapterId.present
+          ? data.lastReadChapterId.value
+          : this.lastReadChapterId,
+      lastTtsChapterId: data.lastTtsChapterId.present
+          ? data.lastTtsChapterId.value
+          : this.lastTtsChapterId,
+      lastReadAt: data.lastReadAt.present
+          ? data.lastReadAt.value
+          : this.lastReadAt,
+      lastTtsAt: data.lastTtsAt.present ? data.lastTtsAt.value : this.lastTtsAt,
+    );
+  }
+
+  @override
+  String toString() {
+    return (StringBuffer('NovelProgressData(')
+          ..write('novelId: $novelId, ')
+          ..write('totalChapters: $totalChapters, ')
+          ..write('readChapters: $readChapters, ')
+          ..write('ttsReadChapters: $ttsReadChapters, ')
+          ..write('currentChapterIndex: $currentChapterIndex, ')
+          ..write('lastReadChapterId: $lastReadChapterId, ')
+          ..write('lastTtsChapterId: $lastTtsChapterId, ')
+          ..write('lastReadAt: $lastReadAt, ')
+          ..write('lastTtsAt: $lastTtsAt')
+          ..write(')'))
+        .toString();
+  }
+
+  @override
+  int get hashCode => Object.hash(
+    novelId,
+    totalChapters,
+    readChapters,
+    ttsReadChapters,
+    currentChapterIndex,
+    lastReadChapterId,
+    lastTtsChapterId,
+    lastReadAt,
+    lastTtsAt,
+  );
+  @override
+  bool operator ==(Object other) =>
+      identical(this, other) ||
+      (other is NovelProgressData &&
+          other.novelId == this.novelId &&
+          other.totalChapters == this.totalChapters &&
+          other.readChapters == this.readChapters &&
+          other.ttsReadChapters == this.ttsReadChapters &&
+          other.currentChapterIndex == this.currentChapterIndex &&
+          other.lastReadChapterId == this.lastReadChapterId &&
+          other.lastTtsChapterId == this.lastTtsChapterId &&
+          other.lastReadAt == this.lastReadAt &&
+          other.lastTtsAt == this.lastTtsAt);
+}
+
+class NovelProgressCompanion extends UpdateCompanion<NovelProgressData> {
+  final Value<int> novelId;
+  final Value<int> totalChapters;
+  final Value<int> readChapters;
+  final Value<int> ttsReadChapters;
+  final Value<int> currentChapterIndex;
+  final Value<int?> lastReadChapterId;
+  final Value<int?> lastTtsChapterId;
+  final Value<int?> lastReadAt;
+  final Value<int?> lastTtsAt;
+  const NovelProgressCompanion({
+    this.novelId = const Value.absent(),
+    this.totalChapters = const Value.absent(),
+    this.readChapters = const Value.absent(),
+    this.ttsReadChapters = const Value.absent(),
+    this.currentChapterIndex = const Value.absent(),
+    this.lastReadChapterId = const Value.absent(),
+    this.lastTtsChapterId = const Value.absent(),
+    this.lastReadAt = const Value.absent(),
+    this.lastTtsAt = const Value.absent(),
+  });
+  NovelProgressCompanion.insert({
+    this.novelId = const Value.absent(),
+    required int totalChapters,
+    this.readChapters = const Value.absent(),
+    this.ttsReadChapters = const Value.absent(),
+    this.currentChapterIndex = const Value.absent(),
+    this.lastReadChapterId = const Value.absent(),
+    this.lastTtsChapterId = const Value.absent(),
+    this.lastReadAt = const Value.absent(),
+    this.lastTtsAt = const Value.absent(),
+  }) : totalChapters = Value(totalChapters);
+  static Insertable<NovelProgressData> custom({
+    Expression<int>? novelId,
+    Expression<int>? totalChapters,
+    Expression<int>? readChapters,
+    Expression<int>? ttsReadChapters,
+    Expression<int>? currentChapterIndex,
+    Expression<int>? lastReadChapterId,
+    Expression<int>? lastTtsChapterId,
+    Expression<int>? lastReadAt,
+    Expression<int>? lastTtsAt,
+  }) {
+    return RawValuesInsertable({
+      if (novelId != null) 'novel_id': novelId,
+      if (totalChapters != null) 'total_chapters': totalChapters,
+      if (readChapters != null) 'read_chapters': readChapters,
+      if (ttsReadChapters != null) 'tts_read_chapters': ttsReadChapters,
+      if (currentChapterIndex != null)
+        'current_chapter_index': currentChapterIndex,
+      if (lastReadChapterId != null) 'last_read_chapter_id': lastReadChapterId,
+      if (lastTtsChapterId != null) 'last_tts_chapter_id': lastTtsChapterId,
+      if (lastReadAt != null) 'last_read_at': lastReadAt,
+      if (lastTtsAt != null) 'last_tts_at': lastTtsAt,
+    });
+  }
+
+  NovelProgressCompanion copyWith({
+    Value<int>? novelId,
+    Value<int>? totalChapters,
+    Value<int>? readChapters,
+    Value<int>? ttsReadChapters,
+    Value<int>? currentChapterIndex,
+    Value<int?>? lastReadChapterId,
+    Value<int?>? lastTtsChapterId,
+    Value<int?>? lastReadAt,
+    Value<int?>? lastTtsAt,
+  }) {
+    return NovelProgressCompanion(
+      novelId: novelId ?? this.novelId,
+      totalChapters: totalChapters ?? this.totalChapters,
+      readChapters: readChapters ?? this.readChapters,
+      ttsReadChapters: ttsReadChapters ?? this.ttsReadChapters,
+      currentChapterIndex: currentChapterIndex ?? this.currentChapterIndex,
+      lastReadChapterId: lastReadChapterId ?? this.lastReadChapterId,
+      lastTtsChapterId: lastTtsChapterId ?? this.lastTtsChapterId,
+      lastReadAt: lastReadAt ?? this.lastReadAt,
+      lastTtsAt: lastTtsAt ?? this.lastTtsAt,
+    );
+  }
+
+  @override
+  Map<String, Expression> toColumns(bool nullToAbsent) {
+    final map = <String, Expression>{};
+    if (novelId.present) {
+      map['novel_id'] = Variable<int>(novelId.value);
+    }
+    if (totalChapters.present) {
+      map['total_chapters'] = Variable<int>(totalChapters.value);
+    }
+    if (readChapters.present) {
+      map['read_chapters'] = Variable<int>(readChapters.value);
+    }
+    if (ttsReadChapters.present) {
+      map['tts_read_chapters'] = Variable<int>(ttsReadChapters.value);
+    }
+    if (currentChapterIndex.present) {
+      map['current_chapter_index'] = Variable<int>(currentChapterIndex.value);
+    }
+    if (lastReadChapterId.present) {
+      map['last_read_chapter_id'] = Variable<int>(lastReadChapterId.value);
+    }
+    if (lastTtsChapterId.present) {
+      map['last_tts_chapter_id'] = Variable<int>(lastTtsChapterId.value);
+    }
+    if (lastReadAt.present) {
+      map['last_read_at'] = Variable<int>(lastReadAt.value);
+    }
+    if (lastTtsAt.present) {
+      map['last_tts_at'] = Variable<int>(lastTtsAt.value);
+    }
+    return map;
+  }
+
+  @override
+  String toString() {
+    return (StringBuffer('NovelProgressCompanion(')
+          ..write('novelId: $novelId, ')
+          ..write('totalChapters: $totalChapters, ')
+          ..write('readChapters: $readChapters, ')
+          ..write('ttsReadChapters: $ttsReadChapters, ')
+          ..write('currentChapterIndex: $currentChapterIndex, ')
+          ..write('lastReadChapterId: $lastReadChapterId, ')
+          ..write('lastTtsChapterId: $lastTtsChapterId, ')
+          ..write('lastReadAt: $lastReadAt, ')
+          ..write('lastTtsAt: $lastTtsAt')
+          ..write(')'))
+        .toString();
+  }
+}
+
 abstract class _$AppDatabase extends GeneratedDatabase {
   _$AppDatabase(QueryExecutor e) : super(e);
   _$AppDatabase.connect(DatabaseConnection c) : super.connect(c);
@@ -3393,6 +4036,7 @@ abstract class _$AppDatabase extends GeneratedDatabase {
   late final $BookmarksTable bookmarks = $BookmarksTable(this);
   late final $SettingsTable settings = $SettingsTable(this);
   late final $ProviderCacheTable providerCache = $ProviderCacheTable(this);
+  late final $NovelProgressTable novelProgress = $NovelProgressTable(this);
   late final NovelDao novelDao = NovelDao(this as AppDatabase);
   late final ChapterDao chapterDao = ChapterDao(this as AppDatabase);
   late final LibraryDao libraryDao = LibraryDao(this as AppDatabase);
@@ -3401,6 +4045,9 @@ abstract class _$AppDatabase extends GeneratedDatabase {
   late final BookmarkDao bookmarkDao = BookmarkDao(this as AppDatabase);
   late final SettingsDao settingsDao = SettingsDao(this as AppDatabase);
   late final ProviderCacheDao providerCacheDao = ProviderCacheDao(
+    this as AppDatabase,
+  );
+  late final NovelProgressDao novelProgressDao = NovelProgressDao(
     this as AppDatabase,
   );
   @override
@@ -3416,6 +4063,7 @@ abstract class _$AppDatabase extends GeneratedDatabase {
     bookmarks,
     settings,
     providerCache,
+    novelProgress,
   ];
 }
 
@@ -3536,6 +4184,24 @@ final class $$NovelsTableReferences
     ).filter((f) => f.novelId.id.sqlEquals($_itemColumn<int>('id')!));
 
     final cache = $_typedResult.readTableOrNull(_bookmarksRefsTable($_db));
+    return ProcessedTableManager(
+      manager.$state.copyWith(prefetchedData: cache),
+    );
+  }
+
+  static MultiTypedResultKey<$NovelProgressTable, List<NovelProgressData>>
+  _novelProgressRefsTable(_$AppDatabase db) => MultiTypedResultKey.fromTable(
+    db.novelProgress,
+    aliasName: 'novels__id__novel_progress__novel_id',
+  );
+
+  $$NovelProgressTableProcessedTableManager get novelProgressRefs {
+    final manager = $$NovelProgressTableTableManager(
+      $_db,
+      $_db.novelProgress,
+    ).filter((f) => f.novelId.id.sqlEquals($_itemColumn<int>('id')!));
+
+    final cache = $_typedResult.readTableOrNull(_novelProgressRefsTable($_db));
     return ProcessedTableManager(
       manager.$state.copyWith(prefetchedData: cache),
     );
@@ -3717,6 +4383,31 @@ class $$NovelsTableFilterComposer
           }) => $$BookmarksTableFilterComposer(
             $db: $db,
             $table: $db.bookmarks,
+            $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
+            joinBuilder: joinBuilder,
+            $removeJoinBuilderFromRootComposer:
+                $removeJoinBuilderFromRootComposer,
+          ),
+    );
+    return f(composer);
+  }
+
+  Expression<bool> novelProgressRefs(
+    Expression<bool> Function($$NovelProgressTableFilterComposer f) f,
+  ) {
+    final $$NovelProgressTableFilterComposer composer = $composerBuilder(
+      composer: this,
+      getCurrentColumn: (t) => t.id,
+      referencedTable: $db.novelProgress,
+      getReferencedColumn: (t) => t.novelId,
+      builder:
+          (
+            joinBuilder, {
+            $addJoinBuilderToRootComposer,
+            $removeJoinBuilderFromRootComposer,
+          }) => $$NovelProgressTableFilterComposer(
+            $db: $db,
+            $table: $db.novelProgress,
             $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
             joinBuilder: joinBuilder,
             $removeJoinBuilderFromRootComposer:
@@ -3954,6 +4645,31 @@ class $$NovelsTableAnnotationComposer
     );
     return f(composer);
   }
+
+  Expression<T> novelProgressRefs<T extends Object>(
+    Expression<T> Function($$NovelProgressTableAnnotationComposer a) f,
+  ) {
+    final $$NovelProgressTableAnnotationComposer composer = $composerBuilder(
+      composer: this,
+      getCurrentColumn: (t) => t.id,
+      referencedTable: $db.novelProgress,
+      getReferencedColumn: (t) => t.novelId,
+      builder:
+          (
+            joinBuilder, {
+            $addJoinBuilderToRootComposer,
+            $removeJoinBuilderFromRootComposer,
+          }) => $$NovelProgressTableAnnotationComposer(
+            $db: $db,
+            $table: $db.novelProgress,
+            $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
+            joinBuilder: joinBuilder,
+            $removeJoinBuilderFromRootComposer:
+                $removeJoinBuilderFromRootComposer,
+          ),
+    );
+    return f(composer);
+  }
 }
 
 class $$NovelsTableTableManager
@@ -3975,6 +4691,7 @@ class $$NovelsTableTableManager
             bool readingHistoryRefs,
             bool downloadsQueueRefs,
             bool bookmarksRefs,
+            bool novelProgressRefs,
           })
         > {
   $$NovelsTableTableManager(_$AppDatabase db, $NovelsTable table)
@@ -4049,6 +4766,7 @@ class $$NovelsTableTableManager
                 readingHistoryRefs = false,
                 downloadsQueueRefs = false,
                 bookmarksRefs = false,
+                novelProgressRefs = false,
               }) {
                 return PrefetchHooks(
                   db: db,
@@ -4058,6 +4776,7 @@ class $$NovelsTableTableManager
                     if (readingHistoryRefs) db.readingHistory,
                     if (downloadsQueueRefs) db.downloadsQueue,
                     if (bookmarksRefs) db.bookmarks,
+                    if (novelProgressRefs) db.novelProgress,
                   ],
                   addJoins: null,
                   getPrefetchedDataCallback: (items) async {
@@ -4163,6 +4882,27 @@ class $$NovelsTableTableManager
                               ),
                           typedResults: items,
                         ),
+                      if (novelProgressRefs)
+                        await $_getPrefetchedData<
+                          Novel,
+                          $NovelsTable,
+                          NovelProgressData
+                        >(
+                          currentTable: table,
+                          referencedTable: $$NovelsTableReferences
+                              ._novelProgressRefsTable(db),
+                          managerFromTypedResult: (p0) =>
+                              $$NovelsTableReferences(
+                                db,
+                                table,
+                                p0,
+                              ).novelProgressRefs,
+                          referencedItemsForCurrentItem:
+                              (item, referencedItems) => referencedItems.where(
+                                (e) => e.novelId == item.id,
+                              ),
+                          typedResults: items,
+                        ),
                     ];
                   },
                 );
@@ -4189,6 +4929,7 @@ typedef $$NovelsTableProcessedTableManager =
         bool readingHistoryRefs,
         bool downloadsQueueRefs,
         bool bookmarksRefs,
+        bool novelProgressRefs,
       })
     >;
 typedef $$ChaptersTableCreateCompanionBuilder =
@@ -4200,6 +4941,7 @@ typedef $$ChaptersTableCreateCompanionBuilder =
       required double index,
       Value<bool> downloaded,
       Value<bool> read,
+      Value<bool> ttsRead,
       Value<bool> bookmarked,
       Value<String?> downloadedPath,
     });
@@ -4212,6 +4954,7 @@ typedef $$ChaptersTableUpdateCompanionBuilder =
       Value<double> index,
       Value<bool> downloaded,
       Value<bool> read,
+      Value<bool> ttsRead,
       Value<bool> bookmarked,
       Value<String?> downloadedPath,
     });
@@ -4346,6 +5089,11 @@ class $$ChaptersTableFilterComposer
 
   ColumnFilters<bool> get read => $composableBuilder(
     column: $table.read,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<bool> get ttsRead => $composableBuilder(
+    column: $table.ttsRead,
     builder: (column) => ColumnFilters(column),
   );
 
@@ -4522,6 +5270,11 @@ class $$ChaptersTableOrderingComposer
     builder: (column) => ColumnOrderings(column),
   );
 
+  ColumnOrderings<bool> get ttsRead => $composableBuilder(
+    column: $table.ttsRead,
+    builder: (column) => ColumnOrderings(column),
+  );
+
   ColumnOrderings<bool> get bookmarked => $composableBuilder(
     column: $table.bookmarked,
     builder: (column) => ColumnOrderings(column),
@@ -4584,6 +5337,9 @@ class $$ChaptersTableAnnotationComposer
 
   GeneratedColumn<bool> get read =>
       $composableBuilder(column: $table.read, builder: (column) => column);
+
+  GeneratedColumn<bool> get ttsRead =>
+      $composableBuilder(column: $table.ttsRead, builder: (column) => column);
 
   GeneratedColumn<bool> get bookmarked => $composableBuilder(
     column: $table.bookmarked,
@@ -4760,6 +5516,7 @@ class $$ChaptersTableTableManager
                 Value<double> index = const Value.absent(),
                 Value<bool> downloaded = const Value.absent(),
                 Value<bool> read = const Value.absent(),
+                Value<bool> ttsRead = const Value.absent(),
                 Value<bool> bookmarked = const Value.absent(),
                 Value<String?> downloadedPath = const Value.absent(),
               }) => ChaptersCompanion(
@@ -4770,6 +5527,7 @@ class $$ChaptersTableTableManager
                 index: index,
                 downloaded: downloaded,
                 read: read,
+                ttsRead: ttsRead,
                 bookmarked: bookmarked,
                 downloadedPath: downloadedPath,
               ),
@@ -4782,6 +5540,7 @@ class $$ChaptersTableTableManager
                 required double index,
                 Value<bool> downloaded = const Value.absent(),
                 Value<bool> read = const Value.absent(),
+                Value<bool> ttsRead = const Value.absent(),
                 Value<bool> bookmarked = const Value.absent(),
                 Value<String?> downloadedPath = const Value.absent(),
               }) => ChaptersCompanion.insert(
@@ -4792,6 +5551,7 @@ class $$ChaptersTableTableManager
                 index: index,
                 downloaded: downloaded,
                 read: read,
+                ttsRead: ttsRead,
                 bookmarked: bookmarked,
                 downloadedPath: downloadedPath,
               ),
@@ -6998,6 +7758,412 @@ typedef $$ProviderCacheTableProcessedTableManager =
       ProviderCacheData,
       PrefetchHooks Function()
     >;
+typedef $$NovelProgressTableCreateCompanionBuilder =
+    NovelProgressCompanion Function({
+      Value<int> novelId,
+      required int totalChapters,
+      Value<int> readChapters,
+      Value<int> ttsReadChapters,
+      Value<int> currentChapterIndex,
+      Value<int?> lastReadChapterId,
+      Value<int?> lastTtsChapterId,
+      Value<int?> lastReadAt,
+      Value<int?> lastTtsAt,
+    });
+typedef $$NovelProgressTableUpdateCompanionBuilder =
+    NovelProgressCompanion Function({
+      Value<int> novelId,
+      Value<int> totalChapters,
+      Value<int> readChapters,
+      Value<int> ttsReadChapters,
+      Value<int> currentChapterIndex,
+      Value<int?> lastReadChapterId,
+      Value<int?> lastTtsChapterId,
+      Value<int?> lastReadAt,
+      Value<int?> lastTtsAt,
+    });
+
+final class $$NovelProgressTableReferences
+    extends
+        BaseReferences<_$AppDatabase, $NovelProgressTable, NovelProgressData> {
+  $$NovelProgressTableReferences(
+    super.$_db,
+    super.$_table,
+    super.$_typedResult,
+  );
+
+  static $NovelsTable _novelIdTable(_$AppDatabase db) =>
+      db.novels.createAlias('novel_progress__novel_id__novels__id');
+
+  $$NovelsTableProcessedTableManager get novelId {
+    final $_column = $_itemColumn<int>('novel_id')!;
+
+    final manager = $$NovelsTableTableManager(
+      $_db,
+      $_db.novels,
+    ).filter((f) => f.id.sqlEquals($_column));
+    final item = $_typedResult.readTableOrNull(_novelIdTable($_db));
+    if (item == null) return manager;
+    return ProcessedTableManager(
+      manager.$state.copyWith(prefetchedData: [item]),
+    );
+  }
+}
+
+class $$NovelProgressTableFilterComposer
+    extends Composer<_$AppDatabase, $NovelProgressTable> {
+  $$NovelProgressTableFilterComposer({
+    required super.$db,
+    required super.$table,
+    super.joinBuilder,
+    super.$addJoinBuilderToRootComposer,
+    super.$removeJoinBuilderFromRootComposer,
+  });
+  ColumnFilters<int> get totalChapters => $composableBuilder(
+    column: $table.totalChapters,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<int> get readChapters => $composableBuilder(
+    column: $table.readChapters,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<int> get ttsReadChapters => $composableBuilder(
+    column: $table.ttsReadChapters,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<int> get currentChapterIndex => $composableBuilder(
+    column: $table.currentChapterIndex,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<int> get lastReadChapterId => $composableBuilder(
+    column: $table.lastReadChapterId,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<int> get lastTtsChapterId => $composableBuilder(
+    column: $table.lastTtsChapterId,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<int> get lastReadAt => $composableBuilder(
+    column: $table.lastReadAt,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<int> get lastTtsAt => $composableBuilder(
+    column: $table.lastTtsAt,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  $$NovelsTableFilterComposer get novelId {
+    final $$NovelsTableFilterComposer composer = $composerBuilder(
+      composer: this,
+      getCurrentColumn: (t) => t.novelId,
+      referencedTable: $db.novels,
+      getReferencedColumn: (t) => t.id,
+      builder:
+          (
+            joinBuilder, {
+            $addJoinBuilderToRootComposer,
+            $removeJoinBuilderFromRootComposer,
+          }) => $$NovelsTableFilterComposer(
+            $db: $db,
+            $table: $db.novels,
+            $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
+            joinBuilder: joinBuilder,
+            $removeJoinBuilderFromRootComposer:
+                $removeJoinBuilderFromRootComposer,
+          ),
+    );
+    return composer;
+  }
+}
+
+class $$NovelProgressTableOrderingComposer
+    extends Composer<_$AppDatabase, $NovelProgressTable> {
+  $$NovelProgressTableOrderingComposer({
+    required super.$db,
+    required super.$table,
+    super.joinBuilder,
+    super.$addJoinBuilderToRootComposer,
+    super.$removeJoinBuilderFromRootComposer,
+  });
+  ColumnOrderings<int> get totalChapters => $composableBuilder(
+    column: $table.totalChapters,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<int> get readChapters => $composableBuilder(
+    column: $table.readChapters,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<int> get ttsReadChapters => $composableBuilder(
+    column: $table.ttsReadChapters,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<int> get currentChapterIndex => $composableBuilder(
+    column: $table.currentChapterIndex,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<int> get lastReadChapterId => $composableBuilder(
+    column: $table.lastReadChapterId,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<int> get lastTtsChapterId => $composableBuilder(
+    column: $table.lastTtsChapterId,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<int> get lastReadAt => $composableBuilder(
+    column: $table.lastReadAt,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<int> get lastTtsAt => $composableBuilder(
+    column: $table.lastTtsAt,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  $$NovelsTableOrderingComposer get novelId {
+    final $$NovelsTableOrderingComposer composer = $composerBuilder(
+      composer: this,
+      getCurrentColumn: (t) => t.novelId,
+      referencedTable: $db.novels,
+      getReferencedColumn: (t) => t.id,
+      builder:
+          (
+            joinBuilder, {
+            $addJoinBuilderToRootComposer,
+            $removeJoinBuilderFromRootComposer,
+          }) => $$NovelsTableOrderingComposer(
+            $db: $db,
+            $table: $db.novels,
+            $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
+            joinBuilder: joinBuilder,
+            $removeJoinBuilderFromRootComposer:
+                $removeJoinBuilderFromRootComposer,
+          ),
+    );
+    return composer;
+  }
+}
+
+class $$NovelProgressTableAnnotationComposer
+    extends Composer<_$AppDatabase, $NovelProgressTable> {
+  $$NovelProgressTableAnnotationComposer({
+    required super.$db,
+    required super.$table,
+    super.joinBuilder,
+    super.$addJoinBuilderToRootComposer,
+    super.$removeJoinBuilderFromRootComposer,
+  });
+  GeneratedColumn<int> get totalChapters => $composableBuilder(
+    column: $table.totalChapters,
+    builder: (column) => column,
+  );
+
+  GeneratedColumn<int> get readChapters => $composableBuilder(
+    column: $table.readChapters,
+    builder: (column) => column,
+  );
+
+  GeneratedColumn<int> get ttsReadChapters => $composableBuilder(
+    column: $table.ttsReadChapters,
+    builder: (column) => column,
+  );
+
+  GeneratedColumn<int> get currentChapterIndex => $composableBuilder(
+    column: $table.currentChapterIndex,
+    builder: (column) => column,
+  );
+
+  GeneratedColumn<int> get lastReadChapterId => $composableBuilder(
+    column: $table.lastReadChapterId,
+    builder: (column) => column,
+  );
+
+  GeneratedColumn<int> get lastTtsChapterId => $composableBuilder(
+    column: $table.lastTtsChapterId,
+    builder: (column) => column,
+  );
+
+  GeneratedColumn<int> get lastReadAt => $composableBuilder(
+    column: $table.lastReadAt,
+    builder: (column) => column,
+  );
+
+  GeneratedColumn<int> get lastTtsAt =>
+      $composableBuilder(column: $table.lastTtsAt, builder: (column) => column);
+
+  $$NovelsTableAnnotationComposer get novelId {
+    final $$NovelsTableAnnotationComposer composer = $composerBuilder(
+      composer: this,
+      getCurrentColumn: (t) => t.novelId,
+      referencedTable: $db.novels,
+      getReferencedColumn: (t) => t.id,
+      builder:
+          (
+            joinBuilder, {
+            $addJoinBuilderToRootComposer,
+            $removeJoinBuilderFromRootComposer,
+          }) => $$NovelsTableAnnotationComposer(
+            $db: $db,
+            $table: $db.novels,
+            $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
+            joinBuilder: joinBuilder,
+            $removeJoinBuilderFromRootComposer:
+                $removeJoinBuilderFromRootComposer,
+          ),
+    );
+    return composer;
+  }
+}
+
+class $$NovelProgressTableTableManager
+    extends
+        RootTableManager<
+          _$AppDatabase,
+          $NovelProgressTable,
+          NovelProgressData,
+          $$NovelProgressTableFilterComposer,
+          $$NovelProgressTableOrderingComposer,
+          $$NovelProgressTableAnnotationComposer,
+          $$NovelProgressTableCreateCompanionBuilder,
+          $$NovelProgressTableUpdateCompanionBuilder,
+          (NovelProgressData, $$NovelProgressTableReferences),
+          NovelProgressData,
+          PrefetchHooks Function({bool novelId})
+        > {
+  $$NovelProgressTableTableManager(_$AppDatabase db, $NovelProgressTable table)
+    : super(
+        TableManagerState(
+          db: db,
+          table: table,
+          createFilteringComposer: () =>
+              $$NovelProgressTableFilterComposer($db: db, $table: table),
+          createOrderingComposer: () =>
+              $$NovelProgressTableOrderingComposer($db: db, $table: table),
+          createComputedFieldComposer: () =>
+              $$NovelProgressTableAnnotationComposer($db: db, $table: table),
+          updateCompanionCallback:
+              ({
+                Value<int> novelId = const Value.absent(),
+                Value<int> totalChapters = const Value.absent(),
+                Value<int> readChapters = const Value.absent(),
+                Value<int> ttsReadChapters = const Value.absent(),
+                Value<int> currentChapterIndex = const Value.absent(),
+                Value<int?> lastReadChapterId = const Value.absent(),
+                Value<int?> lastTtsChapterId = const Value.absent(),
+                Value<int?> lastReadAt = const Value.absent(),
+                Value<int?> lastTtsAt = const Value.absent(),
+              }) => NovelProgressCompanion(
+                novelId: novelId,
+                totalChapters: totalChapters,
+                readChapters: readChapters,
+                ttsReadChapters: ttsReadChapters,
+                currentChapterIndex: currentChapterIndex,
+                lastReadChapterId: lastReadChapterId,
+                lastTtsChapterId: lastTtsChapterId,
+                lastReadAt: lastReadAt,
+                lastTtsAt: lastTtsAt,
+              ),
+          createCompanionCallback:
+              ({
+                Value<int> novelId = const Value.absent(),
+                required int totalChapters,
+                Value<int> readChapters = const Value.absent(),
+                Value<int> ttsReadChapters = const Value.absent(),
+                Value<int> currentChapterIndex = const Value.absent(),
+                Value<int?> lastReadChapterId = const Value.absent(),
+                Value<int?> lastTtsChapterId = const Value.absent(),
+                Value<int?> lastReadAt = const Value.absent(),
+                Value<int?> lastTtsAt = const Value.absent(),
+              }) => NovelProgressCompanion.insert(
+                novelId: novelId,
+                totalChapters: totalChapters,
+                readChapters: readChapters,
+                ttsReadChapters: ttsReadChapters,
+                currentChapterIndex: currentChapterIndex,
+                lastReadChapterId: lastReadChapterId,
+                lastTtsChapterId: lastTtsChapterId,
+                lastReadAt: lastReadAt,
+                lastTtsAt: lastTtsAt,
+              ),
+          withReferenceMapper: (p0) => p0
+              .map(
+                (e) => (
+                  e.readTable(table),
+                  $$NovelProgressTableReferences(db, table, e),
+                ),
+              )
+              .toList(),
+          prefetchHooksCallback: ({novelId = false}) {
+            return PrefetchHooks(
+              db: db,
+              explicitlyWatchedTables: [],
+              addJoins:
+                  <
+                    T extends TableManagerState<
+                      dynamic,
+                      dynamic,
+                      dynamic,
+                      dynamic,
+                      dynamic,
+                      dynamic,
+                      dynamic,
+                      dynamic,
+                      dynamic,
+                      dynamic,
+                      dynamic
+                    >
+                  >(state) {
+                    if (novelId) {
+                      state =
+                          state.withJoin(
+                                currentTable: table,
+                                currentColumn: table.novelId,
+                                referencedTable: $$NovelProgressTableReferences
+                                    ._novelIdTable(db),
+                                referencedColumn: $$NovelProgressTableReferences
+                                    ._novelIdTable(db)
+                                    .id,
+                              )
+                              as T;
+                    }
+
+                    return state;
+                  },
+              getPrefetchedDataCallback: (items) async {
+                return [];
+              },
+            );
+          },
+        ),
+      );
+}
+
+typedef $$NovelProgressTableProcessedTableManager =
+    ProcessedTableManager<
+      _$AppDatabase,
+      $NovelProgressTable,
+      NovelProgressData,
+      $$NovelProgressTableFilterComposer,
+      $$NovelProgressTableOrderingComposer,
+      $$NovelProgressTableAnnotationComposer,
+      $$NovelProgressTableCreateCompanionBuilder,
+      $$NovelProgressTableUpdateCompanionBuilder,
+      (NovelProgressData, $$NovelProgressTableReferences),
+      NovelProgressData,
+      PrefetchHooks Function({bool novelId})
+    >;
 
 class $AppDatabaseManager {
   final _$AppDatabase _db;
@@ -7018,4 +8184,6 @@ class $AppDatabaseManager {
       $$SettingsTableTableManager(_db, _db.settings);
   $$ProviderCacheTableTableManager get providerCache =>
       $$ProviderCacheTableTableManager(_db, _db.providerCache);
+  $$NovelProgressTableTableManager get novelProgress =>
+      $$NovelProgressTableTableManager(_db, _db.novelProgress);
 }
