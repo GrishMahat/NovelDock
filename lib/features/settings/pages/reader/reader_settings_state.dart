@@ -9,6 +9,9 @@ import '../../../../theme/app_theme.dart';
 
 const _tag = 'ReaderSettings';
 
+/// Bundled default reader font (Literata, OFL license — designed for on-screen book reading).
+const String kDefaultReaderFont = 'Literata';
+
 class ReaderSettings {
   final double fontSize;
   final String fontFamily;
@@ -33,7 +36,7 @@ class ReaderSettings {
 
   const ReaderSettings({
     this.fontSize = 16.0,
-    this.fontFamily = '',
+    this.fontFamily = kDefaultReaderFont,
     this.lineHeight = 1.6,
     this.paddingH = 24.0,
     this.paddingV = 24.0,
@@ -148,8 +151,8 @@ Future<List<String>> getSystemFonts() async {
   } catch (e) {
     Log.e(_tag, 'Failed to get system fonts', e);
   }
-  return ['Arial', 'Courier New', 'Georgia', 'Helvetica', 'Times New Roman',
-    'Trebuchet MS', 'Verdana', 'Consolas', 'Lucida Console'];
+  return ['Literata', 'Arial', 'Courier New', 'Georgia', 'Helvetica',
+    'Times New Roman', 'Trebuchet MS', 'Verdana', 'Consolas', 'Lucida Console'];
 }
 
 class ReaderSettingsNotifier extends StateNotifier<ReaderSettings> {
@@ -158,9 +161,12 @@ class ReaderSettingsNotifier extends StateNotifier<ReaderSettings> {
   Future<void> _load() async {
     try {
       final p = await SharedPreferences.getInstance();
+      final storedFont = p.getString('reader_font_family');
       state = ReaderSettings(
         fontSize: p.getDouble('reader_font_size') ?? 16.0,
-        fontFamily: p.getString('reader_font_family') ?? '',
+        fontFamily: (storedFont == null || storedFont.isEmpty)
+            ? kDefaultReaderFont
+            : storedFont,
         lineHeight: p.getDouble('reader_line_height') ?? 1.6,
         paddingH: p.getDouble('reader_padding_h') ?? 24.0,
         paddingV: p.getDouble('reader_padding_v') ?? 24.0,

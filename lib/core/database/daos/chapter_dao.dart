@@ -13,8 +13,10 @@ class ChapterDao extends DatabaseAccessor<AppDatabase> with _$ChapterDaoMixin {
     return into(chapters).insert(chapter, mode: InsertMode.insertOrReplace);
   }
 
-  Future<bool> updateChapter(ChaptersCompanion chapter) {
-    return update(chapters).replace(chapter);
+  /// Partially updates a chapter (only columns present in [chapter] are set).
+  Future<int> updateChapter(ChaptersCompanion chapter) {
+    return (update(chapters)..where((t) => t.id.equals(chapter.id.value)))
+        .write(chapter);
   }
 
   Future<int> deleteChapter(int id) {

@@ -53,7 +53,7 @@ class _GeneralTab extends ConsumerWidget {
         section('Font'),
         tile(
           title: 'Font Family',
-          subtitle: settings.fontFamily.isEmpty ? 'System Default' : settings.fontFamily,
+          subtitle: settings.fontFamily.isEmpty ? kDefaultReaderFont : settings.fontFamily,
           onTap: () => _showFontPicker(context, settings, notifier),
         ),
         slider('Size', settings.fontSize, 10, 30, '${settings.fontSize.round()} sp', (v) => notifier.updateFontSize(v)),
@@ -129,10 +129,15 @@ class _GeneralTab extends ConsumerWidget {
                   itemCount: fonts.length + 1,
                   itemBuilder: (ctx, index) {
                     if (index == 0) {
+                      final isDefault = settings.fontFamily.isEmpty ||
+                          settings.fontFamily == kDefaultReaderFont;
                       return ListTile(
-                        leading: Icon(settings.fontFamily.isEmpty ? Icons.check_circle : Icons.circle_outlined, color: settings.fontFamily.isEmpty ? AppTheme.kPrimary : null),
-                        title: const Text('System Default'),
-                        onTap: () { notifier.updateFontFamily(''); Navigator.pop(ctx); },
+                        leading: Icon(isDefault ? Icons.check_circle : Icons.circle_outlined,
+                            color: isDefault ? AppTheme.kPrimary : null),
+                        title: Text(kDefaultReaderFont,
+                            style: const TextStyle(fontFamily: kDefaultReaderFont, fontSize: 16)),
+                        subtitle: const Text('Bundled default'),
+                        onTap: () { notifier.updateFontFamily(kDefaultReaderFont); Navigator.pop(ctx); },
                       );
                     }
                     final font = fonts[index - 1];

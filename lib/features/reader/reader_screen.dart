@@ -212,11 +212,7 @@ class _ReaderScreenState extends ConsumerState<ReaderScreen> {
     }
 
     // Mark chapter as TTS-read when TTS starts
-    final chapterDao = ref.read(chapterDaoProvider);
-    await chapterDao.updateChapter(ChaptersCompanion(
-      id: Value(chapter.id),
-      ttsRead: const Value(true),
-    ));
+    await ref.read(chapterDaoProvider).markChapterAsTtsRead(chapter.id);
 
     final doc = MDParser.parse(chapterContent.data);
     final paragraphs = doc.blocks
@@ -244,11 +240,7 @@ class _ReaderScreenState extends ConsumerState<ReaderScreen> {
     final currentChapter = nav.currentChapter;
     if (currentChapter != null) {
       // Mark current chapter as TTS-read
-      final chapterDao = ref.read(chapterDaoProvider);
-      await chapterDao.updateChapter(ChaptersCompanion(
-        id: Value(currentChapter.id),
-        ttsRead: const Value(true),
-      ));
+      await ref.read(chapterDaoProvider).markChapterAsTtsRead(currentChapter.id);
     }
 
     _goToNextChapter();
