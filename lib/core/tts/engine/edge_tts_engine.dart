@@ -90,7 +90,11 @@ class EdgeTtsEngine implements TtsEngine {
     if (session != null && session.isConnected && !voiceChanged) {
       return session;
     }
-    await session?.close();
+    // The old session is torn down in the background: dart:io
+    // WebSocket.close() waits up to 5s for the peer's close frame, which
+    // would stall every voice change. A fresh session never shares state
+    // with the closing one.
+    unawaited(session?.close());
     _session = null;
     final fresh = EdgeTtsSession(
       voice: voiceId,
@@ -198,6 +202,10 @@ class EdgeTtsEngine implements TtsEngine {
     _session = null;
     _sessionVoice = null;
     _sessionLocale = null;
-    await session?.close();
+    // Not awaited: session.close() can wait up to 5s for the WebSocket
+    // close handshake, and stop() must return promptly.
+    if (session != null) {
+      unawaited(session.close());
+    }
   }
 }

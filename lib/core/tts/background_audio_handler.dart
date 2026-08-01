@@ -68,6 +68,13 @@ class BackgroundAudioHandler extends BaseAudioHandler with QueueHandler, SeekHan
   @override
   Future<void> stop() async {
     onStop?.call();
+    await dismiss();
+  }
+
+  /// Clears the notification/state without invoking [onStop]. Used for
+  /// app-internal calls: the manager's own stop() already runs the teardown,
+  /// and calling back into it here would re-enter stop() forever.
+  Future<void> dismiss() async {
     playbackState.add(playbackState.value.copyWith(
       processingState: AudioProcessingState.idle,
       playing: false,
