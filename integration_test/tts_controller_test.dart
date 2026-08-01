@@ -14,7 +14,7 @@ void main() {
   JustAudioMediaKit.ensureInitialized(linux: true, windows: true);
 
   testWidgets(
-    'TTS pipeline plays two chunks end to end with word events',
+    'TTS pipeline plays three chunks end to end with word events',
     (tester) async {
       final controller = TtsPlaybackController(prefetchWindow: 2);
       final engine = EdgeTtsEngine();
@@ -27,8 +27,11 @@ void main() {
         'The quick brown fox jumps over the lazy dog. '
             'He then rested under a large oak tree.',
         'The second paragraph begins here. It has two sentences.',
+        'This is the third paragraph, added to check that playback '
+            'continues past the old stopping point. '
+            'It must play all the way to this final sentence.',
       ]);
-      expect(chunks.length, greaterThanOrEqualTo(2));
+      expect(chunks.length, greaterThanOrEqualTo(3));
 
       final events = <String>[];
       controller.onChunkStart = (i) {
@@ -69,12 +72,34 @@ void main() {
       expect(events, contains('start:0'));
       expect(events, contains('done:0'));
       expect(events, contains('start:1'));
+      expect(events, contains('done:1'));
+      expect(events, contains('start:2'));
+      expect(events, contains('done:2'));
       expect(
         events.where((e) => e.startsWith('word:0:')).length,
         greaterThan(1),
         reason: events.toString(),
       );
-      expect(events, contains('completed'));
+      expect(
+        events.where((e) => e.startsWith('word:1:')).length,
+        greaterThan(1),
+        reason: events.toString(),
+      );
+      expect(
+        events.where((e) => e.startsWith('word:2:')).length,
+        greaterThan(1),
+        reason: events.toString(),
+      );
+      // Every chunk must actually finish playing before the session ends:
+      // the completion loop must never advance past a chunk whose audio has
+      // not been delivered (regression: tail-propagated cumulative ends).
+      expect(events.last, 'completed', reason: events.toString());
+      expect(
+        events.indexOf('done:2') < events.indexOf('completed'),
+        isTrue,
+        reason: events.toString(),
+      );
+      expect(events, isNot(contains('error:')), reason: events.toString());
     },
     timeout: const Timeout(Duration(minutes: 3)),
   );
