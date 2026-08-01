@@ -27,6 +27,13 @@ class EdgeTtsEngine implements TtsEngine {
   static const Duration _maxBackoff = Duration(seconds: 10);
   static const int _maxAttempts = 3;
 
+  /// Inactivity limit for one synthesis turn (no audio/boundary/end events).
+  /// The edge-tts WebSocket can stall silently mid-turn (no error, no
+  /// bytes); without this the `await for` hangs forever and playback dies
+  /// with no recovery signal. Long enough for cold reconnects (20s) plus
+  /// first-byte latency.
+  static const Duration _turnIdleTimeout = Duration(seconds: 30);
+
   @override
   String get id => 'edge';
 
@@ -128,10 +135,15 @@ class EdgeTtsEngine implements TtsEngine {
       try {
         final session = await _ensureSession(voiceId: voiceId, locale: locale);
 
-        await for (final event in session.synthesize(
+        // Per-event inactivity timeout: a turn that emits nothing for 30s is
+        // dead even if the socket looks open. This turns a silent stall into
+        // a retryable failure (and finally a fatal error).
+        final turn = session.synthesize(
           text,
           prosody: EdgeTtsProsody(rate: rate, pitch: pitch, volume: '100'),
-        )) {
+        ).timeout(_turnIdleTimeout);
+
+        await for (final event in turn) {
           if (event is EdgeTtsAudioChunkEvent) {
             yield TtsAudioBytes(event.chunk);
           } else if (event is EdgeTtsMetadataEvent) {

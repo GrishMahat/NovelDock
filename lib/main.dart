@@ -20,6 +20,10 @@ String? sharedFilePath;
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
+  // mpv's network-timeout (media_kit default 5s) maps to ffmpeg's rw_timeout and
+  // aborts an idle-but-open stream connection, ending TTS playback early while
+  // the engine is still synthesizing the next chunk. Disable it.
+  JustAudioMediaKit.mpvProperties = const {'network-timeout': '0'};
   try {
     JustAudioMediaKit.ensureInitialized(linux: true, windows: true);
     debugPrint('JustAudioMediaKit initialized successfully');

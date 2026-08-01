@@ -58,6 +58,7 @@ class FakeSlowEngine implements TtsEngine {
 
 void main() {
   IntegrationTestWidgetsFlutterBinding.ensureInitialized();
+  JustAudioMediaKit.mpvProperties = const {'network-timeout': '0'};
   JustAudioMediaKit.ensureInitialized(linux: true, windows: true);
 
   testWidgets('slow synthesis must not stall or truncate playback',

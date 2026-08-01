@@ -11,6 +11,7 @@ import 'package:noveldock/core/tts/engine/edge_tts_engine.dart';
 
 void main() {
   IntegrationTestWidgetsFlutterBinding.ensureInitialized();
+  JustAudioMediaKit.mpvProperties = const {'network-timeout': '0'};
   JustAudioMediaKit.ensureInitialized(linux: true, windows: true);
 
   testWidgets(
