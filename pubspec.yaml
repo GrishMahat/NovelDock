@@ -78,7 +78,10 @@ dependencies:
   # Cupertino icons
   cupertino_icons: ^1.0.8
   just_audio: ^0.10.6
-  just_audio_media_kit: ^2.1.0
+  just_audio_media_kit:
+    git:
+      url: https://github.com/GrishMahat/just_audio_media_kit.git
+      ref: e4465de568a80222264218ffbcc18a1269a6a531
   media_kit: ^1.2.6
   media_kit_native_event_loop: ^1.0.9
   media_kit_libs_linux: ^1.2.1

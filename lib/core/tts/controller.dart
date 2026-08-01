@@ -316,11 +316,14 @@ class TtsPlaybackController {
         _cumulativeEnds[i] = absoluteEnd;
 
         // If mpv hit premature EOF while synthesis was in flight, restart
-        // the stream at the playhead now that new chunk bytes are ready.
+        // the stream at the playhead now that new chunk bytes are ready. The
+        // engine session is kept alive: recovery is just a fresh stream
+        // source, and a cold reconnect here would starve the buffer and
+        // trigger the next premature EOF.
         if (_prematurelyCompleted && !_cancelled && generation == _generation) {
           Log.i(_tag, 'Resuming stream at chunk $_playhead after premature EOF');
           _prematurelyCompleted = false;
-          unawaited(_restartAt(_playhead));
+          unawaited(_restartAt(_playhead, keepEngine: true));
           return;
         }
       }
@@ -341,13 +344,20 @@ class TtsPlaybackController {
   }
 
   /// Reconnects and re-synthesizes from [fromIndex] with a fresh stream.
-  Future<void> _restartAt(int fromIndex) async {
+  ///
+  /// With [keepEngine] the engine/session is left untouched: premature-EOF
+  /// recovery only needs a fresh stream source, and closing the engine there
+  /// would force a cold reconnect whose gap starves the buffer and triggers
+  /// the next premature EOF (a self-perpetuating restart cascade).
+  Future<void> _restartAt(int fromIndex, {bool keepEngine = false}) async {
     ++_generation;
     _cancelled = true;
     _stallTimer?.cancel();
-    final engine = _engine;
-    if (engine != null) {
-      await engine.close();
+    if (!keepEngine) {
+      final engine = _engine;
+      if (engine != null) {
+        await engine.close();
+      }
     }
     _playhead = fromIndex;
     _startedChunk = -1;
@@ -420,10 +430,14 @@ class TtsPlaybackController {
 
     final source = _currentSource;
     if (source != null && !source.isClosed && _playhead < _chunks.length) {
-      Log.w(_tag, 'Player completed stream at chunk $_playhead before close; resuming at next chunk');
+      Log.w(_tag,
+          'Player completed stream at chunk $_playhead before close; '
+          'resuming at next chunk (synthesizing=$_synthesizing, '
+          'end[playhead]=${_cumulativeEnds[_playhead].inMilliseconds}ms, '
+          'from=$_pipelineFromIndex)');
       _prematurelyCompleted = true;
       if (!_synthesizing) {
-        unawaited(_restartAt(_playhead));
+        unawaited(_restartAt(_playhead, keepEngine: true));
       }
       return;
     }
