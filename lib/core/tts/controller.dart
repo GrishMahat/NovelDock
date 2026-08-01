@@ -1,5 +1,7 @@
 import 'dart:async';
+import 'dart:typed_data';
 
+import 'package:flutter/foundation.dart';
 import 'package:just_audio/just_audio.dart';
 
 import 'engine/tts_engine.dart';
@@ -33,17 +35,23 @@ class TtsPlaybackController {
   List<TtsChunk> _chunks = const [];
   final List<List<TtsWordBoundary>?> _boundaries = [];
   final List<Duration> _cumulativeEnds = [];
+  final List<Uint8List?> _audioCache = [];
+  final List<List<TtsWordBoundary>?> _boundaryCache = [];
 
+  TtsStreamSource? _currentSource;
+  int _pipelineFromIndex = 0;
   int _playhead = 0;
   int _startedChunk = -1;
   int _lastWordIndex = -1;
   bool _cancelled = true;
   bool _stopped = true;
   bool _completed = false;
+  bool _prematurelyCompleted = false;
   int _generation = 0;
   DateTime _lastBytesAt = DateTime.fromMillisecondsSinceEpoch(0);
   DateTime _lastPositionAt = DateTime.fromMillisecondsSinceEpoch(0);
   bool _paused = false;
+  bool _synthesizing = false;
   Timer? _stallTimer;
 
   String _voiceId = '';
@@ -80,6 +88,11 @@ class TtsPlaybackController {
   bool get isRunning => !_cancelled && !_completed && !_stopped;
   Duration get position => _player.audioPlayer.position;
 
+  /// Testing-only access to per-chunk word boundaries.
+  @visibleForTesting
+  List<List<TtsWordBoundary>?> get boundariesForTest =>
+      List.unmodifiable(_boundaries);
+
   Duration get totalDuration {
     var total = Duration.zero;
     for (final chunk in _chunks) {
@@ -112,7 +125,7 @@ class TtsPlaybackController {
     _playhead = startIndex.clamp(0, chunks.length - 1);
     _startedChunk = -1;
     _lastWordIndex = -1;
-    _resetChunkState();
+    _resetChunkState(clearAudioCache: true);
     _startStallTimer();
     await _startPipeline(_playhead);
   }
@@ -198,8 +211,12 @@ class TtsPlaybackController {
     _stopped = false;
     _startedChunk = -1;
     _lastWordIndex = -1;
+    _prematurelyCompleted = false;
+    _pipelineFromIndex = fromIndex;
     await _player.stop();
+    await Future<void>.delayed(const Duration(milliseconds: 100));
     final source = TtsStreamSource();
+    _currentSource = source;
     _lastBytesAt = DateTime.now();
     _lastPositionAt = DateTime.now();
     // Feed bytes before awaiting the load: for an unknown-length stream the
@@ -236,48 +253,75 @@ class TtsPlaybackController {
 
         final chunk = _chunks[i];
         final boundaries = <TtsWordBoundary>[];
-        var ok = false;
-        await for (final event in engine.synthesize(
-          chunk.text,
-          voiceId: _voiceId,
-          rate: _rate,
-          pitch: _pitch,
-          locale: _locale,
-        )) {
+
+        if (i < _audioCache.length && _audioCache[i] != null) {
+          final cachedBytes = _audioCache[i]!;
+          if (!source.isClosed) {
+            source.addBytes(cachedBytes);
+          }
+          if (i < _boundaryCache.length && _boundaryCache[i] != null) {
+            boundaries.addAll(_boundaryCache[i]!);
+          }
+          _lastBytesAt = DateTime.now();
+        } else {
+          var ok = false;
+          final builder = BytesBuilder();
+          _synthesizing = true;
+          await for (final event in engine.synthesize(
+            chunk.text,
+            voiceId: _voiceId,
+            rate: _rate,
+            pitch: _pitch,
+            locale: _locale,
+          )) {
+            if (_cancelled || generation != _generation) return;
+            switch (event) {
+              case TtsAudioBytes():
+                builder.add(event.bytes);
+                if (!source.isClosed) {
+                  source.addBytes(event.bytes);
+                }
+                _lastBytesAt = DateTime.now();
+              case TtsWordBoundary():
+                boundaries.add(event);
+              case TtsTurnEnd():
+                ok = true;
+              case TtsSynthesisError():
+                if (event.fatal) {
+                  throw event.error;
+                }
+            }
+          }
+          _synthesizing = false;
           if (_cancelled || generation != _generation) return;
-          switch (event) {
-            case TtsAudioBytes():
-              if (!source.isClosed) {
-                source.addBytes(event.bytes);
-              }
-              _lastBytesAt = DateTime.now();
-            case TtsWordBoundary():
-              boundaries.add(event);
-            case TtsTurnEnd():
-              ok = true;
-            case TtsSynthesisError():
-              if (event.fatal) {
-                throw event.error;
-              }
+          if (!ok) {
+            throw StateError('Turn ended without audio for chunk $i');
+          }
+          if (i < _audioCache.length) {
+            _audioCache[i] = builder.takeBytes();
+            _boundaryCache[i] = List.unmodifiable(boundaries);
           }
         }
-        if (_cancelled || generation != _generation) return;
-        if (!ok) {
-          throw StateError('Turn ended without audio for chunk $i');
-        }
+
         if (i >= _boundaries.length) return;
         _boundaries[i] = boundaries;
         final chunkEnd = boundaries.isEmpty
             ? Duration(milliseconds: chunk.estimatedDurationMs)
             : boundaries.last.offset + boundaries.last.duration;
-        // Store absolute ends: cumulativeEnds[i] = start of chunk 0 audio +
+        // Store absolute ends: cumulativeEnds[i] = start of pipeline audio +
         // this chunk's end. Position events are absolute within the stream.
-        final absoluteEnd = i > 0 && _cumulativeEnds[i - 1] > Duration.zero
+        final absoluteEnd = i > fromIndex && _cumulativeEnds[i - 1] > Duration.zero
             ? _cumulativeEnds[i - 1] + chunkEnd
             : chunkEnd;
         _cumulativeEnds[i] = absoluteEnd;
-        for (var j = i + 1; j < _chunks.length; j++) {
-          _cumulativeEnds[j] = absoluteEnd;
+
+        // If mpv hit premature EOF while synthesis was in flight, restart
+        // the stream at the playhead now that new chunk bytes are ready.
+        if (_prematurelyCompleted && !_cancelled && generation == _generation) {
+          Log.i(_tag, 'Resuming stream at chunk $_playhead after premature EOF');
+          _prematurelyCompleted = false;
+          unawaited(_restartAt(_playhead));
+          return;
         }
       }
       // All chunks synthesized. Close the source so the player receives a
@@ -288,6 +332,7 @@ class TtsPlaybackController {
         await source.closeStream();
       }
     } on Object catch (e) {
+      _synthesizing = false;
       if (!_cancelled && generation == _generation) {
         Log.e(_tag, 'Pipeline failed: $e');
         onError?.call(e, fatal: true);
@@ -307,24 +352,42 @@ class TtsPlaybackController {
     _playhead = fromIndex;
     _startedChunk = -1;
     _lastWordIndex = -1;
-    _resetChunkState();
+    _resetChunkState(clearAudioCache: false);
     _startStallTimer();
     await _startPipeline(fromIndex);
   }
 
-  void _resetChunkState() {
+  void _resetChunkState({bool clearAudioCache = false}) {
+    _synthesizing = false;
     _boundaries
       ..clear()
       ..addAll(List<List<TtsWordBoundary>?>.filled(_chunks.length, null));
     _cumulativeEnds
       ..clear()
       ..addAll(List<Duration>.filled(_chunks.length, Duration.zero));
+    if (clearAudioCache) {
+      _audioCache
+        ..clear()
+        ..addAll(List<Uint8List?>.filled(_chunks.length, null));
+      _boundaryCache
+        ..clear()
+        ..addAll(List<List<TtsWordBoundary>?>.filled(_chunks.length, null));
+    }
   }
 
   void _startStallTimer() {
     _stallTimer?.cancel();
     _stallTimer = Timer.periodic(const Duration(seconds: 1), (_) {
       if (_cancelled || _stopped || _completed || _paused) return;
+      // Only a stall when the player is actually playing: while loading
+      // (cold edge-tts connection, synthesis in flight) both bytes and
+      // position legitimately sit still, and restarting the pipeline there
+      // would close the engine and loop cold reconnects.
+      if (!_player.audioPlayer.playing) return;
+      // A turn is still in flight: slow synthesis is not a stall. The engine
+      // reports fatal errors on persistent network failures itself, and
+      // restarting mid-turn only makes the gap longer.
+      if (_synthesizing) return;
       final now = DateTime.now();
       // A stall is no new bytes *and* no playback progress: prefetching means
       // bytes legitimately stop while audio is still playing out.
@@ -346,7 +409,26 @@ class TtsPlaybackController {
   void _onPlayerState(ProcessingState state) {
     if (state != ProcessingState.completed) return;
     if (_cancelled || _stopped || _completed) return;
-    _onPosition(Duration(days: 1));
+
+    // First advance playhead for any chunk that played to completion.
+    if (_playhead < _cumulativeEnds.length &&
+        _cumulativeEnds[_playhead] > Duration.zero) {
+      _onPosition(_cumulativeEnds[_playhead]);
+    }
+
+    if (_completed) return;
+
+    final source = _currentSource;
+    if (source != null && !source.isClosed && _playhead < _chunks.length) {
+      Log.w(_tag, 'Player completed stream at chunk $_playhead before close; resuming at next chunk');
+      _prematurelyCompleted = true;
+      if (!_synthesizing) {
+        unawaited(_restartAt(_playhead));
+      }
+      return;
+    }
+
+    _onPosition(const Duration(days: 1));
   }
 
   /// Handles position events: word highlighting, chunk start/completion.
@@ -361,7 +443,9 @@ class TtsPlaybackController {
       onChunkStart?.call(_playhead);
     }
 
-    final before = _playhead > 0 ? _cumulativeEnds[_playhead - 1] : Duration.zero;
+    final before = _playhead > _pipelineFromIndex
+        ? _cumulativeEnds[_playhead - 1]
+        : Duration.zero;
     final elapsed = position - before;
     final boundaries = _playhead < _boundaries.length
         ? _boundaries[_playhead]
@@ -375,9 +459,11 @@ class TtsPlaybackController {
           break;
         }
       }
-      if (wordIndex != -1 && wordIndex != _lastWordIndex) {
+      if (wordIndex != -1 && wordIndex > _lastWordIndex) {
+        for (var wi = _lastWordIndex + 1; wi <= wordIndex; wi++) {
+          onWord?.call(_playhead, wi);
+        }
         _lastWordIndex = wordIndex;
-        onWord?.call(_playhead, wordIndex);
       }
     }
 
@@ -385,6 +471,17 @@ class TtsPlaybackController {
     while (_playhead < _chunks.length &&
         _cumulativeEnds[_playhead] > Duration.zero &&
         position >= _cumulativeEnds[_playhead]) {
+      final curBoundaries = _playhead < _boundaries.length
+          ? _boundaries[_playhead]
+          : null;
+      if (curBoundaries != null &&
+          curBoundaries.isNotEmpty &&
+          _lastWordIndex < curBoundaries.length - 1) {
+        for (var wi = _lastWordIndex + 1; wi < curBoundaries.length; wi++) {
+          onWord?.call(_playhead, wi);
+        }
+        _lastWordIndex = curBoundaries.length - 1;
+      }
       onChunkCompleted?.call(_playhead);
       _playhead++;
       _lastWordIndex = -1;
