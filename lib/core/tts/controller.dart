@@ -215,6 +215,7 @@ class TtsPlaybackController {
     _pipelineFromIndex = fromIndex;
     await _player.stop();
     await Future<void>.delayed(const Duration(milliseconds: 100));
+    if (generation != _generation) return;
     final source = TtsStreamSource();
     _currentSource = source;
     _lastBytesAt = DateTime.now();
@@ -227,6 +228,10 @@ class TtsPlaybackController {
     unawaited(_playLoop(fromIndex, generation, source));
     try {
       await _player.setSource(source);
+      if (generation != _generation) {
+        await _player.stop();
+        return;
+      }
       await _player.play();
     } on PlayerInterruptedException {
       // Superseded by stop()/skipTo() while loading; the newer pipeline owns
@@ -406,7 +411,10 @@ class TtsPlaybackController {
       if (noBytes && noProgress) {
         Log.w(_tag, 'Stall detected, restarting chunk $_playhead');
         onError?.call(StateError('Synthesis stalled'), fatal: false);
-        unawaited(_restartAt(_playhead));
+        // The session is idle and likely healthy here (the stall gate only
+        // fires when not synthesizing), so keep the engine: a cold reconnect
+        // would add a 1-20s gap that can re-trigger the stall.
+        unawaited(_restartAt(_playhead, keepEngine: true));
       }
     });
   }

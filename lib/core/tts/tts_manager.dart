@@ -139,7 +139,7 @@ class TtsManager extends StateNotifier<TtsManagerState> {
     if (!state.isSpeaking && !state.isPaused) {
       TtsMpris.hide();
       if (audioHandler != null) {
-        audioHandler!.stop();
+        audioHandler!.dismiss();
       }
       return;
     }
@@ -322,18 +322,26 @@ class TtsManager extends StateNotifier<TtsManagerState> {
     }
   }
 
+  bool _stopping = false;
+
   Future<void> stop() async {
-    await _controller.stop();
-    state = state.copyWith(
-      isSpeaking: false,
-      isPaused: false,
-      currentChunkIndex: 0,
-      currentText: '',
-    );
-    _chunkTexts = [];
-    _ttsChunks = [];
-    _totalParagraphs = 0;
-    _updateMedia();
+    if (_stopping) return;
+    _stopping = true;
+    try {
+      await _controller.stop();
+      state = state.copyWith(
+        isSpeaking: false,
+        isPaused: false,
+        currentChunkIndex: 0,
+        currentText: '',
+      );
+      _chunkTexts = [];
+      _ttsChunks = [];
+      _totalParagraphs = 0;
+      _updateMedia();
+    } finally {
+      _stopping = false;
+    }
   }
 
   Future<void> skipForward() async {
