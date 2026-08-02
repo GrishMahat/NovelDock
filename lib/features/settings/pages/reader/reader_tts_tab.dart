@@ -190,7 +190,7 @@ class _VoicePickerSheetState extends State<_VoicePickerSheet> {
     setState(() => _playingVoiceId = voice.id);
 
     final source = TtsStreamSource();
-    await _samplePlayer.setSource(source);
+    await _samplePlayer.setPlaylist([source]);
     await _samplePlayer.play();
     try {
       await for (final event in _engine.synthesize(

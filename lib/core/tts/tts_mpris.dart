@@ -21,6 +21,7 @@ class TtsMpris {
   static Function()? onStop;
   static Function()? onNext;
   static Function()? onPrevious;
+  static void Function(LoopStatus loopStatus)? onLoopChange;
 
   static Future<void> init() async {
     if (_initialized) return;
@@ -159,7 +160,9 @@ class _TtsMPRISService extends MPRISService {
   Future<void> onSetPosition(String trackId, int position) async {}
 
   @override
-  Future<void> onLoopStatus(LoopStatus loopStatus) async {}
+  Future<void> onLoopStatus(LoopStatus loopStatus) async {
+    TtsMpris.onLoopChange?.call(loopStatus);
+  }
 
   @override
   Future<void> onShuffle(bool shuffle) async {}

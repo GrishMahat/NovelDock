@@ -1,7 +1,9 @@
 import 'dart:async';
 
+import 'package:anni_mpris_service/anni_mpris_service.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_riverpod/legacy.dart';
+import 'package:just_audio/just_audio.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 import '../../main.dart';
@@ -133,6 +135,13 @@ class TtsManager extends StateNotifier<TtsManagerState> {
     TtsMpris.onStop = () => stop();
     TtsMpris.onNext = () => skipForward();
     TtsMpris.onPrevious = () => skipBackward();
+    TtsMpris.onLoopChange = (status) {
+      _controller.setLoopMode(switch (status) {
+        LoopStatus.none => LoopMode.off,
+        LoopStatus.track => LoopMode.one,
+        LoopStatus.playlist => LoopMode.all,
+      });
+    };
   }
 
   void _updateMedia() {

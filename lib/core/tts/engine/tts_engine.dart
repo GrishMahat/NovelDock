@@ -77,6 +77,12 @@ abstract class TtsEngine {
   /// engines.
   void reopen();
 
+  /// Drops any engine-side persistent session/socket so the next synthesis
+  /// turn reconnects fresh, without disabling the engine (retry/backoff stay
+  /// enabled). Used by stall recovery when a session is suspected of being
+  /// wedged. No-op for engines without a persistent session.
+  void invalidateSession() {}
+
   /// Synthesizes [text] as one turn.
   ///
   /// [rate] and [pitch] are engine-style strings (`'+10%'`, `'+0Hz'`). The
