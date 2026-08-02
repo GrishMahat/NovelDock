@@ -7,18 +7,24 @@ import 'dart:typed_data';
 
 import 'package:just_audio/just_audio.dart';
 
-/// A [StreamAudioSource] fed by the TTS pipeline.
+/// A [StreamAudioSource] for one TTS chunk.
 ///
-/// [sourceLength] and [contentLength] stay `null` on purpose: fixed lengths
-/// break dynamic streams ("Content size exceeds specified contentLength").
-/// MP3 frames are self-synchronizing, so bytes appended over time play
-/// gaplessly as long as the stream stays open.
+/// Each chunk is a complete MP3 byte-sequence served as its own playlist
+/// item, so mpv treats it as a discrete media entry (clean EOF, native
+/// playlist looping). When the chunk's bytes are fully fed and the stream is
+/// closed before mpv connects, [contentLength] is known and mpv sees a
+/// fixed-length response instead of a chunked dynamic stream.
+///
+/// [contentLength] must stay `null` while the stream is still being fed:
+/// fixed lengths break dynamic streams ("Content size exceeds specified
+/// contentLength").
 class TtsStreamSource extends StreamAudioSource {
   final StreamController<Uint8List> _controller =
       StreamController<Uint8List>();
+  final int? contentLength;
   bool _closed = false;
 
-  TtsStreamSource() : super(tag: 'tts-stream');
+  TtsStreamSource({this.contentLength}) : super(tag: 'tts-stream');
 
   bool get isClosed => _closed;
 
@@ -44,7 +50,7 @@ class TtsStreamSource extends StreamAudioSource {
     return StreamAudioResponse(
       rangeRequestsSupported: false,
       sourceLength: null,
-      contentLength: null,
+      contentLength: contentLength,
       offset: null,
       stream: _controller.stream,
       contentType: 'audio/mpeg',

@@ -57,6 +57,15 @@ class EdgeTtsEngine implements TtsEngine {
     _closed = false;
   }
 
+  /// Drops the current session so the next turn reconnects fresh, without
+  /// marking the engine closed: retry/backoff must stay enabled across a
+  /// stall-recovery reconnect (a `close()` here would disable them via
+  /// [_closed]).
+  @override
+  void invalidateSession() {
+    _disposeSession();
+  }
+
   @override
   Future<List<TtsEngineVoice>> getVoices() async {
     final tts = FlutterEdgeTts(

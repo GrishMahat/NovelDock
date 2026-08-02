@@ -36,6 +36,8 @@ class FakeGapEngine implements TtsEngine {
   Future<void> close() async {}
   @override
   void reopen() {}
+  @override
+  void invalidateSession() {}
 
   @override
   Stream<TtsSynthesisEvent> synthesize(
