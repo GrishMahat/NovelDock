@@ -383,7 +383,11 @@ class _ReaderScreenState extends ConsumerState<ReaderScreen> {
       }
       if ((prev?.isSpeaking == true) && !next.isSpeaking) {
         _ttsScrollCeiling = null;
-        if (settings.ttsAutoAdvance && nav.currentIndex < nav.chapters.length - 1) {
+        // Only advance when the chapter finished playing on its own; a user
+        // stop or a fatal error must not silently jump to the next chapter.
+        if (next.completedNaturally &&
+            settings.ttsAutoAdvance &&
+            nav.currentIndex < nav.chapters.length - 1) {
           _autoAdvanceTts();
         }
       }

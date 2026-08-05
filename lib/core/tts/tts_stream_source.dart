@@ -36,7 +36,13 @@ class TtsStreamSource extends StreamAudioSource {
   Future<void> closeStream() async {
     if (_closed) return;
     _closed = true;
-    await _controller.close();
+    // Do NOT await close(): the future only completes once the `done` event
+    // is delivered to a listener, and the player's proxy does not subscribe
+    // until setPlaylist/addToPlaylist requests the stream — awaiting here
+    // would hang the pipeline before playback ever starts. close() marks the
+    // controller closed synchronously; the buffered bytes and `done` are
+    // delivered when the player connects.
+    unawaited(_controller.close());
   }
 
   @override

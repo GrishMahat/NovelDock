@@ -37,6 +37,11 @@ class TtsManagerState {
   final String novelAuthor;
   final TtsHighlightMode highlightMode;
   final Duration totalDuration;
+  /// True only when the session ended because every chunk finished playing.
+  /// False when it was stopped by the user or died from an error. Lets the
+  /// reader auto-advance to the next chapter on natural completion without
+  /// also advancing on stop/error.
+  final bool completedNaturally;
 
   const TtsManagerState({
     this.isSpeaking = false,
@@ -53,6 +58,7 @@ class TtsManagerState {
     this.novelAuthor = '',
     this.highlightMode = TtsHighlightMode.sentence,
     this.totalDuration = Duration.zero,
+    this.completedNaturally = false,
   });
 
   int get currentLineIndex => currentChunkIndex;
@@ -73,6 +79,7 @@ class TtsManagerState {
     String? novelAuthor,
     TtsHighlightMode? highlightMode,
     Duration? totalDuration,
+    bool? completedNaturally,
   }) {
     return TtsManagerState(
       isSpeaking: isSpeaking ?? this.isSpeaking,
@@ -89,6 +96,7 @@ class TtsManagerState {
       novelAuthor: novelAuthor ?? this.novelAuthor,
       highlightMode: highlightMode ?? this.highlightMode,
       totalDuration: totalDuration ?? this.totalDuration,
+      completedNaturally: completedNaturally ?? this.completedNaturally,
     );
   }
 }
@@ -241,13 +249,21 @@ class TtsManager extends StateNotifier<TtsManagerState> {
       );
     };
     _controller.onCompleted = () {
-      state = state.copyWith(isSpeaking: false, isPaused: false);
+      state = state.copyWith(
+        isSpeaking: false,
+        isPaused: false,
+        completedNaturally: true,
+      );
       _updateMedia();
     };
     _controller.onError = (error, {required bool fatal}) {
       Log.e(_tag, 'TTS error: $error (fatal: $fatal)');
       if (fatal) {
-        state = state.copyWith(isSpeaking: false, isPaused: false);
+        state = state.copyWith(
+          isSpeaking: false,
+          isPaused: false,
+          completedNaturally: false,
+        );
         _updateMedia();
       }
     };
@@ -288,6 +304,7 @@ class TtsManager extends StateNotifier<TtsManagerState> {
       novelTitle: novelTitle ?? '',
       novelAuthor: novelAuthor ?? '',
       totalDuration: Duration(seconds: estimatedSeconds),
+      completedNaturally: false,
     );
 
     await _ensureNotifications();
@@ -343,6 +360,7 @@ class TtsManager extends StateNotifier<TtsManagerState> {
         isPaused: false,
         currentChunkIndex: 0,
         currentText: '',
+        completedNaturally: false,
       );
       _chunkTexts = [];
       _ttsChunks = [];

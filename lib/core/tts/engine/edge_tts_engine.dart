@@ -173,12 +173,15 @@ class EdgeTtsEngine implements TtsEngine {
           }
         }
 
-        // The session closes the turn stream both on a clean `turn.end` and
-        // on socket failure (without an error event); a still-open socket is
-        // the only signal that the turn ended cleanly.
-        if (!session.isConnected) {
-          throw StateError('Socket closed mid-turn');
-        }
+        // A clean completion of the turn stream means the server sent
+        // `turn.end` for the last frame, i.e. every byte of this turn was
+        // received. Mid-turn socket drops are surfaced by the session as a
+        // `connection_lost` error above, so whether the socket is still open
+        // here is irrelevant: the Edge TTS server routinely closes the
+        // WebSocket right after `turn.end` (and invalidateSession()/close()
+        // close it from our side), and treating that as a failed turn only
+        // forces a wasteful re-synthesis of the whole chunk. The next turn
+        // reconnects fresh via [_ensureSession].
         _consecutiveFailures = 0;
         yield const TtsTurnEnd();
         return;
