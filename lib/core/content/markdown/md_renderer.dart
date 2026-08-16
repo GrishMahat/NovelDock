@@ -30,6 +30,7 @@ Widget buildDocument({
   required TtsManagerState ttsState,
   required Map<String, GlobalKey> chunkKeys,
   required int settingsVersion,
+  Map<int, int>? blockToParagraph,
 }) {
   final textStyle = _buildTextStyle(settings);
   final align = _textAlign(settings.textAlignment);
@@ -49,6 +50,7 @@ Widget buildDocument({
           isCurrentChapter: isCurrentChapter,
           ttsState: ttsState,
           chunkKeys: chunkKeys,
+          blockToParagraph: blockToParagraph,
         ),
     ],
   );
@@ -64,10 +66,17 @@ Widget _buildBlock(
   required bool isCurrentChapter,
   required TtsManagerState ttsState,
   required Map<String, GlobalKey> chunkKeys,
+  Map<int, int>? blockToParagraph,
 }) {
+  // TTS chunks are indexed by paragraph (skipping headings etc.), so map the
+  // block index to its paragraph index before comparing with the current chunk.
+  final isParagraph = block is ParagraphNode;
+  final currentIndex = isParagraph
+      ? (blockToParagraph?[blockIndex] ?? blockIndex)
+      : blockIndex;
   final isHighlighted = isCurrentChapter &&
       ttsState.isSpeaking &&
-      blockIndex == ttsState.currentChunkIndex;
+      currentIndex == ttsState.currentChunkIndex;
 
   return KeyedSubtree(
     key: chunkKeys.putIfAbsent('$chapterId-$blockIndex', () => GlobalKey()),

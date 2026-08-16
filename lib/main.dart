@@ -22,8 +22,14 @@ void main() async {
   WidgetsFlutterBinding.ensureInitialized();
   // mpv's network-timeout (media_kit default 5s) maps to ffmpeg's rw_timeout and
   // aborts an idle-but-open stream connection, ending TTS playback early while
-  // the engine is still synthesizing the next chunk. Disable it.
-  JustAudioMediaKit.mpvProperties = const {'network-timeout': '0'};
+  // the engine is still synthesizing the next chunk. Disable it. Also disable
+  // media_kit's cache-on-disk default: mpv fails to create its file cache for
+  // the localhost TTS streams ("lavf: Failed to create file cache").
+  JustAudioMediaKit.mpvProperties = const {
+    'network-timeout': '0',
+    'cache': 'no',
+    'cache-on-disk': 'no',
+  };
   try {
     JustAudioMediaKit.ensureInitialized(linux: true, windows: true);
     debugPrint('JustAudioMediaKit initialized successfully');
