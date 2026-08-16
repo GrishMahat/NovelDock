@@ -1,13 +1,21 @@
+import 'dart:async';
+
+import 'package:anni_mpris_service/anni_mpris_service.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_riverpod/legacy.dart';
+import 'package:just_audio/just_audio.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 import '../../main.dart';
 import 'background_audio_handler.dart';
-import 'microsoft_tts_provider.dart';
-import 'tts_notification.dart';
+import 'chunker.dart';
+import 'controller.dart';
+import 'engine/edge_tts_engine.dart';
+import 'engine/tts_engine.dart';
 import 'tts_mpris.dart';
-import '../utils/html_chunker.dart';
+import '../utils/logger.dart';
+
+const _tag = 'TtsManager';
 
 enum TtsHighlightMode { paragraph, sentence, word }
 
@@ -29,6 +37,11 @@ class TtsManagerState {
   final String novelAuthor;
   final TtsHighlightMode highlightMode;
   final Duration totalDuration;
+  /// True only when the session ended because every chunk finished playing.
+  /// False when it was stopped by the user or died from an error. Lets the
+  /// reader auto-advance to the next chapter on natural completion without
+  /// also advancing on stop/error.
+  final bool completedNaturally;
 
   const TtsManagerState({
     this.isSpeaking = false,
@@ -45,6 +58,7 @@ class TtsManagerState {
     this.novelAuthor = '',
     this.highlightMode = TtsHighlightMode.sentence,
     this.totalDuration = Duration.zero,
+    this.completedNaturally = false,
   });
 
   int get currentLineIndex => currentChunkIndex;
@@ -65,6 +79,7 @@ class TtsManagerState {
     String? novelAuthor,
     TtsHighlightMode? highlightMode,
     Duration? totalDuration,
+    bool? completedNaturally,
   }) {
     return TtsManagerState(
       isSpeaking: isSpeaking ?? this.isSpeaking,
@@ -81,19 +96,21 @@ class TtsManagerState {
       novelAuthor: novelAuthor ?? this.novelAuthor,
       highlightMode: highlightMode ?? this.highlightMode,
       totalDuration: totalDuration ?? this.totalDuration,
+      completedNaturally: completedNaturally ?? this.completedNaturally,
     );
   }
 }
 
 class TtsManager extends StateNotifier<TtsManagerState> {
   final Ref ref;
-  MicrosoftTtsProvider? _provider;
+  final EdgeTtsEngine _engine = EdgeTtsEngine();
+  final TtsPlaybackController _controller = TtsPlaybackController();
   bool _notificationsInitialized = false;
 
-  /// Paragraph-level display texts — one entry per HTML paragraph chunk.
+  /// Paragraph-level display texts — one entry per paragraph.
   List<String> _chunkTexts = [];
 
-  /// Sentence-level TTS chunks — the actual synthesis units.
+  /// TTS chunks — the actual synthesis/playback units.
   List<TtsChunk> _ttsChunks = [];
 
   int _totalParagraphs = 0;
@@ -104,25 +121,21 @@ class TtsManager extends StateNotifier<TtsManagerState> {
     _loadSettings();
   }
 
+  static const _defaultVoice = 'en-US-BrianMultilingualNeural';
+
   Future<void> _ensureNotifications() async {
     if (_notificationsInitialized) return;
     _notificationsInitialized = true;
 
-    await TtsNotification.init();
-    TtsNotification.onPause = () => pause();
-    TtsNotification.onResume = () => resume();
-    TtsNotification.onStop = () => stop();
-    TtsNotification.onSkipForward = () => skipForward();
-    TtsNotification.onSkipBackward = () => skipBackward();
-
-    if (audioHandler == null) {
-      audioHandler = await initAudioService();
-    }
+    audioHandler ??= await initAudioService();
     audioHandler!.onPlay = () => resume();
     audioHandler!.onPause = () => pause();
     audioHandler!.onStop = () => stop();
     audioHandler!.onSkipNext = () => skipForward();
     audioHandler!.onSkipPrevious = () => skipBackward();
+    audioHandler!.onSeek = (position) => _controller.seekTo(position);
+    audioHandler!.onSeekForward = () => skipForward();
+    audioHandler!.onSeekBackward = () => skipBackward();
 
     await TtsMpris.init();
     TtsMpris.onPlay = () => resume();
@@ -130,14 +143,20 @@ class TtsManager extends StateNotifier<TtsManagerState> {
     TtsMpris.onStop = () => stop();
     TtsMpris.onNext = () => skipForward();
     TtsMpris.onPrevious = () => skipBackward();
+    TtsMpris.onLoopChange = (status) {
+      _controller.setLoopMode(switch (status) {
+        LoopStatus.none => LoopMode.off,
+        LoopStatus.track => LoopMode.one,
+        LoopStatus.playlist => LoopMode.all,
+      });
+    };
   }
 
-  void _updateNotification() {
+  void _updateMedia() {
     if (!state.isSpeaking && !state.isPaused) {
-      TtsNotification.hide();
       TtsMpris.hide();
       if (audioHandler != null) {
-        audioHandler!.stop();
+        audioHandler!.dismiss();
       }
       return;
     }
@@ -145,35 +164,24 @@ class TtsManager extends StateNotifier<TtsManagerState> {
     final novelTitle = state.novelTitle.isNotEmpty ? state.novelTitle : 'NovelDock';
     final author = state.novelAuthor.isNotEmpty ? state.novelAuthor : 'NovelDock';
     final currentText = state.currentText.isNotEmpty ? state.currentText : 'Reading...';
-
-    TtsNotification.show(
-      chapterName: currentText,
-      currentLine: state.currentChunkIndex + 1,
-      totalLines: state.totalChunks,
-      isPaused: state.isPaused,
-      novelTitle: novelTitle,
-    );
-
-    final position = state.totalChunks > 0
-        ? Duration(seconds: (state.totalDuration.inSeconds * state.currentChunkIndex / state.totalChunks).round())
-        : Duration.zero;
+    final position = _controller.position;
+    final duration = _controller.totalDuration;
 
     TtsMpris.updateState(
       title: novelTitle,
       artist: author,
       isPlaying: isPlaying,
       position: position,
-      duration: state.totalDuration,
+      duration: duration,
     );
 
-    // Update audio_service notification (Android foreground service / lock screen)
     if (audioHandler != null) {
       audioHandler!.updateMediaInfo(
         title: novelTitle,
         artist: '$currentText (${state.currentChunkIndex + 1}/${state.totalChunks})',
         isPlaying: isPlaying,
         position: position,
-        duration: state.totalDuration,
+        duration: duration,
       );
     }
   }
@@ -199,82 +207,69 @@ class TtsManager extends StateNotifier<TtsManagerState> {
     await p.setInt('tts_highlight_mode', state.highlightMode.index);
   }
 
-  MicrosoftTtsProvider _getProvider() {
-    _provider ??= MicrosoftTtsProvider();
-    return _provider!;
+  String get _voiceId => state.voice.isEmpty ? _defaultVoice : state.voice;
+
+  String _rateString() {
+    final percent = ((state.speed - 1.0) * 100).round();
+    return percent >= 0 ? '+$percent%' : '$percent%';
+  }
+
+  String _pitchString() {
+    final percent = ((state.pitch - 1.0) * 50).round();
+    return percent >= 0 ? '+$percent%' : '$percent%';
   }
 
   /// Find the first TTS chunk index belonging to a given paragraph.
-  int _findFirstTtsChunkOfParagraph(int paragraphIndex) {
+  int _findFirstChunkOfParagraph(int paragraphIndex) {
     for (int i = 0; i < _ttsChunks.length; i++) {
       if (_ttsChunks[i].paragraphIndex == paragraphIndex) return i;
     }
     return -1;
   }
 
-  /// Start TTS from raw chapter HTML.
-  ///
-  /// Each paragraph is split into sentence-level TTS chunks (~500 chars each).
-  /// All chunks are synthesized, concatenated into a single MP3, and played
-  /// with one mpv process. Word boundaries are tracked with offset compensation.
-  Future<void> startFromHtml(
-    String html, {
-    int startChunk = 0,
-    String? coverUrl,
-    String? novelTitle,
-    String? novelAuthor,
-  }) async {
-    // Paragraph-level chunks for display
-    final displayChunks = HtmlChunker.chunkHtml(html);
-    if (displayChunks.isEmpty) return;
-
-    _chunkTexts = displayChunks.map((c) => c.plainText).toList();
-    _totalParagraphs = _chunkTexts.length;
-
-    // Sentence-level chunks for TTS synthesis
-    _ttsChunks = TtsTextChunker.chunkForTts(html);
-    if (_ttsChunks.isEmpty) return;
-
-    // Find the first TTS chunk of the starting paragraph
-    final startTtsChunk = _findFirstTtsChunkOfParagraph(startChunk.clamp(0, _totalParagraphs - 1));
-    if (startTtsChunk < 0) return;
-
-    final totalChars = _chunkTexts.fold(0, (s, t) => s + t.length);
-    final estimatedSeconds = (totalChars / 15.0 / state.speed).round();
-
-    state = state.copyWith(
-      isSpeaking: true,
-      isPaused: false,
-      currentChunkIndex: startChunk.clamp(0, _totalParagraphs - 1),
-      currentWordIndex: 0,
-      totalChunks: _totalParagraphs,
-      currentText: _chunkTexts[state.currentChunkIndex],
-      novelTitle: novelTitle ?? '',
-      novelAuthor: novelAuthor ?? '',
-      totalDuration: Duration(seconds: estimatedSeconds),
-    );
-
-    final provider = _getProvider();
-    await provider.init();
-
-    await _ensureNotifications();
-
-    if (coverUrl != null) {
-      await TtsNotification.setCoverArt(coverUrl);
-      await TtsMpris.setCoverArt(coverUrl);
-    }
-    _updateNotification();
-
-    // Synthesize sentence-level chunks, map callbacks to paragraph indices
-    await _speakFromTtsChunk(startTtsChunk);
-
-    if (state.isSpeaking) {
-      state = state.copyWith(isSpeaking: false);
-    }
-    TtsNotification.hide();
+  void _wireController() {
+    _controller.onChunkStart = (chunkIndex) {
+      if (chunkIndex >= _ttsChunks.length) return;
+      final paraIdx = _ttsChunks[chunkIndex].paragraphIndex;
+      if (paraIdx < _chunkTexts.length) {
+        state = state.copyWith(
+          currentChunkIndex: paraIdx,
+          currentWordIndex: 0,
+          currentText: _chunkTexts[paraIdx],
+        );
+      }
+      _updateMedia();
+    };
+    _controller.onWord = (chunkIndex, wordIndex) {
+      if (chunkIndex >= _ttsChunks.length) return;
+      final chunk = _ttsChunks[chunkIndex];
+      state = state.copyWith(
+        currentChunkIndex: chunk.paragraphIndex,
+        currentWordIndex: chunk.paragraphWordOffset + wordIndex,
+      );
+    };
+    _controller.onCompleted = () {
+      state = state.copyWith(
+        isSpeaking: false,
+        isPaused: false,
+        completedNaturally: true,
+      );
+      _updateMedia();
+    };
+    _controller.onError = (error, {required bool fatal}) {
+      Log.e(_tag, 'TTS error: $error (fatal: $fatal)');
+      if (fatal) {
+        state = state.copyWith(
+          isSpeaking: false,
+          isPaused: false,
+          completedNaturally: false,
+        );
+        _updateMedia();
+      }
+    };
   }
 
-  /// Start TTS from a list of paragraph texts (no HTML chunking needed).
+  /// Start TTS from a list of paragraph texts.
   Future<void> startFromParagraphs(
     List<String> paragraphs, {
     int startParagraph = 0,
@@ -283,18 +278,18 @@ class TtsManager extends StateNotifier<TtsManagerState> {
     String? novelAuthor,
   }) async {
     if (paragraphs.isEmpty) return;
-    if (state.isSpeaking) return;
+    if (state.isSpeaking || state.isPaused) return;
 
     _chunkTexts = paragraphs;
     _totalParagraphs = paragraphs.length;
 
-    _ttsChunks = TtsTextChunker.chunkForParagraphs(paragraphs);
+    _ttsChunks = TtsChunker().chunkParagraphs(paragraphs, speed: state.speed);
     if (_ttsChunks.isEmpty) return;
 
-    final startTtsChunk = _findFirstTtsChunkOfParagraph(
+    final startChunk = _findFirstChunkOfParagraph(
       startParagraph.clamp(0, _totalParagraphs - 1),
     );
-    if (startTtsChunk < 0) return;
+    if (startChunk < 0) return;
 
     final totalChars = paragraphs.fold(0, (s, t) => s + t.length);
     final estimatedSeconds = (totalChars / 15.0 / state.speed).round();
@@ -309,78 +304,40 @@ class TtsManager extends StateNotifier<TtsManagerState> {
       novelTitle: novelTitle ?? '',
       novelAuthor: novelAuthor ?? '',
       totalDuration: Duration(seconds: estimatedSeconds),
+      completedNaturally: false,
     );
-
-    final provider = _getProvider();
-    await provider.init();
 
     await _ensureNotifications();
 
     if (coverUrl != null) {
-      await TtsNotification.setCoverArt(coverUrl);
       await TtsMpris.setCoverArt(coverUrl);
     }
-    _updateNotification();
 
-    await _speakFromTtsChunk(startTtsChunk);
-
-    if (state.isSpeaking) {
-      state = state.copyWith(isSpeaking: false);
-    }
-    TtsNotification.hide();
-  }
-
-  /// Synthesize and play from a specific TTS chunk index.
-  Future<void> _speakFromTtsChunk(int ttsChunkStart) async {
-    if (ttsChunkStart < 0 || ttsChunkStart >= _ttsChunks.length) return;
-
-    final texts = _ttsChunks.sublist(ttsChunkStart).map((c) => c.text).toList();
-
-    final provider = _getProvider();
-    await provider.speakAll(
-      texts,
+    _wireController();
+    await _controller.start(
+      chunks: _ttsChunks,
+      engine: _engine,
+      voiceId: _voiceId,
+      rate: _rateString(),
+      pitch: _pitchString(),
+      locale: state.language,
+      startIndex: startChunk,
       speed: state.speed,
-      pitch: state.pitch,
-      onLineStart: (lineIndex) {
-        if (!state.isSpeaking || state.isPaused) return;
-        final absoluteIndex = ttsChunkStart + lineIndex;
-        if (absoluteIndex < _ttsChunks.length) {
-          final ttsChunk = _ttsChunks[absoluteIndex];
-          final paraIdx = ttsChunk.paragraphIndex;
-          if (paraIdx < _chunkTexts.length) {
-            state = state.copyWith(
-              currentChunkIndex: paraIdx,
-              currentWordIndex: 0,
-              currentText: _chunkTexts[paraIdx],
-            );
-            _updateNotification();
-          }
-        }
-      },
-      onWordStart: (lineIndex, wordIndex) {
-        if (!state.isSpeaking || state.isPaused) return;
-        final absoluteIndex = ttsChunkStart + lineIndex;
-        if (absoluteIndex < _ttsChunks.length) {
-          final ttsChunk = _ttsChunks[absoluteIndex];
-          state = state.copyWith(
-            currentChunkIndex: ttsChunk.paragraphIndex,
-            currentWordIndex: ttsChunk.paragraphWordOffset + wordIndex,
-          );
-        }
-      },
     );
+
+    _updateMedia();
   }
 
   Future<void> pause() async {
-    await _getProvider().pause();
+    await _controller.pause();
     state = state.copyWith(isPaused: true);
-    _updateNotification();
+    _updateMedia();
   }
 
   Future<void> resume() async {
-    await _getProvider().resume();
+    await _controller.resume();
     state = state.copyWith(isPaused: false);
-    _updateNotification();
+    _updateMedia();
   }
 
   Future<void> togglePause() async {
@@ -391,78 +348,71 @@ class TtsManager extends StateNotifier<TtsManagerState> {
     }
   }
 
+  bool _stopping = false;
+
   Future<void> stop() async {
-    await _getProvider().stop();
-    state = state.copyWith(isSpeaking: false, isPaused: false, currentChunkIndex: 0, currentText: '');
-    _chunkTexts = [];
-    _ttsChunks = [];
-    _totalParagraphs = 0;
-    TtsNotification.hide();
+    if (_stopping) return;
+    _stopping = true;
+    try {
+      await _controller.stop();
+      state = state.copyWith(
+        isSpeaking: false,
+        isPaused: false,
+        currentChunkIndex: 0,
+        currentText: '',
+        completedNaturally: false,
+      );
+      _chunkTexts = [];
+      _ttsChunks = [];
+      _totalParagraphs = 0;
+      _updateMedia();
+    } finally {
+      _stopping = false;
+    }
   }
 
   Future<void> skipForward() async {
-    final currentParagraph = state.currentChunkIndex;
-    final nextParagraph = currentParagraph + 1;
+    final nextParagraph = state.currentChunkIndex + 1;
     if (nextParagraph >= _totalParagraphs) return;
-
-    final ttsChunkIndex = _findFirstTtsChunkOfParagraph(nextParagraph);
-    if (ttsChunkIndex < 0) return;
-
-    await _getProvider().stop();
-
-    state = state.copyWith(
-      isSpeaking: true,
-      isPaused: false,
-      currentChunkIndex: nextParagraph,
-      currentWordIndex: 0,
-      currentText: _chunkTexts[nextParagraph],
-    );
-    _updateNotification();
-
-    await _speakFromTtsChunk(ttsChunkIndex);
+    final chunkIndex = _findFirstChunkOfParagraph(nextParagraph);
+    if (chunkIndex < 0) return;
+    await _controller.skipTo(chunkIndex);
   }
 
   Future<void> skipBackward() async {
-    final currentParagraph = state.currentChunkIndex;
-    final prevParagraph = currentParagraph - 1;
+    // First press restarts the current chunk; second press goes back a
+    // paragraph.
+    if (_controller.position > const Duration(seconds: 2)) {
+      await _controller.restartCurrent();
+      return;
+    }
+    final prevParagraph = state.currentChunkIndex - 1;
     if (prevParagraph < 0) return;
-
-    final ttsChunkIndex = _findFirstTtsChunkOfParagraph(prevParagraph);
-    if (ttsChunkIndex < 0) return;
-
-    await _getProvider().stop();
-
-    state = state.copyWith(
-      isSpeaking: true,
-      isPaused: false,
-      currentChunkIndex: prevParagraph,
-      currentWordIndex: 0,
-      currentText: _chunkTexts[prevParagraph],
-    );
-    _updateNotification();
-
-    await _speakFromTtsChunk(ttsChunkIndex);
+    final chunkIndex = _findFirstChunkOfParagraph(prevParagraph);
+    if (chunkIndex < 0) return;
+    await _controller.skipTo(chunkIndex);
   }
 
   Future<void> updateSpeed(double speed) async {
     state = state.copyWith(speed: speed);
+    await _controller.setSpeed(speed);
+    await _controller.setRate(_rateString());
     await _saveSettings();
   }
 
   Future<void> updatePitch(double pitch) async {
     state = state.copyWith(pitch: pitch);
+    await _controller.setPitch(_pitchString());
     await _saveSettings();
   }
 
   Future<void> updateVoice(String voice) async {
     state = state.copyWith(voice: voice);
-    await _getProvider().setVoice(voice);
     await _saveSettings();
   }
 
   Future<void> updateLanguage(String language) async {
     state = state.copyWith(language: language);
-    await _getProvider().setLanguage(language);
     await _saveSettings();
   }
 
@@ -471,10 +421,14 @@ class TtsManager extends StateNotifier<TtsManagerState> {
     await _saveSettings();
   }
 
-  Future<List<EdgeTtsVoice>> getVoices() async {
-    final provider = _getProvider();
-    await provider.init();
-    return provider.getVoices();
+  Future<List<TtsEngineVoice>> getVoices() async {
+    return _engine.getVoices();
+  }
+
+  @override
+  void dispose() {
+    _controller.dispose();
+    super.dispose();
   }
 }
 

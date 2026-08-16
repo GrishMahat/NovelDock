@@ -1,8 +1,12 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import '../../../../core/tts/engine/edge_tts_engine.dart';
+import '../../../../core/tts/engine/tts_engine.dart';
 import '../../../../core/tts/tts_manager.dart';
-import '../../../../core/tts/microsoft_tts_provider.dart';
+import '../../../../core/tts/tts_player.dart';
+import '../../../../core/tts/tts_stream_source.dart';
+import '../../../../core/utils/logger.dart';
 import '../../../../theme/app_theme.dart';
 import '../reader_helpers.dart';
 
@@ -144,7 +148,7 @@ class TtsTab extends ConsumerWidget {
 }
 
 class _VoicePickerSheet extends StatefulWidget {
-  final List<EdgeTtsVoice> voices;
+  final List<TtsEngineVoice> voices;
   final String current;
   final TtsManager notifier;
 
@@ -156,7 +160,8 @@ class _VoicePickerSheet extends StatefulWidget {
 
 class _VoicePickerSheetState extends State<_VoicePickerSheet> {
   final _searchController = TextEditingController();
-  final _tts = MicrosoftTtsProvider();
+  final _engine = EdgeTtsEngine();
+  final _samplePlayer = TtsPlayer();
   String _query = '';
   String? _playingVoiceId;
   late String _selectedVoice;
@@ -170,33 +175,50 @@ class _VoicePickerSheetState extends State<_VoicePickerSheet> {
   @override
   void dispose() {
     _searchController.dispose();
-    _tts.dispose();
+    _samplePlayer.dispose();
+    _engine.close();
     super.dispose();
   }
 
-  Future<void> _playSample(EdgeTtsVoice voice) async {
+  Future<void> _playSample(TtsEngineVoice voice) async {
     if (_playingVoiceId == voice.id) {
-      await _tts.stop();
+      await _samplePlayer.stop();
       setState(() => _playingVoiceId = null);
       return;
     }
-    await _tts.stop();
+    await _samplePlayer.stop();
     setState(() => _playingVoiceId = voice.id);
-    await _tts.setVoice(voice.id);
-    await _tts.speak(
-      'Hello! This is a sample of the ${voice.name} voice. You can use this voice for reading novels.',
-      speed: 1.0,
-      pitch: 1.0,
-    );
-    if (mounted) setState(() => _playingVoiceId = null);
+
+    final source = TtsStreamSource();
+    await _samplePlayer.setPlaylist([source]);
+    await _samplePlayer.play();
+    try {
+      await for (final event in _engine.synthesize(
+        'Hello! This is a sample of the ${voice.name} voice. You can use this voice for reading novels.',
+        voiceId: voice.id,
+        locale: voice.locale,
+        rate: '+0%',
+        pitch: '+0Hz',
+      )) {
+        if (event is TtsAudioBytes) {
+          source.addBytes(event.bytes);
+        } else if (event is TtsSynthesisError) {
+          Log.e('VoiceSample', 'Sample synthesis failed: ${event.error}');
+          break;
+        }
+      }
+    } finally {
+      await source.closeStream();
+      if (mounted) setState(() => _playingVoiceId = null);
+    }
   }
 
-  List<EdgeTtsVoice> get _filtered {
+  List<TtsEngineVoice> get _filtered {
     if (_query.isEmpty) return widget.voices;
     final q = _query.toLowerCase();
     return widget.voices.where((v) =>
       v.name.toLowerCase().contains(q) ||
-      v.language.toLowerCase().contains(q) ||
+      v.locale.toLowerCase().contains(q) ||
       v.id.toLowerCase().contains(q)
     ).toList();
   }
@@ -267,7 +289,7 @@ class _VoicePickerSheetState extends State<_VoicePickerSheet> {
                   leading: Icon(isSelected ? Icons.check_circle : Icons.circle_outlined,
                       color: isSelected ? AppTheme.kPrimary : null),
                   title: Text(voice.name, maxLines: 1, overflow: TextOverflow.ellipsis),
-                  subtitle: Text('${voice.language} · ${voice.gender ?? ""}', style: const TextStyle(fontSize: 11)),
+                  subtitle: Text('${voice.locale} · ${voice.gender ?? ""}', style: const TextStyle(fontSize: 11)),
                   trailing: IconButton(
                     icon: Icon(isPlaying ? Icons.stop_circle : Icons.play_circle_outline,
                         color: isPlaying ? AppTheme.kPrimary : AppTheme.kTextSecondaryDark),

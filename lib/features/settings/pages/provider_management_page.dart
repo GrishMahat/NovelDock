@@ -296,9 +296,9 @@ class _ProviderManagementPageState extends ConsumerState<ProviderManagementPage>
       allowedExtensions: ['json'],
     );
 
-    if (result == null || result.files.isEmpty) return;
+    if (result.isEmpty) return;
 
-    final file = result.files.first;
+    final file = result.first;
     if (file.path == null) return;
 
     Log.i(_tag, 'Selected registry file: ${file.path}');

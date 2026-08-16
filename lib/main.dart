@@ -3,7 +3,7 @@ import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_local_notifications/flutter_local_notifications.dart';
-import 'package:media_kit/media_kit.dart';
+import 'package:just_audio_media_kit/just_audio_media_kit.dart';
 
 import 'app.dart';
 import 'core/utils/log_buffer.dart';
@@ -20,11 +20,21 @@ String? sharedFilePath;
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
+  // mpv's network-timeout (media_kit default 5s) maps to ffmpeg's rw_timeout and
+  // aborts an idle-but-open stream connection, ending TTS playback early while
+  // the engine is still synthesizing the next chunk. Disable it. Also disable
+  // media_kit's cache-on-disk default: mpv fails to create its file cache for
+  // the localhost TTS streams ("lavf: Failed to create file cache").
+  JustAudioMediaKit.mpvProperties = const {
+    'network-timeout': '0',
+    'cache': 'no',
+    'cache-on-disk': 'no',
+  };
   try {
-    MediaKit.ensureInitialized();
-    debugPrint('MediaKit initialized successfully');
+    JustAudioMediaKit.ensureInitialized(linux: true, windows: true);
+    debugPrint('JustAudioMediaKit initialized successfully');
   } catch (e) {
-    debugPrint('MediaKit init failed: $e');
+    debugPrint('JustAudioMediaKit init failed: $e');
     debugPrint('TTS may not work without media_kit native libs');
   }
 

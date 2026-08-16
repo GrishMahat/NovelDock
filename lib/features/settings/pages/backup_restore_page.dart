@@ -193,9 +193,9 @@ class BackupRestorePage extends ConsumerWidget {
         allowedExtensions: ['json'],
       );
 
-      if (result == null || result.files.isEmpty) return;
+      if (result.isEmpty) return;
 
-      final file = File(result.files.single.path!);
+      final file = File(result.single.path!);
       final jsonStr = await file.readAsString();
       final data = jsonDecode(jsonStr) as Map<String, dynamic>;
 

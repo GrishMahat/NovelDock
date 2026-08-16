@@ -5,8 +5,8 @@ import 'package:audio_service/audio_service.dart';
 /// On Android this runs a foreground service, keeping audio alive when the
 /// screen is off. It also provides lock screen / notification media controls.
 ///
-/// Actual audio playback is handled by media_kit in MicrosoftTtsProvider.
-/// This handler only manages the notification/state that audio_service exposes.
+/// Actual audio playback is handled by the TTS player (just_audio); this
+/// handler only manages the notification/state that audio_service exposes.
 class BackgroundAudioHandler extends BaseAudioHandler with QueueHandler, SeekHandler {
   /// Callbacks wired from TtsManager.
   void Function()? onPlay;
@@ -14,6 +14,9 @@ class BackgroundAudioHandler extends BaseAudioHandler with QueueHandler, SeekHan
   void Function()? onStop;
   void Function()? onSkipNext;
   void Function()? onSkipPrevious;
+  void Function(Duration position)? onSeek;
+  void Function()? onSeekForward;
+  void Function()? onSeekBackward;
 
   BackgroundAudioHandler() {
     // Forward media button actions to callbacks
@@ -65,6 +68,13 @@ class BackgroundAudioHandler extends BaseAudioHandler with QueueHandler, SeekHan
   @override
   Future<void> stop() async {
     onStop?.call();
+    await dismiss();
+  }
+
+  /// Clears the notification/state without invoking [onStop]. Used for
+  /// app-internal calls: the manager's own stop() already runs the teardown,
+  /// and calling back into it here would re-enter stop() forever.
+  Future<void> dismiss() async {
     playbackState.add(playbackState.value.copyWith(
       processingState: AudioProcessingState.idle,
       playing: false,
@@ -73,7 +83,13 @@ class BackgroundAudioHandler extends BaseAudioHandler with QueueHandler, SeekHan
   }
 
   @override
-  Future<void> seek(Duration position) async {}
+  Future<void> seek(Duration position) async => onSeek?.call(position);
+
+  @override
+  Future<void> seekForward(bool begin) async => onSeekForward?.call();
+
+  @override
+  Future<void> seekBackward(bool begin) async => onSeekBackward?.call();
 
   @override
   Future<void> onTaskRemoved() async => onStop?.call();
