@@ -99,7 +99,6 @@ Widget buildTtsFloatingPlayer({
   required VoidCallback onTogglePause,
   required VoidCallback onStop,
   required VoidCallback onSkipNext,
-  required VoidCallback onShowTranslateDialog,
 }) {
   final progress = ttsState.totalChunks > 0
       ? ttsState.currentChunkIndex / ttsState.totalChunks
@@ -138,11 +137,6 @@ Widget buildTtsFloatingPlayer({
                   IconButton(
                     icon: const Icon(Icons.skip_next, color: Colors.white),
                     onPressed: onSkipNext,
-                  ),
-                  IconButton(
-                    icon: const Icon(Icons.translate, color: Colors.white),
-                    onPressed: onShowTranslateDialog,
-                    tooltip: 'Translate text',
                   ),
                 ],
               ),

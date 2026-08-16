@@ -15,6 +15,7 @@ Widget buildChapterContent({
   required TtsManagerState ttsState,
   required Map<String, GlobalKey> chunkKeys,
   required int settingsVersion,
+  Map<int, int>? blockToParagraph,
 }) {
   if (content.isPdf) {
     return _buildPdfView(content.data, settings);
@@ -30,6 +31,7 @@ Widget buildChapterContent({
     ttsState: ttsState,
     chunkKeys: chunkKeys,
     settingsVersion: settingsVersion,
+    blockToParagraph: blockToParagraph,
   );
 }
 
@@ -79,6 +81,7 @@ Widget buildContinuousContent({
   required Map<String, GlobalKey> chunkKeys,
   required int settingsVersion,
   required TtsManagerState ttsState,
+  Map<int, int>? blockToParagraph,
 }) {
   return ListView.builder(
     controller: scrollController,
@@ -148,6 +151,7 @@ Widget buildContinuousContent({
               ttsState: ttsState,
               chunkKeys: chunkKeys,
               settingsVersion: settingsVersion,
+              blockToParagraph: blockToParagraph,
             ),
           ],
         );
@@ -163,6 +167,7 @@ Widget buildContinuousContent({
         ttsState: ttsState,
         chunkKeys: chunkKeys,
         settingsVersion: settingsVersion,
+        blockToParagraph: blockToParagraph,
       );
     },
   );
@@ -199,6 +204,7 @@ Widget buildPagedContent({
   required Map<String, GlobalKey> chunkKeys,
   required int settingsVersion,
   required TtsManagerState ttsState,
+  Map<int, int>? blockToParagraph,
 }) {
   return Column(
     children: [
@@ -248,6 +254,7 @@ Widget buildPagedContent({
                     ttsState: ttsState,
                     chunkKeys: chunkKeys,
                     settingsVersion: settingsVersion,
+                    blockToParagraph: blockToParagraph,
                   ),
                 ],
               ),

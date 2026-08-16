@@ -20,7 +20,6 @@ import 'widgets/chapter_sheet.dart';
 import 'widgets/reader_content_view.dart';
 import 'widgets/reader_controls.dart';
 import 'widgets/reader_settings_sheet.dart';
-import 'widgets/translate_dialog.dart' as translate;
 
 class ReaderScreen extends ConsumerStatefulWidget {
   final int novelId;
@@ -39,6 +38,12 @@ class _ReaderScreenState extends ConsumerState<ReaderScreen> {
   final Map<String, GlobalKey> _chunkKeys = {};
   double? _ttsScrollCeiling;
   int _settingsVersion = 0;
+
+  /// Block index -> TTS paragraph index for the chapter TTS last started on.
+  /// Paragraphs are the TTS units, so a chapter with headings/blockquotes has
+  /// more blocks than paragraphs; this map keeps highlighting aligned.
+  Map<int, int> _blockToParagraph = const {};
+  Map<int, int> _paragraphToBlock = const {};
 
   @override
   void initState() {
@@ -174,7 +179,9 @@ class _ReaderScreenState extends ConsumerState<ReaderScreen> {
     if (chapter == null) return;
 
     final ttsState = ref.read(ttsManagerProvider);
-    final chunkKey = _chunkKeys['${chapter.id}-${ttsState.currentChunkIndex}'];
+    final blockIndex = _paragraphToBlock[ttsState.currentChunkIndex];
+    if (blockIndex == null) return;
+    final chunkKey = _chunkKeys['${chapter.id}-$blockIndex'];
     if (chunkKey?.currentContext != null) {
       Scrollable.ensureVisible(
         chunkKey!.currentContext!,
@@ -215,22 +222,68 @@ class _ReaderScreenState extends ConsumerState<ReaderScreen> {
     await ref.read(chapterDaoProvider).markChapterAsTtsRead(chapter.id);
 
     final doc = MDParser.parse(chapterContent.data);
-    final paragraphs = doc.blocks
-        .whereType<ParagraphNode>()
-        .map((p) => p.children.whereType<TextNode>().map((t) => t.text).join())
-        .where((t) => t.trim().isNotEmpty)
-        .toList();
+    final blockToParagraph = <int, int>{};
+    final paragraphs = <String>[];
+    for (var i = 0; i < doc.blocks.length; i++) {
+      final block = doc.blocks[i];
+      if (block is! ParagraphNode) continue;
+      final text = block.children
+          .whereType<TextNode>()
+          .map((t) => t.text)
+          .join();
+      if (text.trim().isEmpty) continue;
+      blockToParagraph[i] = paragraphs.length;
+      paragraphs.add(text);
+    }
 
     if (paragraphs.isEmpty) return;
+
+    _blockToParagraph = blockToParagraph;
+    _paragraphToBlock = {
+      for (final e in blockToParagraph.entries) e.value: e.key,
+    };
+
+    final startParagraph = _firstVisibleParagraph(chapter.id, blockToParagraph);
 
     final novelDao = ref.read(novelDaoProvider);
     final novel = await novelDao.getNovelById(widget.novelId);
     ref.read(ttsManagerProvider.notifier).startFromParagraphs(
       paragraphs,
+      startParagraph: startParagraph,
       coverUrl: novel?.coverUrl,
       novelTitle: novel?.title,
       novelAuthor: novel?.author,
     );
+  }
+
+  /// Returns the TTS paragraph index whose text is the first visible text in
+  /// the viewport. Used so TTS starts from where the user is looking instead
+  /// of always from the top of the chapter.
+  int _firstVisibleParagraph(int chapterId, Map<int, int> blockToParagraph) {
+    if (blockToParagraph.isEmpty) return 0;
+    if (!_scrollController.hasClients) return 0;
+
+    final scrollContext =
+        _scrollController.position.context.notificationContext;
+    final viewportBox = scrollContext?.findRenderObject() as RenderBox?;
+    final viewportTop = viewportBox?.localToGlobal(Offset.zero).dy ?? 0.0;
+
+    // Find the block whose bottom edge is the first to cross the top of the
+    // viewport. Blocks above it are fully scrolled out of view.
+    final blockIndices = blockToParagraph.keys.toList()..sort();
+    for (final blockIndex in blockIndices) {
+      final key = _chunkKeys['$chapterId-$blockIndex'];
+      final context = key?.currentContext;
+      if (context == null) continue;
+      final box = context.findRenderObject() as RenderBox?;
+      if (box == null || !box.hasSize) continue;
+      final top = box.localToGlobal(Offset.zero).dy;
+      final bottom = top + box.size.height;
+      if (bottom > viewportTop) {
+        return blockToParagraph[blockIndex]!;
+      }
+    }
+    return 0;
   }
 
   void _autoAdvanceTts() async {
@@ -253,12 +306,25 @@ class _ReaderScreenState extends ConsumerState<ReaderScreen> {
     if (chapterContent == null || chapterContent.isPdf) return;
 
     final doc = MDParser.parse(chapterContent.data);
-    final paragraphs = doc.blocks
-        .whereType<ParagraphNode>()
-        .map((p) => p.children.whereType<TextNode>().map((t) => t.text).join())
-        .where((t) => t.trim().isNotEmpty)
-        .toList();
+    final blockToParagraph = <int, int>{};
+    final paragraphs = <String>[];
+    for (var i = 0; i < doc.blocks.length; i++) {
+      final block = doc.blocks[i];
+      if (block is! ParagraphNode) continue;
+      final text = block.children
+          .whereType<TextNode>()
+          .map((t) => t.text)
+          .join();
+      if (text.trim().isEmpty) continue;
+      blockToParagraph[i] = paragraphs.length;
+      paragraphs.add(text);
+    }
     if (paragraphs.isEmpty) return;
+
+    _blockToParagraph = blockToParagraph;
+    _paragraphToBlock = {
+      for (final e in blockToParagraph.entries) e.value: e.key,
+    };
 
     final novelDao = ref.read(novelDaoProvider);
     final novel = await novelDao.getNovelById(widget.novelId);
@@ -439,6 +505,7 @@ class _ReaderScreenState extends ConsumerState<ReaderScreen> {
                     chunkKeys: _chunkKeys,
                     settingsVersion: _settingsVersion,
                     ttsState: ttsState,
+                    blockToParagraph: _blockToParagraph,
                   )
                 : buildContinuousContent(
                     context: context,
@@ -452,6 +519,7 @@ class _ReaderScreenState extends ConsumerState<ReaderScreen> {
                     chunkKeys: _chunkKeys,
                     settingsVersion: _settingsVersion,
                     ttsState: ttsState,
+                    blockToParagraph: _blockToParagraph,
                   );
 
     return Scaffold(
@@ -531,7 +599,6 @@ class _ReaderScreenState extends ConsumerState<ReaderScreen> {
           onTogglePause: () => ref.read(ttsManagerProvider.notifier).togglePause(),
           onStop: () => ref.read(ttsManagerProvider.notifier).stop(),
           onSkipNext: () => ref.read(ttsManagerProvider.notifier).skipForward(),
-          onShowTranslateDialog: () => translate.showTranslateDialog(context, ref),
         ),
     ];
   }
