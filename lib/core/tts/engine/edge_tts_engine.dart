@@ -8,30 +8,38 @@ import 'tts_engine.dart';
 
 const _tag = 'EdgeEngine';
 
-/// [TtsEngine] backed by the persistent [EdgeTtsSession] from our fork of
-/// `flutter_edge_tts` (GrishMahat/flutter_edge_tts, git dep pinned by tag).
+/// [TtsEngine] backed by the persistent [EdgeTtsSession].
 ///
-/// One session (one WebSocket) is reused across turns; text is auto-split
-/// into sequential SSML frames by the session and word-boundary offsets are
-/// compensated across frames. The session does not reconnect on its own, so
-/// this engine reconnects (fresh connection = fresh `Sec-MS-GEC` token) and
-/// retries the turn with exponential backoff before failing fatally.
+/// One session is reused across synthesis turns while the requested voice and
+/// locale remain unchanged. When a session fails or becomes stale, it is
+/// replaced with a fresh connection and the current turn is retried with
+/// exponential backoff.
 class EdgeTtsEngine implements TtsEngine {
   EdgeTtsSession? _session;
   String? _sessionVoice;
   String? _sessionLocale;
+
   int _consecutiveFailures = 0;
+
   bool _closed = false;
+  bool _disposed = false;
+
+  /// Incremented whenever the active session is invalidated/replaced.
+  ///
+  /// A synthesis operation captures this generation and must not install a
+  /// session or continue retrying if the generation changes underneath it.
+  int _sessionGeneration = 0;
 
   static const Duration _initialBackoff = Duration(milliseconds: 500);
+
   static const Duration _maxBackoff = Duration(seconds: 10);
+
   static const int _maxAttempts = 3;
 
-  /// Inactivity limit for one synthesis turn (no audio/boundary/end events).
-  /// The edge-tts WebSocket can stall silently mid-turn (no error, no
-  /// bytes); without this the `await for` hangs forever and playback dies
-  /// with no recovery signal. Long enough for cold reconnects (20s) plus
-  /// first-byte latency.
+  /// Maximum time between events from one synthesis turn.
+  ///
+  /// A silent Edge WebSocket can otherwise leave an await-for suspended
+  /// forever.
   static const Duration _turnIdleTimeout = Duration(seconds: 30);
 
   @override
@@ -46,93 +54,159 @@ class EdgeTtsEngine implements TtsEngine {
   @override
   bool get requiresNetwork => true;
 
-  bool get isConnected => _session?.isConnected ?? false;
+  bool get isConnected =>
+      !_closed && !_disposed && (_session?.isConnected ?? false);
 
   @override
-  Future<void> init() async {}
+  Future<void> init() async {
+    // Connection is lazy. Creating the WebSocket here would make startup
+    // depend on network availability and would waste a connection when TTS
+    // is never used.
+  }
 
-  /// Re-opens the engine after [close]. Idempotent.
+  /// Re-opens the engine after [close].
+  ///
+  /// The next synthesis turn will create a session lazily.
   @override
   void reopen() {
+    if (_disposed) return;
+
     _closed = false;
   }
 
-  /// Drops the current session so the next turn reconnects fresh, without
-  /// marking the engine closed: retry/backoff must stay enabled across a
-  /// stall-recovery reconnect (a `close()` here would disable them via
-  /// [_closed]).
+  /// Drops the persistent session without permanently closing the engine.
+  ///
+  /// Used for stall recovery so the next synthesis gets a fresh WebSocket and
+  /// fresh Edge session state.
   @override
   void invalidateSession() {
-    _disposeSession();
+    if (_disposed) return;
+
+    ++_sessionGeneration;
+    _consecutiveFailures = 0;
+
+    _detachSession();
   }
 
   @override
   Future<List<TtsEngineVoice>> getVoices() async {
+    if (_disposed) return const [];
+
     final tts = FlutterEdgeTts(
       voice: 'en-US-BrianMultilingualNeural',
       outputFormat: EdgeTtsOutputFormat.audio24Khz96KbitrateMonoMp3,
     );
+
     try {
       final voices = await tts.getVoices();
+
       return voices
-          .map((v) => TtsEngineVoice(
-                id: v.shortName,
-                name: '${v.shortName} (${v.gender})',
-                locale: v.locale,
-                gender: v.gender,
-              ))
-          .toList();
-    } on Object catch (e) {
+          .map(
+            (voice) => TtsEngineVoice(
+              id: voice.shortName,
+              name: '${voice.shortName} (${voice.gender})',
+              locale: voice.locale,
+              gender: voice.gender,
+            ),
+          )
+          .toList(growable: false);
+    } catch (e) {
       Log.e(_tag, 'Failed to get voices', e);
-      return [];
+      return const [];
     }
   }
 
-  /// Returns a connected session for [voiceId], creating or replacing it when
-  /// the voice (or locale) changes.
+  /// Returns a connected session matching [voiceId]/[locale].
+  ///
+  /// Session creation is generation-aware so a stale synthesis operation
+  /// cannot overwrite a newer session created after an invalidation.
   Future<EdgeTtsSession> _ensureSession({
     required String voiceId,
     String? locale,
+    required int generation,
   }) async {
-    final session = _session;
-    final voiceChanged = voiceId != _sessionVoice || locale != _sessionLocale;
-    if (session != null && session.isConnected && !voiceChanged) {
-      return session;
+    if (_disposed || _closed) {
+      throw StateError('Edge TTS engine is closed');
     }
-    // The old session is torn down in the background: dart:io
-    // WebSocket.close() waits up to 5s for the peer's close frame, which
-    // would stall every voice change. A fresh session never shares state
-    // with the closing one.
-    unawaited(session?.close());
-    _session = null;
+
+    if (generation != _sessionGeneration) {
+      throw StateError('Edge TTS session generation is stale');
+    }
+
+    final existing = _session;
+
+    final voiceChanged = voiceId != _sessionVoice || locale != _sessionLocale;
+
+    if (existing != null && existing.isConnected && !voiceChanged) {
+      return existing;
+    }
+
+    // Detach the old session first. Its close handshake is intentionally not
+    // awaited because a peer can take several seconds to acknowledge it.
+    _detachSession();
+
+    if (generation != _sessionGeneration || _closed || _disposed) {
+      throw StateError('Edge TTS session was invalidated');
+    }
+
     final fresh = EdgeTtsSession(
       voice: voiceId,
       voiceLocale: locale,
       enableWordBoundary: true,
     );
-    await fresh.connect();
+
+    try {
+      await fresh.connect();
+    } catch (e) {
+      unawaited(_closeQuietly(fresh));
+      rethrow;
+    }
+
+    // The caller may have invalidated the engine while connect() was
+    // establishing the WebSocket.
+    if (generation != _sessionGeneration || _closed || _disposed) {
+      unawaited(_closeQuietly(fresh));
+
+      throw StateError('Edge TTS session became stale');
+    }
+
     _session = fresh;
     _sessionVoice = voiceId;
     _sessionLocale = locale;
+
     return fresh;
   }
 
   Duration _nextBackoff() {
     final exponent = math.max(0, _consecutiveFailures - 1);
+
     final multiplier = math.pow(2, exponent).toInt();
+
     return Duration(
-      milliseconds:
-          math.min(_initialBackoff.inMilliseconds * multiplier, _maxBackoff.inMilliseconds),
+      milliseconds: math.min(
+        _initialBackoff.inMilliseconds * multiplier,
+        _maxBackoff.inMilliseconds,
+      ),
     );
   }
 
-  void _disposeSession() {
+  void _detachSession() {
     final session = _session;
+
     _session = null;
     _sessionVoice = null;
     _sessionLocale = null;
+
     if (session != null) {
-      unawaited(session.close());
+      unawaited(_closeQuietly(session));
+    }
+  }
+
+  Future<void> _closeQuietly(EdgeTtsSession session) async {
+    try {
+      await session.close();
+    } catch (e) {
+      Log.w(_tag, 'Edge session close failed: $e');
     }
   }
 
@@ -144,26 +218,79 @@ class EdgeTtsEngine implements TtsEngine {
     required String pitch,
     String? locale,
   }) async* {
-    for (var attempt = 1; attempt <= _maxAttempts; attempt++) {
-      try {
-        final session = await _ensureSession(voiceId: voiceId, locale: locale);
+    if (_disposed || _closed) {
+      yield TtsSynthesisError(
+        StateError('Edge TTS engine is closed'),
+        fatal: true,
+      );
+      return;
+    }
 
-        // Per-event inactivity timeout: a turn that emits nothing for 30s is
-        // dead even if the socket looks open. This turns a silent stall into
-        // a retryable failure (and finally a fatal error).
-        final turn = session.synthesize(
-          text,
-          prosody: EdgeTtsProsody(rate: rate, pitch: pitch, volume: '100'),
-        ).timeout(_turnIdleTimeout);
+    if (text.trim().isEmpty) {
+      yield TtsSynthesisError(
+        StateError('Cannot synthesize empty text'),
+        fatal: false,
+      );
+      return;
+    }
+
+    final generation = _sessionGeneration;
+
+    for (var attempt = 1; attempt <= _maxAttempts; attempt++) {
+      if (_disposed || _closed || generation != _sessionGeneration) {
+        yield TtsSynthesisError(
+          StateError('Edge TTS synthesis was invalidated'),
+          fatal: true,
+        );
+        return;
+      }
+
+      try {
+        final session = await _ensureSession(
+          voiceId: voiceId,
+          locale: locale,
+          generation: generation,
+        );
+
+        if (_disposed || _closed || generation != _sessionGeneration) {
+          return;
+        }
+
+        final prosody = EdgeTtsProsody(rate: rate, pitch: pitch, volume: '100');
+
+        // Timeout applies between events, turning a silent/stuck socket into
+        // a normal retry path.
+        final turn = session
+            .synthesize(text, prosody: prosody)
+            .timeout(_turnIdleTimeout);
+
+        var sawAudio = false;
 
         await for (final event in turn) {
+          if (_disposed || _closed || generation != _sessionGeneration) {
+            return;
+          }
+
           if (event is EdgeTtsAudioChunkEvent) {
+            if (event.chunk.isEmpty) {
+              continue;
+            }
+
+            sawAudio = true;
+
             yield TtsAudioBytes(event.chunk);
-          } else if (event is EdgeTtsMetadataEvent) {
+            continue;
+          }
+
+          if (event is EdgeTtsMetadataEvent) {
             for (final item in event.metadata.items) {
-              if (item.type != 'WordBoundary') continue;
+              if (item.type != 'WordBoundary') {
+                continue;
+              }
+
               final data = item.data;
               final word = data.text?.text ?? '';
+
               yield TtsWordBoundary(
                 word: word,
                 offset: Duration(microseconds: data.offset ~/ 10),
@@ -173,34 +300,55 @@ class EdgeTtsEngine implements TtsEngine {
           }
         }
 
-        // A clean completion of the turn stream means the server sent
-        // `turn.end` for the last frame, i.e. every byte of this turn was
-        // received. Mid-turn socket drops are surfaced by the session as a
-        // `connection_lost` error above, so whether the socket is still open
-        // here is irrelevant: the Edge TTS server routinely closes the
-        // WebSocket right after `turn.end` (and invalidateSession()/close()
-        // close it from our side), and treating that as a failed turn only
-        // forces a wasteful re-synthesis of the whole chunk. The next turn
-        // reconnects fresh via [_ensureSession].
+        // A clean stream termination is considered a successful turn. The
+        // Edge session may close its WebSocket immediately after turn.end,
+        // so requiring isConnected here would cause needless re-synthesis.
+        //
+        // However, a completely empty turn is not useful audio and should
+        // not be accepted as success.
+        if (!sawAudio) {
+          throw StateError('Edge TTS returned no audio');
+        }
+
         _consecutiveFailures = 0;
+
         yield const TtsTurnEnd();
         return;
       } on Object catch (e) {
-        Log.w(_tag, 'Synthesis attempt $attempt failed: $e');
-        if (_closed) {
-          _disposeSession();
+        if (_disposed || _closed || generation != _sessionGeneration) {
           yield TtsSynthesisError(e, fatal: true);
           return;
         }
+
+        Log.w(_tag, 'Synthesis attempt $attempt failed: $e');
+
         _consecutiveFailures++;
-        if (attempt < _maxAttempts) {
-          final delay = _nextBackoff();
-          Log.i(_tag, 'Reconnecting in ${delay.inMilliseconds}ms');
-          _disposeSession();
-          await Future<void>.delayed(delay);
-        } else {
-          _disposeSession();
+
+        // Always detach the failed session before retrying. Reusing a socket
+        // that just timed out or emitted an error is exactly how a dead
+        // session becomes a very determined dead session.
+        _detachSession();
+
+        if (attempt >= _maxAttempts) {
           yield TtsSynthesisError(e, fatal: true);
+          return;
+        }
+
+        final delay = _nextBackoff();
+
+        Log.i(
+          _tag,
+          'Retrying Edge TTS in '
+          '${delay.inMilliseconds}ms',
+        );
+
+        await Future<void>.delayed(delay);
+
+        if (_disposed || _closed || generation != _sessionGeneration) {
+          yield TtsSynthesisError(
+            StateError('Edge TTS retry was invalidated'),
+            fatal: true,
+          );
           return;
         }
       }
@@ -209,15 +357,47 @@ class EdgeTtsEngine implements TtsEngine {
 
   @override
   Future<void> close() async {
+    if (_disposed) return;
+
     _closed = true;
+    ++_sessionGeneration;
+
+    _consecutiveFailures = 0;
+
     final session = _session;
+
     _session = null;
     _sessionVoice = null;
     _sessionLocale = null;
-    // Not awaited: session.close() can wait up to 5s for the WebSocket
-    // close handshake, and stop() must return promptly.
+
     if (session != null) {
-      unawaited(session.close());
+      // Do not wait for the WebSocket close handshake.
+      unawaited(_closeQuietly(session));
+    }
+  }
+
+  /// Permanently disposes the engine.
+  ///
+  /// The interface does not currently expose a separate dispose method, but
+  /// keeping this available makes ownership explicit for callers that own the
+  /// engine instance directly.
+  Future<void> dispose() async {
+    if (_disposed) return;
+
+    _disposed = true;
+    _closed = true;
+    ++_sessionGeneration;
+
+    _consecutiveFailures = 0;
+
+    final session = _session;
+
+    _session = null;
+    _sessionVoice = null;
+    _sessionLocale = null;
+
+    if (session != null) {
+      unawaited(_closeQuietly(session));
     }
   }
 }

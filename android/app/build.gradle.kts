@@ -6,7 +6,8 @@ plugins {
 
 android {
     namespace = "dev.grish.noveldock"
-    compileSdk = flutter.compileSdkVersion
+    // permission_handler_android requires compileSdk 37; Flutter's default is 36.
+    compileSdk = 37
     ndkVersion = flutter.ndkVersion
 
     compileOptions {
@@ -24,6 +25,10 @@ android {
         targetSdk = flutter.targetSdkVersion
         versionCode = flutter.versionCode
         versionName = flutter.versionName
+        // nitro_http ships no prebuilt libcurl slice for 32-bit x86.
+        ndk {
+            abiFilters += listOf("arm64-v8a", "armeabi-v7a", "x86_64")
+        }
     }
 
     buildTypes {

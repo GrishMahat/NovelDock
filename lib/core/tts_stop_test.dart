@@ -55,7 +55,11 @@ class FakeGapEngine implements TtsEngine {
 
 void main() {
   IntegrationTestWidgetsFlutterBinding.ensureInitialized();
-  JustAudioMediaKit.mpvProperties = const {'network-timeout': '0'};
+  JustAudioMediaKit.mpvProperties = const {
+    'network-timeout': '0',
+    'cache': 'no',
+    'cache-on-disk': 'no',
+  };
   JustAudioMediaKit.ensureInitialized(linux: true, windows: true);
 
   testWidgets('stop() must halt playback promptly and stay halted',

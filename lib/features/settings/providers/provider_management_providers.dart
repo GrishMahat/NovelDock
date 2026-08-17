@@ -114,6 +114,20 @@ final availableProvidersProvider =
   final enabledRegistries = registries.where((r) => r.enabled).toList();
   Log.i(_tag, 'Loading providers from ${enabledRegistries.length}/${registries.length} enabled registries...');
 
+  // Local file registries are the source of truth: always re-sync on
+  // startup so JS edits take effect without a manual sync.
+  for (final registry in enabledRegistries) {
+    if (!_isLocalRegistryUrl(registry.url)) continue;
+    try {
+      final sourceFile = File(registry.url);
+      if (!await sourceFile.exists()) continue;
+      Log.i(_tag, 'Re-syncing local registry "${registry.id}"...');
+      await registryManager.syncRegistryFromFile(registry.id, registry.url);
+    } catch (e) {
+      Log.w(_tag, 'Auto re-sync failed for ${registry.id}: $e');
+    }
+  }
+
   final allProviders = <ProviderMeta>[];
 
   for (final registry in enabledRegistries) {
@@ -296,71 +310,25 @@ Future<String?> addRegistryFromFile(String filePath, WidgetRef ref) async {
   return null;
 }
 
-Future<RegistryMetadata?> _loadLocalMetadata(String filePath) async {
-  try {
-    final file = File(filePath);
-    if (!await file.exists()) return null;
-    final content = await file.readAsString();
-    final json = jsonDecode(content) as Map<String, dynamic>;
-    return RegistryMetadata.fromJson(json);
-  } catch (e) {
-    Log.e(_tag, 'Error loading local metadata: $e');
-    return null;
-  }
-}
+bool _isLocalRegistryUrl(String url) =>
+    url.startsWith('/') || url.startsWith('file://');
 
-/// Check all registries for updates. Returns list of registry IDs with updates.
-Future<List<String>> checkAllRegistryUpdates(WidgetRef ref) async {
-  final registryManager = await ref.read(registryManagerProvider.future);
-  final registries = ref.read(registriesProvider).value ?? [];
-  final config = await AppConfig.getInstance();
-
-  final updatedIds = <String>[];
-
-  for (final registry in registries) {
-    try {
-      // Only check URL-based registries (not local files)
-      if (registry.url.startsWith('/') || registry.url.startsWith('file://')) {
-        continue;
-      }
-
-      // Check if the registry has a local JSON to compare against
-      final localPath = config.registryMetadataPath(registry.id);
-      final localFile = File(localPath);
-      int? localUpdated;
-      if (await localFile.exists()) {
-        final content = await localFile.readAsString();
-        final json = jsonDecode(content) as Map<String, dynamic>;
-        localUpdated = json['updated'] as int?;
-      }
-
-      final hasUpdate = await registryManager.checkForUpdates(registry.url, localUpdated);
-      if (hasUpdate) {
-        updatedIds.add(registry.id);
-        ref.read(registriesProvider.notifier).updateRegistry(
-          registry.id,
-          registry.copyWith(pendingUpdate: true),
-        );
-      }
-    } catch (e) {
-      Log.w(_tag, 'Update check failed for ${registry.id}: $e');
-    }
-  }
-
-  if (updatedIds.isNotEmpty) {
-    Log.i(_tag, '${updatedIds.length} registry(ies) have updates');
-  }
-  return updatedIds;
-}
-
-/// Apply a pending update for a registry: re-sync from URL.
-Future<bool> applyRegistryUpdate(String registryId, WidgetRef ref) async {
+/// Check a single registry for updates and apply them if available.
+/// Returns true if it was updated, false if already up to date or failed.
+Future<bool> updateRegistryNow(String registryId, WidgetRef ref) async {
   final registryManager = await ref.read(registryManagerProvider.future);
   final registries = ref.read(registriesProvider).value ?? [];
   final registry = registries.firstWhere(
     (r) => r.id == registryId,
     orElse: () => throw Exception('Registry not found: $registryId'),
   );
+
+  final localMetadata = await registryManager.loadCachedMetadata(registryId);
+  final hasUpdate = await registryManager.checkForUpdates(
+    registry.url,
+    local: localMetadata,
+  );
+  if (!hasUpdate) return false;
 
   Log.i(_tag, 'Applying update for registry: $registryId');
   final metadata = await registryManager.fetchRegistryJson(registry.url);
@@ -385,10 +353,72 @@ Future<bool> applyRegistryUpdate(String registryId, WidgetRef ref) async {
   return true;
 }
 
+/// Manually check all URL-based registries for updates and apply them.
+/// Returns the number of registries that were updated.
+Future<int> updateAllRegistries(WidgetRef ref) async {
+  final registryManager = await ref.read(registryManagerProvider.future);
+  final registries = ref.read(registriesProvider).value ?? [];
+
+  var updatedCount = 0;
+
+  for (final registry in registries) {
+    try {
+      // Skip local file registries
+      if (_isLocalRegistryUrl(registry.url)) continue;
+
+      final localMetadata = await registryManager.loadCachedMetadata(registry.id);
+
+      final hasUpdate = await registryManager.checkForUpdates(
+        registry.url,
+        local: localMetadata,
+      );
+      if (!hasUpdate) continue;
+
+      Log.i(_tag, 'Applying update for registry: ${registry.id}');
+      final metadata = await registryManager.fetchRegistryJson(registry.url);
+      if (metadata == null) continue;
+
+      await registryManager.syncRegistry(registry.id, registry.url);
+
+      ref.read(registriesProvider.notifier).updateRegistry(
+        registry.id,
+        registry.copyWith(
+          pendingUpdate: false,
+          lastFetchedAt: DateTime.now().millisecondsSinceEpoch,
+          lastUpdated: metadata.updated,
+          name: metadata.name ?? registry.name,
+        ),
+      );
+      updatedCount++;
+    } catch (e) {
+      Log.w(_tag, 'Update failed for ${registry.id}: $e');
+    }
+  }
+
+  if (updatedCount > 0) {
+    ref.invalidate(availableProvidersProvider);
+    Log.ok(_tag, 'Updated $updatedCount registry(ies)');
+  } else {
+    Log.i(_tag, 'No registry updates available');
+  }
+  return updatedCount;
+}
+
 /// Remove a registry and its cached data.
-void removeRegistry(String registryId, WidgetRef ref) {
+Future<void> removeRegistry(String registryId, WidgetRef ref) async {
   ref.read(registriesProvider.notifier).remove(registryId);
   Log.i(_tag, 'Removed registry: $registryId');
+
+  final registryManager = await ref.read(registryManagerProvider.future);
+  final cacheDir = registryManager.registryDir(registryId);
+  if (cacheDir.existsSync()) {
+    try {
+      cacheDir.deleteSync(recursive: true);
+      Log.d(_tag, 'Deleted cached data for registry: $registryId');
+    } catch (e) {
+      Log.w(_tag, 'Failed to delete cached data for $registryId: $e');
+    }
+  }
 }
 
 /// Toggle a provider's enabled state (convenience wrapper).

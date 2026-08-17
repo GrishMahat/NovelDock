@@ -9,40 +9,37 @@ import 'package:just_audio/just_audio.dart';
 
 /// A [StreamAudioSource] for one TTS chunk.
 ///
-/// Each chunk is a complete MP3 byte-sequence served as its own playlist
-/// item, so mpv treats it as a discrete media entry (clean EOF, native
-/// playlist looping). When the chunk's bytes are fully fed and the stream is
-/// closed before mpv connects, [contentLength] is known and mpv sees a
-/// fixed-length response instead of a chunked dynamic stream.
+/// Each chunk is a complete MP3 byte sequence served as its own playlist item.
 ///
-/// [contentLength] must stay `null` while the stream is still being fed:
-/// fixed lengths break dynamic streams ("Content size exceeds specified
-/// contentLength").
+/// The source is intentionally non-seekable. The entire chunk is synthesized
+/// before the source is attached to the player, so the player receives a
+/// complete fixed-length stream.
 class TtsStreamSource extends StreamAudioSource {
-  final StreamController<Uint8List> _controller =
-      StreamController<Uint8List>();
+  final Uint8List _bytes;
   final int? contentLength;
-  bool _closed = false;
 
-  TtsStreamSource({this.contentLength}) : super(tag: 'tts-stream');
+  TtsStreamSource({required Uint8List bytes})
+    : _bytes = bytes,
+      contentLength = bytes.length,
+      super(tag: 'tts-stream');
 
-  bool get isClosed => _closed;
+  bool get isClosed => true;
 
-  void addBytes(Uint8List bytes) {
-    if (bytes.isEmpty || _closed) return;
-    _controller.add(bytes);
-  }
+  /// Compatibility helper for the existing controller API.
+  ///
+  /// Bytes are accumulated before the source is created now, which avoids the
+  /// lifetime problem of keeping a StreamController alive across multiple
+  /// player requests.
+  static TtsStreamSource fromBytes(Uint8List bytes) {
+    if (bytes.isEmpty) {
+      throw ArgumentError.value(
+        bytes,
+        'bytes',
+        'TTS stream cannot contain empty audio',
+      );
+    }
 
-  Future<void> closeStream() async {
-    if (_closed) return;
-    _closed = true;
-    // Do NOT await close(): the future only completes once the `done` event
-    // is delivered to a listener, and the player's proxy does not subscribe
-    // until setPlaylist/addToPlaylist requests the stream — awaiting here
-    // would hang the pipeline before playback ever starts. close() marks the
-    // controller closed synchronously; the buffered bytes and `done` are
-    // delivered when the player connects.
-    unawaited(_controller.close());
+    return TtsStreamSource(bytes: Uint8List.fromList(bytes));
   }
 
   @override
@@ -50,15 +47,17 @@ class TtsStreamSource extends StreamAudioSource {
     if (start != null && start != 0) {
       throw StateError('TtsStreamSource does not support seeking');
     }
-    // `offset` must stay null even for `Range: bytes=0-` requests: a non-null
-    // offset makes just_audio take the range-response branch, which requires
-    // `contentLength` and crashes when it is null (unknown-length stream).
+
+    if (end != null && end != _bytes.length) {
+      throw StateError('TtsStreamSource does not support range requests');
+    }
+
     return StreamAudioResponse(
       rangeRequestsSupported: false,
-      sourceLength: null,
-      contentLength: contentLength,
+      sourceLength: _bytes.length,
+      contentLength: _bytes.length,
       offset: null,
-      stream: _controller.stream,
+      stream: Stream<Uint8List>.value(_bytes),
       contentType: 'audio/mpeg',
     );
   }

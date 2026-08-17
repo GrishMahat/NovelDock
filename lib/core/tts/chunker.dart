@@ -4,22 +4,22 @@ class TtsChunk {
   /// Flat index in the chunk list.
   final int index;
 
-  /// Display paragraph this chunk belongs to (scroll/highlight sync).
+  /// Display paragraph this chunk belongs to.
   final int paragraphIndex;
 
-  /// Char offset of the chunk start in the paragraph plain text.
+  /// Character offset of the chunk start in the trimmed paragraph text.
   final int startOffset;
 
-  /// Char offset of the chunk end in the paragraph plain text.
+  /// Character offset of the chunk end in the trimmed paragraph text.
   final int endOffset;
 
   /// Word index of the chunk start inside the paragraph.
   final int paragraphWordOffset;
 
-  /// Number of sentences fully contained in this chunk.
+  /// Number of sentences represented by this chunk.
   final int sentenceCount;
 
-  /// Estimated playback duration (`length / charsPerSecond / speed`).
+  /// Estimated playback duration in milliseconds.
   final int estimatedDurationMs;
 
   final String text;
@@ -36,8 +36,9 @@ class TtsChunk {
   });
 }
 
-/// A text segment within a paragraph, with char offsets relative to the
-/// (trimmed) paragraph text.
+/// A text segment within a paragraph.
+///
+/// Offsets are relative to the trimmed paragraph text.
 class _Unit {
   final String text;
   final int start;
@@ -50,24 +51,29 @@ class _Unit {
 
 /// Splits paragraphs into TTS chunks.
 ///
-/// Algorithm per paragraph:
-/// 1. Whole paragraph within `targetMs` → one chunk.
-/// 2. Otherwise split at sentence boundaries, greedily packing sentences
-///    until `softMaxMs`.
-/// 3. A single sentence over the soft max splits at clause boundaries.
-/// 4. Last resort: hard split at `hardMaxChars`, breaking at the last space
-///    (never mid-word for latin text).
+/// Strategy:
+///
+/// 1. Paragraphs under the target size become one chunk.
+/// 2. Larger paragraphs are split at sentence boundaries.
+/// 3. Sentences are greedily packed up to the soft maximum.
+/// 4. An oversized sentence is split at clause boundaries.
+/// 5. Oversized clauses are hard-split at a word boundary.
+/// 6. CJK/non-whitespace text is allowed to split at the hard character
+///    boundary as a final fallback.
+///
+/// The chunker's offsets always refer to the trimmed paragraph text used for
+/// synthesis.
 class TtsChunker {
   /// Preferred chunk duration.
   final int targetMs;
 
-  /// Hard ceiling per chunk (sentence-packed).
+  /// Soft maximum chunk duration.
   final int softMaxMs;
 
   /// Absolute character ceiling per chunk.
   final int hardMaxChars;
 
-  /// Speaking rate heuristic for duration estimates.
+  /// Speaking-rate heuristic used for duration estimation.
   final int charsPerSecond;
 
   const TtsChunker({
@@ -75,25 +81,47 @@ class TtsChunker {
     this.softMaxMs = 20000,
     this.hardMaxChars = 2000,
     this.charsPerSecond = 15,
-  });
+  }) : assert(targetMs > 0),
+       assert(softMaxMs >= targetMs),
+       assert(hardMaxChars > 0),
+       assert(charsPerSecond > 0);
 
   static final RegExp _sentenceEnd = RegExp(r'[.!?。！？]');
-  static final RegExp _clauseEnd = RegExp(r'[,;:—–-、，；：]');
+
+  static final RegExp _clauseEnd = RegExp(r'[,;:—–\-、，；：]');
+
   static final RegExp _wordSeparator = RegExp(r'\s+');
 
-  int _charBudget(int ms) => (ms * charsPerSecond / 1000).round();
+  int _charBudget(int milliseconds) {
+    return (milliseconds * charsPerSecond / 1000).round().clamp(
+      1,
+      hardMaxChars,
+    );
+  }
 
-  /// Chunks a list of paragraphs. Empty paragraphs produce no chunks.
+  /// Chunks all non-empty paragraphs.
+  ///
+  /// Empty/whitespace-only paragraphs intentionally produce no TTS chunks.
   List<TtsChunk> chunkParagraphs(
     List<String> paragraphs, {
     double speed = 1.0,
   }) {
     final chunks = <TtsChunk>[];
-    for (var pi = 0; pi < paragraphs.length; pi++) {
-      final text = paragraphs[pi].trim();
-      if (text.isEmpty) continue;
-      _chunkParagraph(text, pi, speed, chunks);
+
+    final safeSpeed = speed > 0 ? speed : 1.0;
+
+    for (
+      var paragraphIndex = 0;
+      paragraphIndex < paragraphs.length;
+      paragraphIndex++
+    ) {
+      final paragraph = paragraphs[paragraphIndex].trim();
+
+      if (paragraph.isEmpty) continue;
+
+      _chunkParagraph(paragraph, paragraphIndex, safeSpeed, chunks);
     }
+
     return chunks;
   }
 
@@ -107,115 +135,166 @@ class TtsChunker {
     final softMaxChars = _charBudget(softMaxMs);
 
     if (paragraph.length <= targetChars) {
-      out.add(_buildChunk(
-        _Unit(paragraph, 0, paragraph.length),
-        paragraph,
-        paragraphIndex,
-        speed,
-        sentenceCount: _countSentences(paragraph),
-        out: out,
-      ));
+      out.add(
+        _buildChunk(
+          _Unit(paragraph, 0, paragraph.length),
+          paragraphIndex,
+          speed,
+          sentenceCount: _countSentences(paragraph),
+          out: out,
+        ),
+      );
       return;
     }
 
-    final units = _splitSentences(paragraph);
+    final sentences = _splitSentences(paragraph);
+
+    // Defensive fallback. A non-empty paragraph should always produce at
+    // least one unit, but keeping this explicit avoids an infinite loop if the
+    // splitter is ever changed.
+    if (sentences.isEmpty) {
+      for (final part in _hardSplit(_Unit(paragraph, 0, paragraph.length))) {
+        out.add(
+          _buildChunk(part, paragraphIndex, speed, sentenceCount: 1, out: out),
+        );
+      }
+
+      return;
+    }
+
     var start = 0;
-    while (start < units.length) {
-      if (units[start].length > softMaxChars) {
-        for (final part in _splitOversizeUnit(units[start], softMaxChars)) {
-          out.add(_buildChunk(
-            part,
-            paragraph,
-            paragraphIndex,
-            speed,
-            sentenceCount: 1,
-            out: out,
-          ));
+
+    while (start < sentences.length) {
+      final current = sentences[start];
+
+      if (current.length > softMaxChars) {
+        final parts = _splitOversizeUnit(current, softMaxChars);
+
+        for (final part in parts) {
+          out.add(
+            _buildChunk(
+              part,
+              paragraphIndex,
+              speed,
+              sentenceCount: 1,
+              out: out,
+            ),
+          );
         }
+
         start++;
         continue;
       }
+
       var end = start;
       var length = 0;
-      while (end < units.length &&
-          length + units[end].length <= softMaxChars) {
-        length += units[end].length;
+
+      while (end < sentences.length &&
+          length + sentences[end].length <= softMaxChars) {
+        length += sentences[end].length;
         end++;
       }
-      if (end == start) end = start + 1;
 
-      final merged = units.sublist(start, end);
-      out.add(_buildChunk(
-        _Unit(
-          merged.map((u) => u.text).join(),
-          merged.first.start,
-          merged.last.end,
+      // At least one sentence must be consumed.
+      if (end == start) {
+        end = start + 1;
+      }
+
+      final merged = sentences.sublist(start, end);
+
+      out.add(
+        _buildChunk(
+          _Unit(
+            merged.map((unit) => unit.text).join(),
+            merged.first.start,
+            merged.last.end,
+          ),
+          paragraphIndex,
+          speed,
+          sentenceCount: merged.length,
+          out: out,
         ),
-        paragraph,
-        paragraphIndex,
-        speed,
-        sentenceCount: merged.length,
-        out: out,
-      ));
+      );
+
       start = end;
     }
   }
 
-  /// Splits [text] at sentence-ending punctuation. Latin `.?!` only end a
-  /// sentence when followed by whitespace or end of text; CJK `。！？` always
-  /// end a sentence. Punctuation stays attached to its sentence.
+  /// Splits a paragraph at sentence-ending punctuation.
+  ///
+  /// For Latin punctuation, `.`, `!`, and `?` are treated as sentence
+  /// endings only when followed by whitespace or the end of the text.
+  ///
+  /// CJK sentence punctuation always terminates a sentence.
   List<_Unit> _splitSentences(String text) {
     final units = <_Unit>[];
+
     var start = 0;
+
     for (final match in _sentenceEnd.allMatches(text)) {
+      final punctuation = text[match.start];
+
       final after = match.end;
-      final punct = text[match.start];
-      if (punct != '。' &&
-          punct != '！' &&
-          punct != '？' &&
+
+      final isCjkEnd =
+          punctuation == '。' || punctuation == '！' || punctuation == '？';
+
+      if (!isCjkEnd &&
           after < text.length &&
-          !_isWhitespace(text[after])) {
+          !_isWhitespace(text.codeUnitAt(after))) {
         continue;
       }
-      units.add(_Unit(text.substring(start, after), start, after));
-      start = after;
+
+      final end = after;
+
+      if (end <= start) continue;
+
+      units.add(_Unit(text.substring(start, end), start, end));
+
+      start = end;
+
+      // Include immediate whitespace in the current sentence so the merged
+      // chunks preserve the original paragraph exactly.
+      while (start < text.length && _isWhitespace(text.codeUnitAt(start))) {
+        start++;
+      }
     }
+
     if (start < text.length) {
       units.add(_Unit(text.substring(start), start, text.length));
     }
+
     return units;
   }
 
-  /// Splits an oversize sentence: greedily packed clauses, then hard splits.
+  /// Splits a sentence that is larger than the soft limit.
+  ///
+  /// Clause boundaries are preferred. Any clause that is still too large is
+  /// passed through the hard splitter.
   List<_Unit> _splitOversizeUnit(_Unit unit, int softMaxChars) {
-    final clauses = <_Unit>[];
-    var start = 0;
-    for (final match in _clauseEnd.allMatches(unit.text)) {
-      final after = match.end;
-      if (after >= unit.text.length) continue;
-      clauses.add(
-        _Unit(unit.text.substring(start, after), unit.start + start, unit.start + after),
-      );
-      start = after;
-    }
-    if (start < unit.text.length) {
-      clauses.add(
-        _Unit(unit.text.substring(start), unit.start + start, unit.start + unit.text.length),
-      );
+    final clauses = _splitClauses(unit);
+
+    if (clauses.length == 1 && clauses.first.length > softMaxChars) {
+      return _hardSplit(clauses.first);
     }
 
     final result = <_Unit>[];
+
     var buffer = <_Unit>[];
     var bufferLength = 0;
 
     void flush() {
       if (buffer.isEmpty) return;
-      result.add(_Unit(
-        buffer.map((u) => u.text).join(),
-        buffer.first.start,
-        buffer.last.end,
-      ));
-      buffer = [];
+
+      result.add(
+        _Unit(
+          buffer.map((part) => part.text).join(),
+          buffer.first.start,
+          buffer.last.end,
+        ),
+      );
+
+      buffer = <_Unit>[];
       bufferLength = 0;
     }
 
@@ -223,91 +302,222 @@ class TtsChunker {
       if (clause.length > softMaxChars) {
         flush();
         result.addAll(_hardSplit(clause));
-      } else if (bufferLength + clause.length > softMaxChars && buffer.isNotEmpty) {
-        flush();
-        buffer.add(clause);
-        bufferLength = clause.length;
-      } else {
-        buffer.add(clause);
-        bufferLength += clause.length;
+        continue;
       }
+
+      if (buffer.isNotEmpty && bufferLength + clause.length > softMaxChars) {
+        flush();
+      }
+
+      buffer.add(clause);
+      bufferLength += clause.length;
     }
+
     flush();
+
     return result;
   }
 
-  /// Hard splits at [hardMaxChars], breaking at the last space/newline in the
-  /// window (anywhere for CJK text with no spaces).
-  List<_Unit> _hardSplit(_Unit unit) {
-    final pieces = <_Unit>[];
-    var pos = 0;
-    while (unit.length - pos > hardMaxChars) {
-      var cut = pos + hardMaxChars;
-      final window = unit.text.substring(pos, cut);
-      final lastSpace =
-          _maxIndex(window.lastIndexOf(' '), window.lastIndexOf('\n'));
-      if (lastSpace > 0) cut = pos + lastSpace + 1;
-      pieces.add(
-        _Unit(unit.text.substring(pos, cut), unit.start + pos, unit.start + cut),
+  List<_Unit> _splitClauses(_Unit unit) {
+    final clauses = <_Unit>[];
+
+    var start = 0;
+
+    for (final match in _clauseEnd.allMatches(unit.text)) {
+      final end = match.end;
+
+      if (end >= unit.text.length) {
+        continue;
+      }
+
+      clauses.add(
+        _Unit(
+          unit.text.substring(start, end),
+          unit.start + start,
+          unit.start + end,
+        ),
       );
-      pos = cut;
-      while (pos < unit.length && unit.text[pos] == ' ') {
-        pos++;
+
+      start = end;
+
+      // Keep whitespace with the preceding clause.
+      while (start < unit.text.length &&
+          _isWhitespace(unit.text.codeUnitAt(start))) {
+        start++;
       }
     }
-    if (pos < unit.length) {
-      pieces.add(
-        _Unit(unit.text.substring(pos), unit.start + pos, unit.start + unit.length),
+
+    if (start < unit.text.length) {
+      clauses.add(
+        _Unit(unit.text.substring(start), unit.start + start, unit.end),
       );
     }
+
+    if (clauses.isEmpty) {
+      return <_Unit>[unit];
+    }
+
+    return clauses;
+  }
+
+  /// Hard-splits a unit at approximately [hardMaxChars].
+  ///
+  /// A nearby whitespace boundary is preferred for Latin text. When there is
+  /// no suitable whitespace, the split occurs at the hard character limit,
+  /// which is necessary for languages that do not use spaces.
+  List<_Unit> _hardSplit(_Unit unit) {
+    if (unit.length <= hardMaxChars) {
+      return <_Unit>[unit];
+    }
+
+    final pieces = <_Unit>[];
+
+    var position = 0;
+
+    while (unit.length - position > hardMaxChars) {
+      final desiredCut = position + hardMaxChars;
+
+      final window = unit.text.substring(position, desiredCut);
+
+      final lastWhitespace = _lastWhitespaceIndex(window);
+
+      var cut = desiredCut;
+
+      // Don't create a tiny fragment merely to save one whitespace.
+      if (lastWhitespace > 0) {
+        final whitespaceCut = position + lastWhitespace;
+
+        final pieceLength = whitespaceCut - position;
+
+        if (pieceLength >= (hardMaxChars * 0.65).floor()) {
+          cut = whitespaceCut;
+        }
+      }
+
+      // Ensure forward progress.
+      if (cut <= position) {
+        cut = desiredCut;
+      }
+
+      pieces.add(
+        _Unit(
+          unit.text.substring(position, cut),
+          unit.start + position,
+          unit.start + cut,
+        ),
+      );
+
+      position = cut;
+
+      // Discard only whitespace that sits at the split boundary. This keeps
+      // the spoken text natural while preserving valid offsets for the next
+      // unit.
+      while (position < unit.length &&
+          _isWhitespace(unit.text.codeUnitAt(position))) {
+        position++;
+      }
+    }
+
+    if (position < unit.length) {
+      pieces.add(
+        _Unit(unit.text.substring(position), unit.start + position, unit.end),
+      );
+    }
+
     return pieces;
   }
 
   TtsChunk _buildChunk(
     _Unit unit,
-    String paragraph,
     int paragraphIndex,
     double speed, {
     required int sentenceCount,
     required List<TtsChunk> out,
   }) {
+    final estimatedDurationMs = (unit.length / charsPerSecond / speed * 1000)
+        .round()
+        .clamp(1, 0x7fffffff);
+
     return TtsChunk(
       index: out.length,
       paragraphIndex: paragraphIndex,
       startOffset: unit.start,
       endOffset: unit.end,
-      paragraphWordOffset: _countWords(paragraph.substring(0, unit.start)),
-      sentenceCount: sentenceCount,
-      estimatedDurationMs:
-          (unit.length / charsPerSecond / speed * 1000).round(),
+      paragraphWordOffset: _countWordsBeforeOffset(unit.text, 0),
+      sentenceCount: sentenceCount.clamp(0, 0x7fffffff),
+      estimatedDurationMs: estimatedDurationMs,
       text: unit.text,
     );
   }
 
-  static int _countWords(String text) {
-    if (text.isEmpty) return 0;
-    return _wordSeparator.allMatches(text).length + 1;
+  /// Counts words before an offset.
+  ///
+  /// This is intentionally based on the chunk's text here because the chunk
+  /// builder receives only the local unit. The public chunk offset remains
+  /// paragraph-relative.
+  ///
+  /// For exact paragraph-level highlighting the controller/engine should use
+  /// the engine's actual boundary offsets rather than relying solely on this
+  /// estimated word position.
+  static int _countWordsBeforeOffset(String text, int offset) {
+    if (text.isEmpty || offset <= 0) {
+      return 0;
+    }
+
+    final safeOffset = offset.clamp(0, text.length);
+
+    final prefix = text.substring(0, safeOffset);
+
+    return _countWords(prefix);
   }
 
-  static int _maxIndex(int a, int b) => a > b ? a : b;
+  static int _countWords(String text) {
+    final trimmed = text.trim();
 
-  static bool _isWhitespace(String char) =>
-      char == ' ' || char == '\t' || char == '\n' || char == '\r';
+    if (trimmed.isEmpty) {
+      return 0;
+    }
+
+    return _wordSeparator.allMatches(trimmed).length + 1;
+  }
 
   static int _countSentences(String text) {
     var count = 0;
+
     for (final match in _sentenceEnd.allMatches(text)) {
+      final punctuation = text[match.start];
+
       final after = match.end;
-      final punct = text[match.start];
-      if (punct != '。' &&
-          punct != '！' &&
-          punct != '？' &&
-          after < text.length &&
-          !_isWhitespace(text[after])) {
-        continue;
+
+      final isCjkEnd =
+          punctuation == '。' || punctuation == '！' || punctuation == '？';
+
+      if (isCjkEnd ||
+          after >= text.length ||
+          _isWhitespace(text.codeUnitAt(after))) {
+        count++;
       }
-      count++;
     }
+
     return count;
+  }
+
+  static int _lastWhitespaceIndex(String text) {
+    for (var i = text.length - 1; i >= 0; i--) {
+      if (_isWhitespace(text.codeUnitAt(i))) {
+        return i;
+      }
+    }
+
+    return -1;
+  }
+
+  static bool _isWhitespace(int codeUnit) {
+    return codeUnit == 0x20 ||
+        codeUnit == 0x09 ||
+        codeUnit == 0x0A ||
+        codeUnit == 0x0D ||
+        codeUnit == 0x0B ||
+        codeUnit == 0x0C;
   }
 }

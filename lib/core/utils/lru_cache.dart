@@ -2,47 +2,39 @@ import 'dart:collection';
 
 class LruCache<K, V> with MapMixin<K, V> {
   final int maxSize;
-  final _map = <K, V>{};
-  final _order = <K>[];
+  final _map = LinkedHashMap<K, V>();
 
-  LruCache(this.maxSize);
+  LruCache(this.maxSize) : assert(maxSize > 0, 'maxSize must be positive');
 
   @override
   V? operator [](Object? key) {
     if (key is K && _map.containsKey(key)) {
-      _order.remove(key);
-      _order.add(key);
-      return _map[key];
+      final value = _map.remove(key) as V;
+      _map[key] = value; // re-insert to mark as most recently used
+      return value;
     }
     return null;
   }
 
   @override
   void operator []=(K key, V value) {
-    if (_map.containsKey(key)) {
-      _order.remove(key);
-    } else if (_map.length >= maxSize) {
-      final oldest = _order.removeAt(0);
-      _map.remove(oldest);
+    _map.remove(key); // no-op if absent; ensures reinsert goes to the end
+    if (_map.length >= maxSize) {
+      _map.remove(_map.keys.first); // evict least recently used
     }
     _map[key] = value;
-    _order.add(key);
   }
 
   @override
   V? remove(Object? key) {
-    if (key is K && _map.containsKey(key)) {
-      _order.remove(key);
+    if (key is K) {
       return _map.remove(key);
     }
     return null;
   }
 
   @override
-  void clear() {
-    _map.clear();
-    _order.clear();
-  }
+  void clear() => _map.clear();
 
   @override
   Iterable<K> get keys => _map.keys;

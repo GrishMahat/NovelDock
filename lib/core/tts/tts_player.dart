@@ -1,19 +1,16 @@
-import 'dart:async';
-
 import 'package:just_audio/just_audio.dart';
-
-import 'tts_stream_source.dart';
 
 /// Thin wrapper around one [AudioPlayer] per TTS session.
 ///
-/// The player plays a playlist where every TTS chunk is its own
-/// [TtsStreamSource]. mpv therefore sees a real playlist: each chunk is a
-/// discrete media entry with a clean EOF, and loop-all maps to native mpv
-/// playlist looping. Chunks are appended to the playlist as they are
-/// synthesized. No temp files are used anywhere.
+/// Each synthesized TTS chunk is represented by its own complete
+/// [TtsStreamSource]. The player therefore sees a normal playlist where every
+/// chunk has a clean EOF.
+///
+/// No temporary files are required.
 class TtsPlayer {
   final AudioPlayer _player = AudioPlayer();
-  final List<TtsStreamSource> _sources = [];
+
+  bool _disposed = false;
 
   AudioPlayer get audioPlayer => _player;
 
@@ -21,52 +18,82 @@ class TtsPlayer {
   int get playlistLength => _player.audioSources.length;
 
   Stream<Duration> get positionStream => _player.positionStream;
+
   Stream<ProcessingState> get processingStateStream =>
       _player.processingStateStream;
 
-  /// Replaces the current playlist with [sources] (usually the first chunk).
-  /// Awaiting this waits for the first item's audio to load.
+  /// Replaces the current playlist with [sources].
+  ///
+  /// The player owns the playlist after this call. TTS sources are immutable
+  /// complete byte streams, so there is no producer/controller lifecycle to
+  /// close here.
   Future<void> setPlaylist(List<AudioSource> sources) async {
-    await _closePlaylist();
-    for (final s in sources) {
-      if (s is TtsStreamSource) _sources.add(s);
-    }
-    await _player.setAudioSources(sources);
+    if (_disposed) return;
+
+    final snapshot = List<AudioSource>.unmodifiable(sources);
+
+    await _player.setAudioSources(snapshot, preload: true);
   }
 
-  /// Appends a newly synthesized chunk to the active playlist.
+  /// Appends a newly synthesized chunk.
   Future<void> addToPlaylist(AudioSource source) async {
-    if (source is TtsStreamSource) _sources.add(source);
+    if (_disposed) return;
+
     await _player.addAudioSource(source);
   }
 
-  Future<void> play() => _player.play();
+  Future<void> play() async {
+    if (_disposed) return;
 
-  Future<void> pause() => _player.pause();
-
-  Future<void> setSpeed(double speed) => _player.setSpeed(speed);
-
-  Future<void> setLoopMode(LoopMode mode) => _player.setLoopMode(mode);
-
-  Future<void> stop() async {
-    await _player.stop();
-    await _closePlaylist();
+    await _player.play();
   }
 
-  /// Closes every chunk stream owned by the current playlist so the proxy
-  /// responses end cleanly and no stream controller outlives its chunk.
-  Future<void> _closePlaylist() async {
-    for (final source in _sources) {
-      if (!source.isClosed) {
-        await source.closeStream();
-      }
+  Future<void> pause() async {
+    if (_disposed) return;
+
+    await _player.pause();
+  }
+
+  Future<void> setSpeed(double speed) async {
+    if (_disposed || speed <= 0) return;
+
+    await _player.setSpeed(speed);
+  }
+
+  Future<void> setLoopMode(LoopMode mode) async {
+    if (_disposed) return;
+
+    await _player.setLoopMode(mode);
+  }
+
+  /// Stops playback and clears the active playlist.
+  Future<void> stop() async {
+    if (_disposed) return;
+
+    try {
+      await _player.stop();
+    } finally {
+      // clearAudioSources() can fail if the player is already being torn
+      // down. The playlist itself is no longer useful after stop anyway.
+      try {
+        await _player.clearAudioSources();
+      } catch (_) {}
     }
-    _sources.clear();
-    await _player.clearAudioSources();
   }
 
   Future<void> dispose() async {
-    await _closePlaylist();
+    if (_disposed) return;
+
+    _disposed = true;
+
+    try {
+      await _player.stop();
+    } catch (_) {}
+
+    try {
+      await _player.clearAudioSources();
+    } catch (_) {}
+
     await _player.dispose();
   }
 }

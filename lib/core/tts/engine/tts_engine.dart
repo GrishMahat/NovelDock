@@ -13,6 +13,16 @@ class TtsEngineVoice {
     required this.locale,
     this.gender,
   });
+
+  @override
+  String toString() {
+    return 'TtsEngineVoice('
+        'id: $id, '
+        'name: $name, '
+        'locale: $locale, '
+        'gender: $gender'
+        ')';
+  }
 }
 
 /// One event emitted by [TtsEngine.synthesize].
@@ -20,15 +30,23 @@ sealed class TtsSynthesisEvent {
   const TtsSynthesisEvent();
 }
 
-/// A chunk of MP3 audio bytes.
+/// A chunk of encoded audio bytes.
+///
+/// The controller expects these bytes to belong to the current synthesis
+/// turn and appends them in the order received.
 class TtsAudioBytes extends TtsSynthesisEvent {
   final Uint8List bytes;
 
   const TtsAudioBytes(this.bytes);
+
+  bool get isEmpty => bytes.isEmpty;
 }
 
-/// A word boundary within the current turn. Timings are absolute to the turn
-/// start (already compensated across internal frames) in milliseconds.
+/// A word boundary within the current synthesis turn.
+///
+/// [offset] is relative to the beginning of this turn, not the overall
+/// chapter. The playback controller converts it into paragraph-level
+/// highlighting information.
 class TtsWordBoundary extends TtsSynthesisEvent {
   final String word;
   final Duration offset;
@@ -38,10 +56,22 @@ class TtsWordBoundary extends TtsSynthesisEvent {
     required this.word,
     required this.offset,
     required this.duration,
-  });
+  }) : assert(
+         offset >= Duration.zero,
+         'Word-boundary offset cannot be negative.',
+       ),
+       assert(
+         duration >= Duration.zero,
+         'Word-boundary duration cannot be negative.',
+       );
 }
 
 /// An error during synthesis.
+///
+/// A fatal error indicates that retrying the current engine session is not
+/// expected to succeed. A non-fatal error may be recoverable by the caller,
+/// but implementations should still normally terminate the affected stream
+/// rather than continue emitting an unrelated partial turn.
 class TtsSynthesisError extends TtsSynthesisEvent {
   final Object error;
   final bool fatal;
@@ -49,46 +79,77 @@ class TtsSynthesisError extends TtsSynthesisEvent {
   const TtsSynthesisError(this.error, {this.fatal = false});
 }
 
-/// The turn finished cleanly and no more events will follow.
+/// Indicates that a synthesis turn completed successfully.
+///
+/// A successful turn should emit exactly one [TtsTurnEnd] after all audio and
+/// boundary events for that turn.
 class TtsTurnEnd extends TtsSynthesisEvent {
   const TtsTurnEnd();
 }
 
-/// One text-to-speech engine. Implementations are self-contained: voices,
-/// synthesis, and engine-specific state (sockets, tokens) live inside the
-/// engine; the rest of the app only speaks this interface.
+/// One text-to-speech engine.
+///
+/// Implementations are self-contained. Voice discovery, synthesis, network
+/// sessions, authentication, retry policy, and engine-specific state remain
+/// inside the implementation.
+///
+/// The rest of the application interacts only through this interface.
 abstract class TtsEngine {
   String get id;
+
   String get displayName;
+
+  /// Whether this engine can emit [TtsWordBoundary] events.
   bool get supportsWordBoundaries;
+
+  /// Whether synthesis requires an active network connection.
   bool get requiresNetwork;
 
-  /// Loads the engine's voice list.
+  /// Loads the engine's available voices.
+  ///
+  /// Implementations may cache the result.
   Future<List<TtsEngineVoice>> getVoices();
 
-  /// Warms up caches / connectivity. Safe to call multiple times.
+  /// Initializes/warm-ups the engine.
+  ///
+  /// Safe to call multiple times.
   Future<void> init();
 
-  /// Releases engine resources (sockets, tokens). The engine can be reused
-  /// after [reopen]. Safe to call when idle.
+  /// Releases resources owned by the current engine session.
+  ///
+  /// This may close sockets, HTTP sessions, tokens, or other temporary
+  /// resources. The engine object itself remains reusable through [reopen].
+  ///
+  /// Safe to call while idle.
   Future<void> close();
 
-  /// Re-opens the engine after [close]. Idempotent; no-op for stateless
-  /// engines.
+  /// Reopens the engine after [close].
+  ///
+  /// Stateless engines should treat this as a no-op.
+  ///
+  /// This method is intentionally synchronous because reopening an engine
+  /// represents invalidating local state, not waiting for network work.
   void reopen();
 
-  /// Drops any engine-side persistent session/socket so the next synthesis
-  /// turn reconnects fresh, without disabling the engine (retry/backoff stay
-  /// enabled). Used by stall recovery when a session is suspected of being
-  /// wedged. No-op for engines without a persistent session.
+  /// Invalidates a persistent network/session connection.
+  ///
+  /// The next synthesis operation should establish a fresh session as needed.
+  /// Retry/backoff policy remains owned by the engine.
+  ///
+  /// Stateless engines should leave the default implementation unchanged.
   void invalidateSession() {}
 
-  /// Synthesizes [text] as one turn.
+  /// Synthesizes [text] as one complete turn.
   ///
-  /// [rate] and [pitch] are engine-style strings (`'+10%'`, `'+0Hz'`). The
-  /// stream emits [TtsAudioBytes], [TtsWordBoundary] (if supported), and ends
-  /// with [TtsTurnEnd]; on failure it ends with [TtsSynthesisError] (fatal on
-  /// network-level failures, retryable otherwise).
+  /// A normal successful stream should:
+  ///
+  /// 1. emit zero or more [TtsAudioBytes] events,
+  /// 2. emit zero or more [TtsWordBoundary] events,
+  /// 3. emit exactly one [TtsTurnEnd].
+  ///
+  /// On failure it should emit [TtsSynthesisError] and terminate the stream.
+  ///
+  /// [rate] and [pitch] use engine-style strings such as `+10%` and `+0Hz`.
   Stream<TtsSynthesisEvent> synthesize(
     String text, {
     required String voiceId,

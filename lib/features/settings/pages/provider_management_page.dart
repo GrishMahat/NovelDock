@@ -18,48 +18,19 @@ class ProviderManagementPage extends ConsumerStatefulWidget {
 }
 
 class _ProviderManagementPageState extends ConsumerState<ProviderManagementPage> {
-  bool _checkingUpdates = false;
-
   @override
   void initState() {
     super.initState();
-    _checkUpdatesOnStartup();
-  }
-
-  Future<void> _checkUpdatesOnStartup() async {
-    setState(() => _checkingUpdates = true);
-    try {
-      final updatedIds = await checkAllRegistryUpdates(ref);
-      if (mounted && updatedIds.isNotEmpty) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text('${updatedIds.length} registry(ies) have updates available'),
-          ),
-        );
-      }
-    } finally {
-      if (mounted) setState(() => _checkingUpdates = false);
-    }
   }
 
   @override
   Widget build(BuildContext context) {
     final registriesAsync = ref.watch(registriesProvider);
-    final registries = registriesAsync.value ?? [];
 
     return Scaffold(
       appBar: AppBar(
         title: const Text('Registries'),
         actions: [
-          if (_checkingUpdates)
-            const Padding(
-              padding: EdgeInsets.all(16),
-              child: SizedBox(
-                width: 20,
-                height: 20,
-                child: CircularProgressIndicator(strokeWidth: 2),
-              ),
-            ),
           PopupMenuButton<String>(
             onSelected: (value) {
               if (value == 'url') {
@@ -153,7 +124,6 @@ class _ProviderManagementPageState extends ConsumerState<ProviderManagementPage>
 
   Widget _buildRegistryCard(
       BuildContext context, WidgetRef ref, RegistryInfo registry) {
-    final hasUpdate = registry.pendingUpdate;
     final status = registry.status;
 
     return Card(
@@ -201,24 +171,6 @@ class _ProviderManagementPageState extends ConsumerState<ProviderManagementPage>
                               ),
                             ),
                           ],
-                          if (hasUpdate) ...[
-                            const SizedBox(width: 6),
-                            Container(
-                              padding: const EdgeInsets.symmetric(horizontal: 5, vertical: 1),
-                              decoration: BoxDecoration(
-                                color: Colors.orange.withValues(alpha: 0.2),
-                                borderRadius: BorderRadius.circular(3),
-                              ),
-                              child: const Text(
-                                'UPDATE',
-                                style: TextStyle(
-                                  fontSize: 9,
-                                  fontWeight: FontWeight.bold,
-                                  color: Colors.orange,
-                                ),
-                              ),
-                            ),
-                          ],
                         ],
                       ),
                       if (registry.description != null && registry.description!.isNotEmpty)
@@ -238,12 +190,11 @@ class _ProviderManagementPageState extends ConsumerState<ProviderManagementPage>
                   ),
                 ),
                 // Actions
-                if (hasUpdate)
-                  IconButton(
-                    icon: const Icon(Icons.update, color: Colors.orange, size: 20),
-                    tooltip: 'Update available',
-                    onPressed: () => _confirmApplyUpdate(context, ref, registry),
-                  ),
+                IconButton(
+                  icon: const Icon(Icons.update, size: 20),
+                  tooltip: 'Check & update registry',
+                  onPressed: () => _confirmApplyUpdate(context, ref, registry),
+                ),
                 IconButton(
                   icon: const Icon(Icons.delete_outline, size: 20),
                   tooltip: 'Remove registry',
@@ -469,10 +420,10 @@ class _ProviderManagementPageState extends ConsumerState<ProviderManagementPage>
       BuildContext context, WidgetRef ref, RegistryInfo registry) async {
     if (!context.mounted) return;
     ScaffoldMessenger.of(context).showSnackBar(
-      const SnackBar(content: Text('Updating registry...')),
+      const SnackBar(content: Text('Checking for updates...')),
     );
 
-    final success = await applyRegistryUpdate(registry.id, ref);
+    final success = await updateRegistryNow(registry.id, ref);
 
     if (!context.mounted) return;
     ScaffoldMessenger.of(context).hideCurrentSnackBar();
@@ -483,10 +434,7 @@ class _ProviderManagementPageState extends ConsumerState<ProviderManagementPage>
       );
     } else {
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text('Failed to update registry'),
-          backgroundColor: Colors.red,
-        ),
+        const SnackBar(content: Text('Registry is up to date')),
       );
     }
   }

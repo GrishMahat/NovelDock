@@ -4,6 +4,7 @@ import 'package:flutter_js/flutter_js.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_riverpod/legacy.dart';
 
+import 'filters.dart';
 import 'registry.dart';
 import '../utils/logger.dart';
 
@@ -31,6 +32,8 @@ class ProviderFeatureFlags {
   final bool usesCloudFlareKiller;
   final bool hasSearch;
   final bool hasChapterApi;
+  final bool hasLatest;
+  final bool hasFilters;
 
   const ProviderFeatureFlags({
     this.hasMainPage = false,
@@ -39,6 +42,8 @@ class ProviderFeatureFlags {
     this.usesCloudFlareKiller = false,
     this.hasSearch = true,
     this.hasChapterApi = false,
+    this.hasLatest = false,
+    this.hasFilters = false,
   });
 
   factory ProviderFeatureFlags.fromJson(Map<String, dynamic> json) {
@@ -49,6 +54,8 @@ class ProviderFeatureFlags {
       usesCloudFlareKiller: json['usesCloudFlareKiller'] as bool? ?? false,
       hasSearch: json['hasSearch'] as bool? ?? true,
       hasChapterApi: json['hasChapterApi'] as bool? ?? false,
+      hasLatest: json['hasLatest'] as bool? ?? false,
+      hasFilters: json['hasFilters'] as bool? ?? false,
     );
   }
 
@@ -58,6 +65,7 @@ class ProviderFeatureFlags {
 /// Wraps the JS engine for evaluating provider JS files.
 class ProviderEngine {
   JavascriptRuntime? _runtime;
+  final List<JavascriptRuntime> _runtimes = [];
 
   void init() {
     Log.i(_tag, 'Initializing JS runtime...');
@@ -66,24 +74,39 @@ class ProviderEngine {
   }
 
   void dispose() {
-    Log.i(_tag, 'Disposing JS runtime');
-    _runtime?.dispose();
+    Log.i(_tag, 'Disposing JS runtimes');
+    for (final runtime in _runtimes) {
+      try {
+        runtime.dispose();
+      } catch (_) {}
+    }
+    _runtimes.clear();
+    try {
+      _runtime?.dispose();
+    } catch (_) {}
     _runtime = null;
   }
 
   /// Load a provider from JS source code.
+  ///
+  /// Each provider gets its own JS runtime: providers are loaded into a
+  /// shared global scope (`var module = { exports: {} }`), so loading a
+  /// second provider would overwrite the first one's exports.
   Future<ProviderInstance> loadProvider(String jsSource) async {
     if (_runtime == null) init();
 
     Log.i(_tag, 'Loading provider (${jsSource.length} chars)...');
 
+    final runtime = getJavascriptRuntime();
+    _runtimes.add(runtime);
+
     final wrappedSource = '''
       var module = { exports: {} };
       $jsSource
-      Object.keys(module.exports).filter(function(k) { return typeof module.exports[k] === 'function'; });
+      JSON.stringify(Object.keys(module.exports).filter(function(k) { return typeof module.exports[k] === 'function'; }));
     ''';
 
-    final result = _runtime!.evaluate(wrappedSource);
+    final result = runtime.evaluate(wrappedSource);
     if (result.isError) {
       Log.e(_tag, 'JS error: ${result.stringResult}');
       throw Exception('Provider JS error: ${result.stringResult}');
@@ -92,7 +115,7 @@ class ProviderEngine {
     Log.ok(_tag, 'Provider loaded. Exported: ${result.stringResult}');
 
     // Parse exported function names
-    final exported = ProviderInstance(runtime: _runtime!);
+    final exported = ProviderInstance(runtime: runtime);
     try {
       final list = jsonDecode(result.stringResult) as List;
       exported._exportedFunctions = list.cast<String>();
@@ -174,8 +197,14 @@ class ProviderInstance {
     return null;
   }
 
-  Future<String?> getSearchUrl(String query, int page) async {
-    final result = await call('getSearchUrl', [query, page]);
+  /// Get the search URL for a query. Providers may use [filters] when
+  /// building the URL; providers that don't support filters ignore them.
+  Future<String?> getSearchUrl(
+    String query,
+    int page, {
+    FilterValues filters = const FilterValues(),
+  }) async {
+    final result = await call('getSearchUrl', [query, page, filters.toJson()]);
     return result?.toString();
   }
 
@@ -234,6 +263,38 @@ class ProviderInstance {
   }
 
   // ─── Main Page / Category / Tag Browsing ─────────────────
+
+  /// URL of the provider's main/explore page for [page].
+  /// Providers may use [filters] when building the URL.
+  Future<String?> getMainPageUrl(
+    int page, {
+    FilterValues filters = const FilterValues(),
+  }) async {
+    final result = await call('getMainPageUrl', [page, filters.toJson()]);
+    return result?.toString();
+  }
+
+  /// URL of the provider's latest-updates feed for [page].
+  Future<String?> getLatestUrl(int page) async {
+    final result = await call('getLatestUrl', [page]);
+    return result?.toString();
+  }
+
+  /// Filter definitions declared by this provider (empty if unsupported).
+  Future<List<FilterDef>> getFilters() async {
+    try {
+      final result = await call('getFilters', []);
+      if (result is List) {
+        return result
+            .whereType<Map>()
+            .map((e) => FilterDef.fromJson(Map<String, dynamic>.from(e)))
+            .toList();
+      }
+    } catch (e) {
+      Log.d(_tag, 'getFilters() not available: $e');
+    }
+    return const [];
+  }
 
   /// Load the main/explore page for this provider.
   /// Returns a list of novel items featured on the main page.
@@ -465,14 +526,14 @@ final loadedProvidersProvider =
 /// Returns cached instance if already loaded.
 Future<ProviderInstance?> loadProviderById(
   String providerId,
-  WidgetRef ref,
+  ProviderContainer container,
 ) async {
   // Check cache first
-  final cached = ref.read(loadedProvidersProvider)[providerId];
+  final cached = container.read(loadedProvidersProvider)[providerId];
   if (cached != null) return cached;
 
-  final registry = await ref.read(registryManagerProvider.future);
-  final engine = ref.read(providerEngineProvider);
+  final registry = await container.read(registryManagerProvider.future);
+  final engine = container.read(providerEngineProvider);
 
   final jsSource = await registry.loadCachedProviderJs(providerId);
   if (jsSource == null) {
@@ -485,8 +546,8 @@ Future<ProviderInstance?> loadProviderById(
   // Load feature flags
   await instance.loadFlags();
 
-  final current = ref.read(loadedProvidersProvider);
-  ref.read(loadedProvidersProvider.notifier).state = {
+  final current = container.read(loadedProvidersProvider);
+  container.read(loadedProvidersProvider.notifier).state = {
     ...current,
     providerId: instance,
   };

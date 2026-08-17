@@ -1,77 +1,484 @@
+import 'dart:convert';
+
 import 'package:dio/dio.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_riverpod/legacy.dart';
 
 import '../../../core/providers/engine.dart';
+import '../../../core/providers/filters.dart';
 import '../../../core/network/client.dart';
+import '../../../core/providers/database_providers.dart';
 import '../../../core/utils/logger.dart';
 import '../../settings/providers/provider_management_providers.dart';
 
 const _tag = 'Search';
 
-/// Search results state
-class SearchState {
+// ═══════════════════════════════════════════════════════════
+// State
+// ═══════════════════════════════════════════════════════════
+
+/// State for a single provider's search results.
+class ProviderSearchState {
   final List<SearchResultItem> results;
   final bool isLoading;
-  final String? error;
   final bool hasNextPage;
+  final String? error;
+  final int loadedPages;
 
-  const SearchState({
+  const ProviderSearchState({
     this.results = const [],
     this.isLoading = false,
-    this.error,
     this.hasNextPage = false,
+    this.error,
+    this.loadedPages = 0,
   });
 
-  SearchState copyWith({
+  bool get loaded => loadedPages > 0;
+
+  ProviderSearchState copyWith({
     List<SearchResultItem>? results,
     bool? isLoading,
-    String? error,
     bool? hasNextPage,
+    String? error,
+    int? loadedPages,
   }) {
-    return SearchState(
+    return ProviderSearchState(
       results: results ?? this.results,
       isLoading: isLoading ?? this.isLoading,
-      error: error,
       hasNextPage: hasNextPage ?? this.hasNextPage,
+      error: error ?? this.error,
+      loadedPages: loadedPages ?? this.loadedPages,
     );
   }
 }
 
-/// Search notifier that queries providers
+/// Aggregate search state across providers.
+class SearchState {
+  final String query;
+  final Map<String, ProviderSearchState> providers;
+  final List<String> providerOrder;
+  final Set<String> selectedProviders;
+  final Map<String, FilterValues> filters;
+
+  const SearchState({
+    this.query = '',
+    this.providers = const {},
+    this.providerOrder = const [],
+    this.selectedProviders = const {},
+    this.filters = const {},
+  });
+
+  bool get isLoading =>
+      providers.values.any((p) => p.isLoading) && !hasAnyResults;
+
+  bool get hasAnyResults => providers.values.any((p) => p.results.isNotEmpty);
+
+  int get totalResults =>
+      providers.values.fold(0, (sum, p) => sum + p.results.length);
+
+  ProviderSearchState stateFor(String providerId) =>
+      providers[providerId] ?? const ProviderSearchState();
+
+  List<String> get providersWithResults =>
+      providerOrder.where((id) => stateFor(id).loaded).toList();
+
+  FilterValues filtersFor(String providerId) =>
+      filters[providerId] ?? const FilterValues();
+
+  bool get hasActiveFilters => filters.values.any((f) => !f.isEmpty);
+
+  SearchState copyWith({
+    String? query,
+    Map<String, ProviderSearchState>? providers,
+    List<String>? providerOrder,
+    Set<String>? selectedProviders,
+    Map<String, FilterValues>? filters,
+  }) {
+    return SearchState(
+      query: query ?? this.query,
+      providers: providers ?? this.providers,
+      providerOrder: providerOrder ?? this.providerOrder,
+      selectedProviders: selectedProviders ?? this.selectedProviders,
+      filters: filters ?? this.filters,
+    );
+  }
+}
+
+// ═══════════════════════════════════════════════════════════
+// Search history
+// ═══════════════════════════════════════════════════════════
+
+final searchHistoryProvider =
+    StateNotifierProvider<SearchHistoryNotifier, List<String>>((ref) {
+      return SearchHistoryNotifier(ref);
+    });
+
+class SearchHistoryNotifier extends StateNotifier<List<String>> {
+  final Ref ref;
+
+  static const _key = 'search_history';
+  static const _maxEntries = 12;
+
+  Future<void> _saveQueue = Future<void>.value();
+  int _mutationVersion = 0;
+
+  SearchHistoryNotifier(this.ref) : super(const []) {
+    _load();
+  }
+
+  Future<void> _load() async {
+    final loadVersion = _mutationVersion;
+
+    try {
+      final settingsDao = ref.read(settingsDaoProvider);
+      final value = await settingsDao.getSetting(_key);
+
+      // Do not overwrite a value modified locally while the load
+      // was still in progress.
+      if (loadVersion != _mutationVersion) return;
+
+      if (value != null && value.isNotEmpty) {
+        final decoded = jsonDecode(value);
+
+        if (decoded is List) {
+          state = decoded
+              .whereType<String>()
+              .take(_maxEntries)
+              .toList(growable: false);
+        }
+      }
+    } catch (e) {
+      Log.w(_tag, 'Failed to load search history: $e');
+    }
+  }
+
+  Future<void> _save() {
+    final snapshot = List<String>.unmodifiable(state);
+
+    _saveQueue = _saveQueue.then((_) async {
+      try {
+        final settingsDao = ref.read(settingsDaoProvider);
+        await settingsDao.setSetting(_key, jsonEncode(snapshot));
+      } catch (e) {
+        Log.w(_tag, 'Failed to save search history: $e');
+      }
+    });
+
+    return _saveQueue;
+  }
+
+  void add(String query) {
+    final q = query.trim();
+    if (q.isEmpty) return;
+
+    _mutationVersion++;
+
+    state = [q, ...state.where((e) => e != q)].take(_maxEntries).toList();
+
+    _save();
+  }
+
+  void remove(String query) {
+    _mutationVersion++;
+
+    state = state.where((e) => e != query).toList();
+    _save();
+  }
+
+  void clear() {
+    _mutationVersion++;
+
+    state = const [];
+    _save();
+  }
+}
+
+// ═══════════════════════════════════════════════════════════
+// Provider selection
+// ═══════════════════════════════════════════════════════════
+
+/// Which providers participate in global search.
+///
+/// Before the user explicitly chooses providers, all enabled providers
+/// participate. Once the user explicitly chooses, the exact selected set
+/// is respected, including an intentionally empty set.
+final searchProviderSelectionProvider =
+    StateNotifierProvider<SearchProviderSelectionNotifier, Set<String>>(
+      (ref) => SearchProviderSelectionNotifier(ref),
+    );
+
+class SearchProviderSelectionNotifier extends StateNotifier<Set<String>> {
+  final Ref ref;
+
+  static const _key = 'search_providers';
+
+  bool _explicit = false;
+
+  Future<void> _saveQueue = Future<void>.value();
+  int _mutationVersion = 0;
+
+  SearchProviderSelectionNotifier(this.ref) : super(const {}) {
+    _load();
+  }
+
+  Future<void> _load() async {
+    final loadVersion = _mutationVersion;
+
+    try {
+      final settingsDao = ref.read(settingsDaoProvider);
+      final value = await settingsDao.getSetting(_key);
+
+      if (loadVersion != _mutationVersion) return;
+
+      if (value != null && value.isNotEmpty) {
+        final decoded = jsonDecode(value);
+
+        if (decoded is List) {
+          _explicit = true;
+          state = decoded.whereType<String>().toSet();
+        }
+      }
+    } catch (e) {
+      Log.w(_tag, 'Failed to load search provider selection: $e');
+    }
+  }
+
+  Future<void> _save() {
+    final snapshot = Set<String>.unmodifiable(state);
+
+    _saveQueue = _saveQueue.then((_) async {
+      try {
+        final settingsDao = ref.read(settingsDaoProvider);
+        await settingsDao.setSetting(_key, jsonEncode(snapshot.toList()));
+      } catch (e) {
+        Log.w(_tag, 'Failed to save search provider selection: $e');
+      }
+    });
+
+    return _saveQueue;
+  }
+
+  /// Effective selection:
+  /// - before explicit selection: all enabled providers
+  /// - after explicit selection: exactly the selected enabled providers
+  ///
+  /// An explicit empty selection means no providers.
+  Set<String> effective(Set<String> enabled) {
+    if (!_explicit) return Set.of(enabled);
+    return state.where(enabled.contains).toSet();
+  }
+
+  void toggle(String providerId) {
+    _explicit = true;
+    _mutationVersion++;
+
+    final next = Set<String>.from(state);
+
+    if (!next.add(providerId)) {
+      next.remove(providerId);
+    }
+
+    state = next;
+    _save();
+  }
+
+  void setAll(Set<String> providerIds) {
+    _explicit = true;
+    _mutationVersion++;
+
+    state = Set.of(providerIds);
+    _save();
+  }
+}
+
+// ═══════════════════════════════════════════════════════════
+// Notifier
+// ═══════════════════════════════════════════════════════════
+
 class SearchNotifier extends StateNotifier<SearchState> {
   final Ref ref;
 
   SearchNotifier(this.ref) : super(const SearchState());
 
-  Future<void> search(String query, {int page = 1}) async {
-    if (query.trim().isEmpty) return;
+  /// Monotonically increasing request token per provider.
+  ///
+  /// Every new request invalidates the previous request for that provider.
+  /// This lets a new query or filter search start immediately instead of
+  /// being blocked behind stale work.
+  final Map<String, int> _requestTokens = {};
 
-    Log.i(_tag, 'Searching for: "$query" (page $page)');
-    state = state.copyWith(isLoading: true, error: null);
+  int _nextRequestToken(String providerId) {
+    final token = (_requestTokens[providerId] ?? 0) + 1;
+    _requestTokens[providerId] = token;
+    return token;
+  }
+
+  bool _isCurrentRequest(String providerId, int token) {
+    return _requestTokens[providerId] == token;
+  }
+
+  /// Start a fresh search across all selected providers (page 1).
+  Future<void> search(String query) async {
+    final q = query.trim();
+    if (q.isEmpty) return;
+
+    Log.i(_tag, 'Searching for: "$q"');
+
+    ref.read(searchHistoryProvider.notifier).add(q);
+
+    final enabled = ref.read(enabledProvidersProvider);
+    final selected = ref
+        .read(searchProviderSelectionProvider.notifier)
+        .effective(enabled);
+
+    state = SearchState(
+      query: q,
+      providerOrder: enabled.toList(),
+      selectedProviders: selected,
+      filters: state.filters,
+    );
+
+    if (selected.isEmpty) return;
+
+    await Future.wait(
+      selected.map((id) => _searchProvider(id, page: 1, replace: true)),
+    );
+  }
+
+  /// Fetch the next page for one provider.
+  Future<void> loadMore(String providerId) async {
+    final ps = state.stateFor(providerId);
+
+    if (ps.isLoading || !ps.hasNextPage) return;
+    if (!state.selectedProviders.contains(providerId)) return;
+
+    await _searchProvider(providerId, page: ps.loadedPages + 1);
+  }
+
+  /// Retry the first page for one provider.
+  Future<void> retryProvider(String providerId) async {
+    if (state.query.isEmpty) return;
+    if (!state.selectedProviders.contains(providerId)) return;
+
+    await _searchProvider(providerId, page: 1, replace: true);
+  }
+
+  /// Apply filters for one provider and re-run its search from page 1.
+  Future<void> setFilters(String providerId, FilterValues values) async {
+    final nextFilters = Map<String, FilterValues>.of(state.filters)
+      ..[providerId] = values;
+
+    state = state.copyWith(filters: nextFilters);
+
+    if (state.query.isEmpty) return;
+    if (!state.selectedProviders.contains(providerId)) return;
+
+    await _searchProvider(providerId, page: 1, replace: true);
+  }
+
+  Future<void> clearFilters(String providerId) =>
+      setFilters(providerId, const FilterValues());
+
+  /// Re-run the search when the provider selection changes.
+  Future<void> refreshSelection() async {
+    if (state.query.isEmpty) return;
+
+    final enabled = ref.read(enabledProvidersProvider);
+    final selected = ref
+        .read(searchProviderSelectionProvider.notifier)
+        .effective(enabled);
+
+    final previousProviders = state.providers;
+
+    state = state.copyWith(
+      selectedProviders: selected,
+      providers: {
+        for (final entry in previousProviders.entries)
+          if (selected.contains(entry.key)) entry.key: entry.value,
+      },
+    );
+
+    if (selected.isEmpty) return;
+
+    await Future.wait(
+      selected.map((id) => _searchProvider(id, page: 1, replace: true)),
+    );
+  }
+
+  Future<void> _searchProvider(
+    String providerId, {
+    required int page,
+    bool replace = false,
+  }) async {
+    if (!state.selectedProviders.contains(providerId)) return;
+
+    final requestToken = _nextRequestToken(providerId);
+
+    final expectedQuery = state.query;
+    final filters = state.filtersFor(providerId);
+
+    final prev = state.stateFor(providerId);
+
+    final nextState = replace || page == 1
+        ? const ProviderSearchState(isLoading: true)
+        : prev.copyWith(isLoading: true);
+
+    _updateProviderIfCurrentQuery(providerId, nextState, expectedQuery);
 
     try {
-      final enabledProviders = ref.read(enabledProvidersProvider);
+      var cached = ref.read(loadedProvidersProvider)[providerId];
+
+      if (cached == null) {
+        Log.i(_tag, 'Loading provider JS for $providerId...');
+        cached = await loadProviderById(providerId, ref.container);
+      }
+
+      if (!_isCurrentRequest(providerId, requestToken)) return;
+      if (state.query != expectedQuery) return;
+
+      if (cached == null) {
+        Log.w(_tag, 'Could not load provider $providerId, skipping');
+
+        _updateProviderIfCurrentRequest(
+          providerId,
+          requestToken,
+          ProviderSearchState(isLoading: false, error: 'Provider not loaded'),
+          expectedQuery,
+        );
+
+        return;
+      }
+
       final dio = await ref.read(dioProvider.future);
 
-      Log.i(_tag, 'Searching ${enabledProviders.length} enabled providers: $enabledProviders');
+      if (!_isCurrentRequest(providerId, requestToken)) return;
+      if (state.query != expectedQuery) return;
 
-      final allResults = <SearchResultItem>[];
+      final results = await _searchProviderOnce(
+        cached,
+        dio,
+        expectedQuery,
+        filters,
+        page,
+      );
 
-      for (final providerId in enabledProviders) {
-        try {
-          Log.i(_tag, 'Searching provider: $providerId');
+      if (!_isCurrentRequest(providerId, requestToken)) return;
+      if (state.query != expectedQuery) return;
 
-          // Check cache first
-          final cached = ref.read(loadedProvidersProvider)[providerId];
-          if (cached == null) {
-            Log.e(_tag, 'No cached provider for $providerId, skipping');
-            continue;
-          }
-          final instance = cached;
+      if (results == null) {
+        _updateProviderIfCurrentRequest(
+          providerId,
+          requestToken,
+          nextState.copyWith(isLoading: false, error: 'No results'),
+          expectedQuery,
+        );
 
-          List<SearchResultItem> tagResults(List<SearchResultItem> items) {
-            return items.map((e) => SearchResultItem(
+        return;
+      }
+
+      final tagged = results.results
+          .map(
+            (e) => SearchResultItem(
               title: e.title,
               url: e.url,
               cover: e.cover,
@@ -81,248 +488,359 @@ class SearchNotifier extends StateNotifier<SearchState> {
               latestChapter: e.latestChapter,
               providerId: providerId,
               coverHeaders: e.coverHeaders,
-            )).toList();
-          }
+            ),
+          )
+          .toList();
 
-          // 1. Try POST-based search first (provider defines getSearchConfig)
-          final searchConfig = await instance.call('getSearchConfig', []);
-          if (searchConfig != null && searchConfig is Map<String, dynamic>) {
-            Log.i(_tag, 'Provider uses POST search');
-            final results = await _postSearch(instance, dio, searchConfig, query, page);
-            if (results != null) {
-              Log.ok(_tag, 'Got ${results.results.length} results from $providerId (POST)');
-              allResults.addAll(tagResults(results.results));
-              continue;
-            }
-          }
+      final merged = replace || page == 1
+          ? tagged
+          : [...prev.results, ...tagged];
 
-          // 2. Try direct search function
-          final directResults = await instance.search(query, page);
-          if (directResults != null && directResults.results.isNotEmpty) {
-            Log.ok(_tag, 'Got ${directResults.results.length} results from $providerId (direct)');
-            allResults.addAll(tagResults(directResults.results));
-            continue;
-          }
-
-          // 3. Fall back to URL-based GET search
-          final searchUrl = await instance.getSearchUrl(query, page);
-          if (searchUrl == null) {
-            Log.e(_tag, 'No search URL for $providerId, skipping');
-            continue;
-          }
-
-          Log.i(_tag, 'Fetching: $searchUrl');
-          final response = await dio.get(searchUrl);
-          final html = response.data.toString();
-          Log.i(_tag, 'Got ${html.length} chars of HTML from $providerId');
-
-          final results = await instance.parseSearchResults(html);
-          if (results != null) {
-            Log.ok(_tag, 'Parsed ${results.results.length} results from $providerId');
-            allResults.addAll(tagResults(results.results));
-          } else {
-            Log.w(_tag, 'parseSearchResults returned null for $providerId');
-          }
-        } catch (e) {
-          Log.e(_tag, 'Error with $providerId', e);
-        }
-      }
-
-      // Rank results by fuzzy relevance
-      final ranked = _rankResults(allResults, query);
-      Log.ok(_tag, 'Total results: ${ranked.length}');
-      state = state.copyWith(
-        results: ranked,
-        isLoading: false,
-        hasNextPage: ranked.length >= 20,
-      );
-    } catch (e) {
-      Log.e(_tag, 'Search failed', e);
-      state = state.copyWith(
-        isLoading: false,
-        error: e.toString(),
-      );
-    }
-  }
-
-  /// Handle POST-based search — headers come from the provider's getSearchConfig()
-  Future<SearchResults?> _postSearch(
-    ProviderInstance instance,
-    dynamic dio,
-    Map<String, dynamic> config,
-    String query,
-    int page,
-  ) async {
-    try {
-      final url = config['url'] as String?;
-      final fields = config['fields'] as Map<String, dynamic>?;
-      final headers = config['headers'] as Map<String, dynamic>?;
-      final resultPattern = config['resultUrlPattern'] as String?;
-      final searchIdRegex = config['searchIdRegex'] as String?;
-
-      if (url == null) return null;
-
-      // Build form data from provider config
-      final formData = <String, String>{
-        if (fields != null) ...fields.map((k, v) => MapEntry(k, v.toString())),
-        'keyboard': query,
-      };
-
-      // Build headers from provider config
-      final requestHeaders = <String, String>{
-        if (headers != null) ...headers.map((k, v) => MapEntry(k, v.toString())),
-      };
-
-      // Build form data as URL-encoded string (not multipart)
-      final formBody = formData.entries
-          .map((e) => '${Uri.encodeComponent(e.key)}=${Uri.encodeComponent(e.value)}')
-          .join('&');
-
-      Log.i(_tag, 'POST $url');
-      Log.d(_tag, 'Body: $formBody');
-      Log.d(_tag, 'Headers: $requestHeaders');
-
-      // POST with application/x-www-form-urlencoded
-      final response = await dio.post(
-        url,
-        data: formBody,
-        options: Options(
-          headers: {
-            ...requestHeaders,
-            'Content-Type': 'application/x-www-form-urlencoded',
-          },
-          followRedirects: false,
-          validateStatus: (status) => status != null && status < 500,
+      _updateProviderIfCurrentRequest(
+        providerId,
+        requestToken,
+        ProviderSearchState(
+          results: merged,
+          isLoading: false,
+          hasNextPage: results.hasNextPage,
+          error: null,
+          loadedPages: page,
         ),
+        expectedQuery,
       );
 
-      Log.i(_tag, 'POST status: ${response.statusCode}');
-
-      // Extract search ID from Location header (302 redirect)
-      String? searchId;
-      if (response.statusCode == 301 || response.statusCode == 302) {
-        final location = response.headers.value('location') ?? '';
-        Log.i(_tag, 'Redirect Location: $location');
-        if (searchIdRegex != null) {
-          final match = RegExp(searchIdRegex).firstMatch(location);
-          searchId = match?.group(1);
-        }
-      }
-
-      if (searchId == null) {
-        Log.e(_tag, 'No search ID found. Status: ${response.statusCode}');
-        return null;
-      }
-
-      Log.i(_tag, 'Got search ID: $searchId');
-
-      // Step 2: Fetch results page using proper URL pattern
-      if (resultPattern == null) return null;
-      final resultUrl = resultPattern
-          .replaceAll('{page}', page.toString())
-          .replaceAll('{searchid}', searchId);
-
-      Log.i(_tag, 'Fetching results: $resultUrl');
-      final resultResponse = await dio.get(resultUrl);
-      final html = resultResponse.data.toString();
-      Log.i(_tag, 'Got ${html.length} chars of HTML');
-
-      return await instance.parseSearchResults(html);
+      Log.ok(
+        _tag,
+        'Got ${tagged.length} results from $providerId (page $page)',
+      );
     } catch (e) {
-      Log.e(_tag, 'POST search failed', e);
-      return null;
+      Log.e(_tag, 'Error searching $providerId', e);
+
+      if (!_isCurrentRequest(providerId, requestToken)) return;
+      if (state.query != expectedQuery) return;
+
+      _updateProviderIfCurrentRequest(
+        providerId,
+        requestToken,
+        nextState.copyWith(isLoading: false, error: e.toString()),
+        expectedQuery,
+      );
     }
   }
 
-  /// Rank search results by fuzzy relevance to the query.
-  /// Uses token-based scoring: title match > author match > summary match,
-  /// weighted by token proximity and substring containment.
-  List<SearchResultItem> _rankResults(List<SearchResultItem> results, String query) {
-    if (results.isEmpty) return results;
+  void _updateProviderIfCurrentQuery(
+    String providerId,
+    ProviderSearchState ps,
+    String expectedQuery,
+  ) {
+    if (state.query != expectedQuery) return;
 
-    final queryTokens = query.toLowerCase().split(RegExp(r'\s+')).where((t) => t.isNotEmpty).toList();
-    if (queryTokens.isEmpty) return results;
-
-    // Score each result
-    final scored = results.map((item) {
-      final title = item.title.toLowerCase();
-      final author = item.author?.toLowerCase() ?? '';
-      final summary = item.summary?.toLowerCase() ?? '';
-
-      double score = 0;
-
-      for (final token in queryTokens) {
-        // Exact title match: highest score
-        if (title == token) {
-          score += 100;
-        } else if (title.contains(token)) {
-          score += 50;
-        } else {
-          // Fuzzy title match via Levenshtein
-          final dist = _levenshteinDistance(token, title);
-          if (dist <= 2) {
-            score += 30 * (1 - dist / title.length);
-          }
-        }
-
-        // Token-in-summary bonus
-        if (summary.contains(token)) {
-          score += 10;
-        }
-
-        // Token-in-author bonus
-        if (author.contains(token)) {
-          score += 5;
-        }
-
-        // Full query as substring of title
-        if (title.contains(query.toLowerCase())) {
-          score += 20;
-        }
-      }
-
-      // Normalize by title length (shorter = denser match)
-      if (title.isNotEmpty) {
-        score = score / (title.length / 10);
-      }
-
-      return (item: item, score: score);
-    }).toList();
-
-    // Sort descending by score
-    scored.sort((a, b) => b.score.compareTo(a.score));
-    return scored.map((s) => s.item).toList();
+    state = state.copyWith(providers: {...state.providers, providerId: ps});
   }
 
-  /// Simple Levenshtein distance between two strings.
-  int _levenshteinDistance(String a, String b) {
-    final m = a.length;
-    final n = b.length;
-    final dp = List.generate(m + 1, (_) => List.filled(n + 1, 0));
+  void _updateProviderIfCurrentRequest(
+    String providerId,
+    int requestToken,
+    ProviderSearchState ps,
+    String expectedQuery,
+  ) {
+    if (!_isCurrentRequest(providerId, requestToken)) return;
+    if (state.query != expectedQuery) return;
 
-    for (var i = 0; i <= m; i++) dp[i][0] = i;
-    for (var j = 0; j <= n; j++) dp[0][j] = j;
+    state = state.copyWith(providers: {...state.providers, providerId: ps});
+  }
 
-    for (var i = 1; i <= m; i++) {
-      for (var j = 1; j <= n; j++) {
-        final cost = a[i - 1] == b[j - 1] ? 0 : 1;
-        dp[i][j] = [
-          dp[i - 1][j] + 1,
-          dp[i][j - 1] + 1,
-          dp[i - 1][j - 1] + cost,
-        ].reduce((x, y) => x < y ? x : y);
-      }
-    }
-
-    return dp[m][n];
+  /// Run the full search pipeline for one provider on one page:
+  /// 1. POST search when no filters are active,
+  /// 2. direct search when no filters are active,
+  /// 3. GET via getSearchUrl (filter-aware).
+  ///
+  /// When filters are active, only the filter-aware GET path is allowed.
+  Future<SearchResults?> _searchProviderOnce(
+    ProviderInstance instance,
+    Dio dio,
+    String query,
+    FilterValues filters,
+    int page,
+  ) {
+    return searchProviderOnce(instance, dio, query, filters, page);
   }
 
   void clear() {
+    // Invalidate all outstanding requests.
+    for (final providerId in _requestTokens.keys.toList()) {
+      _nextRequestToken(providerId);
+    }
+
     state = const SearchState();
   }
 }
 
-final searchProvider =
-    StateNotifierProvider<SearchNotifier, SearchState>((ref) {
+// ═══════════════════════════════════════════════════════════
+// Shared search pipeline
+// ═══════════════════════════════════════════════════════════
+
+/// Run the full search pipeline for one provider on one page:
+/// 1. POST search (getSearchConfig) when filters are empty,
+/// 2. direct search() when filters are empty,
+/// 3. GET via getSearchUrl, which is filter-aware.
+Future<SearchResults?> searchProviderOnce(
+  ProviderInstance instance,
+  Dio dio,
+  String query,
+  FilterValues filters,
+  int page,
+) async {
+  Log.i(_tag, 'searchProviderOnce: query="$query" page=$page filters=$filters');
+
+  // When filters are active, skip search paths that cannot receive them.
+  final filtersActive = !filters.isEmpty;
+
+  // 1. POST-based search
+  //
+  // The existing provider POST contract does not expose a filter argument,
+  // so using it with active filters would silently ignore the user's
+  // selection.
+  if (!filtersActive && instance.hasFunction('getSearchConfig')) {
+    Log.i(_tag, 'POST search: has getSearchConfig');
+
+    try {
+      final searchConfig = await instance.call('getSearchConfig', []);
+
+      Log.i(_tag, 'POST search: config = $searchConfig');
+
+      if (searchConfig is Map<String, dynamic>) {
+        final results = await postSearch(
+          instance,
+          dio,
+          searchConfig,
+          query,
+          page,
+        );
+
+        Log.i(_tag, 'POST search: results = ${results?.results.length}');
+
+        if (results != null && results.results.isNotEmpty) {
+          return results;
+        }
+      } else {
+        Log.w(
+          _tag,
+          'POST search: getSearchConfig returned unexpected value: '
+          '${searchConfig.runtimeType}',
+        );
+      }
+    } catch (e) {
+      Log.e(_tag, 'POST search threw', e);
+    }
+  } else if (!filtersActive) {
+    Log.w(_tag, 'POST search: provider has no getSearchConfig');
+  }
+
+  // 2. Direct search function.
+  //
+  // This path cannot receive filters, so do not use it when filters
+  // are active.
+  if (!filtersActive) {
+    final directResults = await instance.search(query, page);
+
+    Log.i(_tag, 'Direct search: ${directResults?.results.length}');
+
+    if (directResults != null && directResults.results.isNotEmpty) {
+      return directResults;
+    }
+  }
+
+  // 3. URL-based GET search.
+  //
+  // This is the filter-aware fallback and the only path used when
+  // filters are active.
+  final searchUrl = await instance.getSearchUrl(query, page, filters: filters);
+
+  Log.i(_tag, 'GET search URL: $searchUrl');
+
+  if (searchUrl == null || searchUrl.isEmpty) {
+    return null;
+  }
+
+  Log.i(_tag, 'Fetching: $searchUrl');
+
+  final response = await dio.get(searchUrl);
+  final html = response.data.toString();
+
+  Log.i(
+    _tag,
+    'GET search response: status=${response.statusCode} '
+    'bytes=${html.length}',
+  );
+
+  final parsed = await instance.parseSearchResults(html);
+
+  Log.i(
+    _tag,
+    'GET search parsed: ${parsed?.results.length} results, '
+    'hasNextPage=${parsed?.hasNextPage}',
+  );
+
+  return parsed;
+}
+
+// ═══════════════════════════════════════════════════════════
+// POST search
+// ═══════════════════════════════════════════════════════════
+
+/// Handle POST-based search.
+///
+/// The POST typically responds with a 3xx redirect to the results page.
+/// Dio does not expose the final POST redirect as the result page when
+/// redirect following is disabled, so the Location header is followed
+/// manually with GET.
+Future<SearchResults?> postSearch(
+  ProviderInstance instance,
+  Dio dio,
+  Map<String, dynamic> config,
+  String query,
+  int page,
+) async {
+  try {
+    final url = config['url'] as String?;
+    final fields = config['fields'] as Map<String, dynamic>?;
+    final headers = config['headers'] as Map<String, dynamic>?;
+    final resultPattern = config['resultUrlPattern'] as String?;
+
+    if (url == null || url.isEmpty) {
+      Log.w(_tag, 'postSearch: config has no "url"');
+      return null;
+    }
+
+    // Build form data from provider config.
+    final formData = <String, String>{
+      if (fields != null) ...fields.map((k, v) => MapEntry(k, v.toString())),
+      'keyboard': query,
+    };
+
+    // Build headers from provider config.
+    final requestHeaders = <String, String>{
+      if (headers != null) ...headers.map((k, v) => MapEntry(k, v.toString())),
+    };
+
+    final formBody = formData.entries
+        .map(
+          (e) =>
+              '${Uri.encodeComponent(e.key)}='
+              '${Uri.encodeComponent(e.value)}',
+        )
+        .join('&');
+
+    Log.i(_tag, 'postSearch: POST $url bodyLength=${formBody.length}');
+
+    final response = await dio.post(
+      url,
+      data: formBody,
+      options: Options(
+        headers: {
+          ...requestHeaders,
+          'Content-Type': 'application/x-www-form-urlencoded',
+        },
+        followRedirects: false,
+        validateStatus: (status) => status != null && status < 500,
+      ),
+    );
+
+    final status = response.statusCode ?? 0;
+    final location = response.headers.value('location');
+
+    Log.i(
+      _tag,
+      'postSearch: status=$status '
+      'hasLocation=${location != null && location.isNotEmpty}',
+    );
+
+    final isRedirect =
+        status == 301 ||
+        status == 302 ||
+        status == 303 ||
+        status == 307 ||
+        status == 308;
+
+    String? resultUrl;
+
+    if (isRedirect) {
+      // A redirect without Location cannot be followed safely.
+      if (location == null || location.isEmpty) {
+        Log.w(_tag, 'postSearch: redirect response has no Location header');
+
+        // Do not attempt to manufacture a search ID from an empty
+        // Location value. The normal search pipeline will continue
+        // to the next search strategy.
+        return null;
+      }
+
+      resultUrl = response.requestOptions.uri.resolve(location).toString();
+    } else if (status == 200) {
+      // Provider returned results directly.
+      final html = response.data.toString();
+
+      Log.i(_tag, 'postSearch: direct results page bytes=${html.length}');
+
+      final parsed = await instance.parseSearchResults(html);
+
+      Log.i(_tag, 'postSearch: parsed ${parsed?.results.length} results');
+
+      return parsed;
+    } else {
+      Log.w(_tag, 'postSearch: unexpected status $status, aborting');
+      return null;
+    }
+
+    // Optional URL pattern can still be used if the provider explicitly
+    // gives one and the redirect target needs page substitution.
+    if (resultUrl != null &&
+        resultPattern != null &&
+        resultPattern.isNotEmpty) {
+      final resolvedPattern = resultPattern.replaceAll(
+        '{page}',
+        page.toString(),
+      );
+
+      if (resolvedPattern.isNotEmpty) {
+        final patternUri = response.requestOptions.uri.resolve(resolvedPattern);
+
+        // Only use the configured pattern when it appears to contain
+        // the same provider-hosted search path. Otherwise keep the
+        // actual redirect target.
+        if (patternUri.host == response.requestOptions.uri.host) {
+          // Keep the actual Location target by default. The pattern is
+          // intentionally not allowed to override a concrete redirect
+          // target without provider-specific evidence.
+        }
+      }
+    }
+
+    Log.i(_tag, 'postSearch: fetching results: $resultUrl');
+
+    final resultResponse = await dio.get(resultUrl);
+    final html = resultResponse.data.toString();
+
+    Log.i(
+      _tag,
+      'postSearch: results page status=${resultResponse.statusCode} '
+      'bytes=${html.length}',
+    );
+
+    final parsed = await instance.parseSearchResults(html);
+
+    Log.i(_tag, 'postSearch: parsed ${parsed?.results.length} results');
+
+    return parsed;
+  } catch (e) {
+    Log.e(_tag, 'POST search failed', e);
+    return null;
+  }
+}
+
+final searchProvider = StateNotifierProvider<SearchNotifier, SearchState>((
+  ref,
+) {
   return SearchNotifier(ref);
 });

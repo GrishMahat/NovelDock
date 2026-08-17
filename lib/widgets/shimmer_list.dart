@@ -25,7 +25,10 @@ class ShimmerGrid extends StatelessWidget {
         mainAxisSpacing: 8,
       ),
       itemCount: itemCount,
-      itemBuilder: (_, __) => _ShimmerCard(aspectRatio: aspectRatio),
+      itemBuilder: (_, index) => _ShimmerCard(
+        key: ValueKey('shimmer_card_$index'),
+        aspectRatio: aspectRatio,
+      ),
       physics: const NeverScrollableScrollPhysics(),
       shrinkWrap: true,
     );
@@ -40,7 +43,8 @@ class ShimmerList extends StatelessWidget {
   Widget build(BuildContext context) {
     return ListView.builder(
       itemCount: itemCount,
-      itemBuilder: (context, index) => _ShimmerTile(),
+      itemBuilder: (context, index) =>
+          _ShimmerTile(key: ValueKey('shimmer_tile_$index')),
       physics: const NeverScrollableScrollPhysics(),
       shrinkWrap: true,
     );
@@ -49,7 +53,7 @@ class ShimmerList extends StatelessWidget {
 
 class _ShimmerCard extends StatelessWidget {
   final double aspectRatio;
-  const _ShimmerCard({this.aspectRatio = 0.68});
+  const _ShimmerCard({super.key, this.aspectRatio = 0.68});
 
   @override
   Widget build(BuildContext context) {
@@ -62,15 +66,10 @@ class _ShimmerCard extends StatelessWidget {
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
-            Expanded(
-              child: Container(color: AppTheme.kSurfaceDark),
-            ),
+            Expanded(child: Container(color: AppTheme.kSurfaceDark)),
             Padding(
               padding: const EdgeInsets.all(8),
-              child: Container(
-                height: 12,
-                color: AppTheme.kSurfaceDark,
-              ),
+              child: Container(height: 12, color: AppTheme.kSurfaceDark),
             ),
           ],
         ),
@@ -80,6 +79,8 @@ class _ShimmerCard extends StatelessWidget {
 }
 
 class _ShimmerTile extends StatelessWidget {
+  const _ShimmerTile({super.key});
+
   @override
   Widget build(BuildContext context) {
     return Shimmer.fromColors(
@@ -104,7 +105,11 @@ class _ShimmerTile extends StatelessWidget {
                 children: [
                   Container(height: 14, color: AppTheme.kSurfaceDark),
                   const SizedBox(height: 8),
-                  Container(height: 12, width: 120, color: AppTheme.kSurfaceDark),
+                  Container(
+                    height: 12,
+                    width: 120,
+                    color: AppTheme.kSurfaceDark,
+                  ),
                 ],
               ),
             ),
@@ -127,11 +132,7 @@ class ShimmerChapterTile extends StatelessWidget {
         padding: const EdgeInsets.symmetric(vertical: 10),
         child: Row(
           children: [
-            Container(
-              width: 4,
-              height: 16,
-              color: AppTheme.kSurfaceDark,
-            ),
+            Container(width: 4, height: 16, color: AppTheme.kSurfaceDark),
             const SizedBox(width: 12),
             Expanded(
               child: Column(
@@ -139,7 +140,11 @@ class ShimmerChapterTile extends StatelessWidget {
                 children: [
                   Container(height: 14, color: AppTheme.kSurfaceDark),
                   const SizedBox(height: 6),
-                  Container(width: 80, height: 11, color: AppTheme.kSurfaceDark),
+                  Container(
+                    width: 80,
+                    height: 11,
+                    color: AppTheme.kSurfaceDark,
+                  ),
                 ],
               ),
             ),

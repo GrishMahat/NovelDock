@@ -32,7 +32,8 @@ class AppConfig {
   AppConfig._({required this.configDir, required this.dataDir});
 
   /// Registry metadata storage (config — small, user-editable)
-  Directory get registriesDir => Directory(p.join(configDir.path, 'registries'));
+  Directory get registriesDir =>
+      Directory(p.join(configDir.path, 'registries'));
 
   /// Provider JS files storage (data — downloaded content)
   Directory get providersDir => Directory(p.join(dataDir.path, 'providers'));
@@ -80,7 +81,9 @@ class AppConfig {
     if (Platform.isMacOS) {
       final home = Platform.environment['HOME'];
       if (home != null) {
-        return Directory(p.join(home, 'Library', 'Application Support', 'noveldock'));
+        return Directory(
+          p.join(home, 'Library', 'Application Support', 'noveldock'),
+        );
       }
     }
     if (Platform.isWindows) {
@@ -116,52 +119,78 @@ class AppConfig {
     return Directory(p.join(docs.path, 'noveldock', 'data'));
   }
 
+  // ─── Id sanitization ──────────────────────────────────
+
+  /// Sanitizes a registry/provider id before it's used in a path.
+  /// Prevents path traversal (`..`, `/`, `\`) and null bytes from
+  /// escaping the intended directory, in case an id ever originates
+  /// from external data (e.g. a downloaded registry's own metadata)
+  /// rather than being generated internally.
+  static String _sanitizeId(String id) {
+    final cleaned = id.replaceAll(RegExp(r'[\/\\\x00]'), '_');
+    if (cleaned.isEmpty || cleaned == '.' || cleaned == '..') {
+      throw ArgumentError.value(id, 'id', 'Invalid registry/provider id');
+    }
+    return cleaned;
+  }
+
   // ─── Path helpers ─────────────────────────────────────
 
   /// Path to a cached registry's metadata.json
   String registryMetadataPath(String registryId) {
-    return p.join(registriesDir.path, registryId, 'metadata.json');
+    return p.join(registriesDir.path, _sanitizeId(registryId), 'metadata.json');
   }
 
   /// Directory for a specific registry
   Directory registryDir(String registryId) {
-    return Directory(p.join(registriesDir.path, registryId));
+    return Directory(p.join(registriesDir.path, _sanitizeId(registryId)));
   }
 
   /// Icons directory for a specific registry
   Directory registryIconsDir(String registryId) {
-    return Directory(p.join(registriesDir.path, registryId, 'icons'));
+    return Directory(
+      p.join(registriesDir.path, _sanitizeId(registryId), 'icons'),
+    );
   }
 
   /// Path to a provider's JS file within a registry
   String registryProviderJsPath(String registryId, String providerId) {
-    return p.join(registriesDir.path, registryId, '$providerId.js');
+    return p.join(
+      registriesDir.path,
+      _sanitizeId(registryId),
+      '${_sanitizeId(providerId)}.js',
+    );
   }
 
   /// Path to a provider's icon within a registry
   String registryProviderIconPath(String registryId, String providerId) {
-    return p.join(registriesDir.path, registryId, 'icons', '$providerId.png');
+    return p.join(
+      registriesDir.path,
+      _sanitizeId(registryId),
+      'icons',
+      '${_sanitizeId(providerId)}.png',
+    );
   }
 
   // ─── Legacy paths (for backward compat) ────────────────
 
   /// Path to a cached provider's JS source (legacy)
   String providerJsPath(String providerId) {
-    return p.join(providersDir.path, providerId, 'provider.js');
+    return p.join(providersDir.path, _sanitizeId(providerId), 'provider.js');
   }
 
   /// Path to a cached provider's icon (legacy)
   String providerIconPath(String providerId) {
-    return p.join(providersDir.path, providerId, 'icon.png');
+    return p.join(providersDir.path, _sanitizeId(providerId), 'icon.png');
   }
 
   /// Path to a cached provider's local metadata (legacy)
   String providerInfoPath(String providerId) {
-    return p.join(providersDir.path, providerId, 'info.json');
+    return p.join(providersDir.path, _sanitizeId(providerId), 'info.json');
   }
 
   /// Directory for a specific provider (legacy)
   Directory providerDir(String providerId) {
-    return Directory(p.join(providersDir.path, providerId));
+    return Directory(p.join(providersDir.path, _sanitizeId(providerId)));
   }
 }

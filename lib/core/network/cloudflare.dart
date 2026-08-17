@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'dart:convert';
 import 'dart:io' show Platform;
 
 import 'package:dio/dio.dart';
@@ -11,11 +12,10 @@ const _tag = 'Cloudflare';
 
 /// Detects Cloudflare challenge pages and resolves them via WebView.
 class CloudflareHandler {
-
   /// Check if a response looks like a Cloudflare challenge.
   static bool isCloudflareChallenge(Response response) {
     final statusCode = response.statusCode ?? 0;
-    final body = response.data?.toString() ?? '';
+    final body = _bodyAsString(response.data);
     final headers = response.headers;
 
     // Status codes that indicate Cloudflare
@@ -38,11 +38,29 @@ class CloudflareHandler {
 
     // Check server header
     final server = headers.value('server') ?? '';
-    if (server.toLowerCase().contains('cloudflare') && body.contains('challenge')) {
+    if (server.toLowerCase().contains('cloudflare') &&
+        body.contains('challenge')) {
       return true;
     }
 
     return false;
+  }
+
+  /// Converts Dio response data to a string regardless of responseType.
+  /// `.toString()` on raw bytes (e.g. List<int>/Uint8List) does NOT give
+  /// page content — it gives something like "Instance of '_Uint8List'" —
+  /// so bytes need to be explicitly utf8-decoded first.
+  static String _bodyAsString(dynamic data) {
+    if (data == null) return '';
+    if (data is String) return data;
+    if (data is List<int>) {
+      try {
+        return utf8.decode(data, allowMalformed: true);
+      } catch (_) {
+        return '';
+      }
+    }
+    return data.toString();
   }
 
   /// Attempt to bypass Cloudflare challenge for a URL.
@@ -65,11 +83,16 @@ class CloudflareHandler {
   }
 
   /// Open WebView and capture Cloudflare clearance cookies.
-  Future<Map<String, String>?> _resolveWithWebView(BuildContext context, String url) async {
+  Future<Map<String, String>?> _resolveWithWebView(
+    BuildContext context,
+    String url,
+  ) async {
     if (!Platform.isAndroid && !Platform.isIOS) {
       if (context.mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('WebView is not available on this platform.')),
+          const SnackBar(
+            content: Text('WebView is not available on this platform.'),
+          ),
         );
       }
       return null;
@@ -123,8 +146,10 @@ class _CloudflareWebView extends StatefulWidget {
 }
 
 class _CloudflareWebViewState extends State<_CloudflareWebView> {
-  late final WebViewController _controller;
+  WebViewController? _controller;
   bool _isLoading = true;
+  bool _unsupported = false;
+  bool _completed = false;
   String _status = 'Loading...';
   Timer? _timeoutTimer;
   Timer? _checkTimer;
@@ -135,17 +160,19 @@ class _CloudflareWebViewState extends State<_CloudflareWebView> {
     super.initState();
 
     try {
-      _controller = WebViewController()
+      final controller = WebViewController()
         ..setJavaScriptMode(JavaScriptMode.unrestricted)
         ..setNavigationDelegate(
           NavigationDelegate(
             onPageStarted: (url) {
+              if (!mounted) return;
               setState(() {
                 _isLoading = true;
                 _status = 'Loading page...';
               });
             },
             onPageFinished: (url) {
+              if (!mounted) return;
               setState(() {
                 _isLoading = false;
                 _status = 'Checking for Cloudflare...';
@@ -155,15 +182,33 @@ class _CloudflareWebViewState extends State<_CloudflareWebView> {
           ),
         )
         ..loadRequest(Uri.parse(widget.url));
+      _controller = controller;
 
       // Timeout after 5 minutes
       _timeoutTimer = Timer(const Duration(minutes: 5), () {
-        widget.onTimeout();
+        if (!mounted) return;
+        _complete(() => widget.onTimeout());
       });
     } catch (e) {
-      _status = 'WebView not supported on this platform.';
-      widget.onComplete({});
+      _unsupported = true;
+      // Defer completion until after the first frame — calling
+      // Navigator.pop synchronously inside initState (via onComplete)
+      // can run before the route is fully mounted.
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (!mounted) return;
+        _complete(() => widget.onComplete({}));
+      });
     }
+  }
+
+  /// Runs [action] exactly once, guarding against duplicate completion
+  /// (e.g. timeout firing right as cookies are found).
+  void _complete(VoidCallback action) {
+    if (_completed) return;
+    _completed = true;
+    _checkTimer?.cancel();
+    _timeoutTimer?.cancel();
+    action();
   }
 
   @override
@@ -174,13 +219,16 @@ class _CloudflareWebViewState extends State<_CloudflareWebView> {
   }
 
   void _onPageFinished() {
+    final controller = _controller;
+    if (controller == null || _completed) return;
+
     // Try to auto-click Cloudflare Turnstile checkbox
-    _controller.runJavaScript('''
+    controller.runJavaScript('''
       // Try to find and click the Cloudflare challenge
       var challengeForm = document.querySelector('#challenge-form');
       var challengeRunning = document.querySelector('#challenge-running');
       var turnstile = document.querySelector('#cf-turnstile-response');
-      
+
       if (challengeForm || challengeRunning || turnstile) {
         // Cloudflare challenge detected, try to submit
         var submitBtn = document.querySelector('#challenge-form input[type="submit"]');
@@ -188,22 +236,41 @@ class _CloudflareWebViewState extends State<_CloudflareWebView> {
       }
     ''');
 
+    // Cancel any previous polling timer before starting a new one —
+    // onPageFinished can fire multiple times (redirects, Cloudflare's
+    // own internal reloads during the challenge), and without this,
+    // overlapping timers would stack up and could all call onComplete.
+    _checkTimer?.cancel();
+    _checkCount = 0;
+
     // Check for cf_clearance cookie periodically
     _checkTimer = Timer.periodic(const Duration(seconds: 2), (_) {
+      if (!mounted || _completed) {
+        _checkTimer?.cancel();
+        return;
+      }
       _checkCount++;
       _checkCookies();
 
       // Give up after 150 checks (5 minutes)
       if (_checkCount > 150) {
-        _checkTimer?.cancel();
-        widget.onComplete({});
+        _complete(() => widget.onComplete({}));
       }
     });
   }
 
   Future<void> _checkCookies() async {
+    final controller = _controller;
+    if (controller == null || _completed) return;
+
     try {
-      final cookieResult = await _controller.runJavaScriptReturningResult('document.cookie');
+      final cookieResult = await controller.runJavaScriptReturningResult(
+        'document.cookie',
+      );
+      // The widget may have been disposed, or completion may have
+      // already happened via timeout/skip, while this await was pending.
+      if (!mounted || _completed) return;
+
       final cookieString = cookieResult.toString();
 
       if (cookieString.contains('cf_clearance')) {
@@ -219,9 +286,7 @@ class _CloudflareWebViewState extends State<_CloudflareWebView> {
           }
         }
 
-        _checkTimer?.cancel();
-        _timeoutTimer?.cancel();
-        widget.onComplete(cookies);
+        _complete(() => widget.onComplete(cookies));
       }
     } catch (e) {
       // JS might not be ready yet
@@ -230,27 +295,23 @@ class _CloudflareWebViewState extends State<_CloudflareWebView> {
 
   @override
   Widget build(BuildContext context) {
+    if (_unsupported || _controller == null) {
+      return const Scaffold(body: Center(child: CircularProgressIndicator()));
+    }
     return Scaffold(
       appBar: AppBar(
         title: const Text('Cloudflare Verification'),
         actions: [
           TextButton(
-            onPressed: () {
-              _checkTimer?.cancel();
-              _timeoutTimer?.cancel();
-              widget.onComplete({});
-            },
+            onPressed: () => _complete(() => widget.onComplete({})),
             child: const Text('Skip'),
           ),
         ],
       ),
       body: Column(
         children: [
-          if (_isLoading)
-            const LinearProgressIndicator(minHeight: 3),
-          Expanded(
-            child: WebViewWidget(controller: _controller),
-          ),
+          if (_isLoading) const LinearProgressIndicator(minHeight: 3),
+          Expanded(child: WebViewWidget(controller: _controller!)),
           Container(
             padding: const EdgeInsets.all(12),
             color: Theme.of(context).colorScheme.surface,

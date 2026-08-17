@@ -14,7 +14,11 @@ class Html2Md {
     return buffer.toString().trim();
   }
 
-  static void _renderNodes(List<dom.Node> nodes, StringBuffer buf, {int indent = 0}) {
+  static void _renderNodes(
+    List<dom.Node> nodes,
+    StringBuffer buf, {
+    int indent = 0,
+  }) {
     for (final node in nodes) {
       if (node is dom.Element) {
         _renderElement(node, buf, indent: indent);
@@ -27,7 +31,11 @@ class Html2Md {
     }
   }
 
-  static void _renderElement(dom.Element el, StringBuffer buf, {int indent = 0}) {
+  static void _renderElement(
+    dom.Element el,
+    StringBuffer buf, {
+    int indent = 0,
+  }) {
     final tag = el.localName ?? '';
 
     switch (tag) {
@@ -215,7 +223,12 @@ class Html2Md {
     }
   }
 
-  static void _renderList(List<dom.Node> nodes, StringBuffer buf, {required bool ordered, int indent = 0}) {
+  static void _renderList(
+    List<dom.Node> nodes,
+    StringBuffer buf, {
+    required bool ordered,
+    int indent = 0,
+  }) {
     int counter = 1;
     for (final node in nodes) {
       if (node is! dom.Element) continue;
@@ -227,10 +240,15 @@ class Html2Md {
 
       final innerBuf = StringBuffer();
       for (final child in node.nodes) {
-        if (child is dom.Element && (child.localName == 'ul' || child.localName == 'ol')) {
+        if (child is dom.Element &&
+            (child.localName == 'ul' || child.localName == 'ol')) {
           final nested = StringBuffer();
-          _renderList(child.nodes, nested,
-              ordered: child.localName == 'ol', indent: indent + 1);
+          _renderList(
+            child.nodes,
+            nested,
+            ordered: child.localName == 'ol',
+            indent: indent + 1,
+          );
           final nestedStr = nested.toString().trim();
           if (nestedStr.isNotEmpty) {
             buf.writeln();

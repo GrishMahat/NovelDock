@@ -11,12 +11,12 @@ class SettingsDao extends DatabaseAccessor<AppDatabase>
   SettingsDao(AppDatabase db) : super(db);
 
   Future<void> setSetting(String key, String value) async {
+    await (delete(settings)..where((t) => t.key.equals(key))).go();
     await into(settings).insert(
       SettingsCompanion(
         key: Value(key),
         value: Value(value),
       ),
-      mode: InsertMode.insertOrReplace,
     );
   }
 

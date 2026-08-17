@@ -20,6 +20,9 @@ class RegistryManager {
 
   RegistryManager(this._dio, this._config);
 
+  /// Directory where this registry's cached files live.
+  Directory registryDir(String registryId) => _config.registryDir(registryId);
+
   /// Fetch registry JSON from a URL. Returns null on failure (error logged).
   Future<RegistryMetadata?> fetchRegistryJson(String url) async {
     final rawUrl = _resolveRawUrl(url, path: 'registry.json');
@@ -95,14 +98,43 @@ class RegistryManager {
     }
   }
 
-  /// Check if remote registry has a newer version than local.
-  /// Returns true if remote `updated` timestamp is newer.
-  Future<bool> checkForUpdates(String url, int? localUpdated) async {
+  /// Check if remote registry has newer content than the local cache.
+  /// Returns true if the remote `updated` timestamp is newer, or if the
+  /// provider list differs from the cached metadata (version/file/baseUrl
+  /// changes are detected even when the `updated` timestamp was not bumped).
+  Future<bool> checkForUpdates(String url, {RegistryMetadata? local}) async {
     try {
       final metadata = await fetchRegistryJson(url);
-      if (metadata == null || metadata.updated == null) return false;
-      if (localUpdated == null) return true;
-      return metadata.updated! > localUpdated;
+      if (metadata == null) return false;
+
+      if (local == null) return true;
+
+      // Timestamp check: remote explicitly newer.
+      if (metadata.updated != null &&
+          local.updated != null &&
+          metadata.updated! > local.updated!) {
+        return true;
+      }
+
+      // Content check: provider list/versions differ from cache.
+      final remoteProviders = metadata.providers;
+      final localProviders = local.providers;
+      if (remoteProviders.length != localProviders.length) return true;
+
+      for (final rp in remoteProviders) {
+        ProviderMeta? lp;
+        for (final p in localProviders) {
+          if (p.id == rp.id) {
+            lp = p;
+            break;
+          }
+        }
+        if (lp == null) return true;
+        if (lp.version != rp.version) return true;
+        if (lp.file != rp.file) return true;
+        if (lp.baseUrl != rp.baseUrl) return true;
+      }
+      return false;
     } catch (e) {
       Log.d(_tag, 'Update check failed: $e');
       return false;
@@ -163,10 +195,6 @@ class RegistryManager {
     final registryDir = _config.registryDir(registryId);
     await registryDir.create(recursive: true);
 
-    final metadataFile = File(_config.registryMetadataPath(registryId));
-    await metadataFile.writeAsString(jsonEncode(metadata.toJson()));
-    Log.i(_tag, 'Cached registry JSON to: ${metadataFile.path}');
-
     final results = await Future.wait(metadata.providers.map((provider) async {
       final futures = <Future<dynamic>>[];
       final jsFuture = rawBaseUrl != null
@@ -223,6 +251,20 @@ class RegistryManager {
     }));
 
     final downloaded = results.whereType<ProviderMeta>().toList();
+
+    // Only commit the new metadata once ALL provider files were written.
+    // Writing it first would make the UI show the new version while the
+    // runtime still loads the old JS files (stale cache inconsistency).
+    if (downloaded.length != metadata.providers.length) {
+      Log.w(_tag, 'Sync incomplete (${downloaded.length}/${metadata.providers.length}), '
+          'keeping previous metadata.json');
+      return downloaded;
+    }
+
+    final metadataFile = File(_config.registryMetadataPath(registryId));
+    await metadataFile.writeAsString(jsonEncode(metadata.toJson()));
+    Log.i(_tag, 'Cached registry JSON to: ${metadataFile.path}');
+
     Log.ok(_tag, 'Synced ${downloaded.length}/${metadata.providers.length} providers');
     return downloaded;
   }
@@ -248,10 +290,15 @@ class RegistryManager {
 
   /// Load cached JS source for a provider.
   /// Resolves the file path from metadata.json relative to the registry dir.
+  /// When multiple registries ship the same provider, prefers the one whose
+  /// metadata.json was committed most recently (the registry that actually
+  /// last synced this provider).
   Future<String?> loadCachedProviderJs(String providerId) async {
     // Search registries for this provider's JS file
     final registriesDir = _config.registriesDir;
     if (!await registriesDir.exists()) return null;
+
+    final matches = <(String, String, DateTime)>[];
 
     await for (final entity in registriesDir.list()) {
       if (entity is! Directory) continue;
@@ -264,20 +311,30 @@ class RegistryManager {
           final jsPath = p.join(_config.registryDir(registryId).path, provider.file);
           final jsFile = File(jsPath);
           if (await jsFile.exists()) {
-            try {
-              final content = await jsFile.readAsString();
-              Log.ok(_tag, 'Loaded ${content.length} chars of JS for "$providerId"');
-              return content;
-            } catch (e) {
-              Log.e(_tag, 'Error reading JS file: $e');
-            }
+            final metadataFile = File(_config.registryMetadataPath(registryId));
+            final metadataModified = await metadataFile.lastModified();
+            matches.add((jsPath, registryId, metadataModified));
           }
         }
       }
     }
 
-    Log.e(_tag, 'JS file not found for provider: $providerId');
-    return null;
+    if (matches.isEmpty) {
+      Log.e(_tag, 'JS file not found for provider: $providerId');
+      return null;
+    }
+
+    matches.sort((a, b) => b.$3.compareTo(a.$3));
+    final (jsPath, registryId, _) = matches.first;
+    try {
+      final content = await File(jsPath).readAsString();
+      Log.ok(_tag, 'Loaded ${content.length} chars of JS for "$providerId" '
+          '(from registry "$registryId")');
+      return content;
+    } catch (e) {
+      Log.e(_tag, 'Error reading JS file: $e');
+      return null;
+    }
   }
 
   /// Load cached icon for a provider.
@@ -356,7 +413,7 @@ class RegistryManager {
   /// Extract base URL from a raw URL (everything before the filename)
   String _getBaseUrl(String rawUrl) {
     final lastSlash = rawUrl.lastIndexOf('/');
-    return lastSlash > 0 ? '${rawUrl.substring(0, lastSlash + 1)}' : '$rawUrl/';
+    return lastSlash > 0 ? rawUrl.substring(0, lastSlash + 1) : '$rawUrl/';
   }
 
   // ─── HTTP helpers ─────────────────────────────────────────

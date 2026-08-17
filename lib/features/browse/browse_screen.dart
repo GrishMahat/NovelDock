@@ -10,7 +10,8 @@ import '../../widgets/shimmer_list.dart';
 import '../settings/providers/provider_management_providers.dart';
 import 'webview_screen.dart';
 
-/// Browse screen — Sources tab for browsing providers, Extensions tab for install/uninstall.
+/// Browse screen — Sources tab for browsing providers, Extensions tab for
+/// install/uninstall.
 class BrowseScreen extends ConsumerStatefulWidget {
   const BrowseScreen({super.key});
 
@@ -46,23 +47,19 @@ class _BrowseScreenState extends ConsumerState<BrowseScreen>
                 controller: _searchController,
                 autofocus: true,
                 decoration: const InputDecoration(
-                  hintText: 'Search sources...',
+                  hintText: 'Search all sources...',
                   border: InputBorder.none,
                 ),
                 onSubmitted: (q) => context.push('/search/results?q=$q'),
               )
             : const Text('Browse'),
         actions: [
-          if (!_isSearching) ...[
+          if (!_isSearching)
             IconButton(
               icon: const Icon(Icons.search),
               onPressed: () => setState(() => _isSearching = true),
-            ),
-            IconButton(
-              icon: const Icon(Icons.filter_list),
-              onPressed: () {},
-            ),
-          ] else
+            )
+          else
             IconButton(
               icon: const Icon(Icons.close),
               onPressed: () {
@@ -100,7 +97,7 @@ class _BrowseScreenState extends ConsumerState<BrowseScreen>
         final enabled = ref.watch(enabledProvidersProvider);
         return providersAsync.when(
           loading: () => const Tab(text: 'Extensions'),
-          error: (_, __) => const Tab(text: 'Extensions'),
+          error: (_, _) => const Tab(text: 'Extensions'),
           data: (providers) {
             final installed = providers.where((p) => enabled.contains(p.id)).length;
             return Tab(
@@ -212,19 +209,10 @@ class _SourceTile extends StatelessWidget {
         provider.lang.toUpperCase(),
         style: const TextStyle(fontSize: 12),
       ),
-      trailing: Row(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          Text(
-            'Latest',
-            style: TextStyle(
-              fontSize: 12,
-              color: Theme.of(context).colorScheme.primary,
-            ),
-          ),
-          const SizedBox(width: 8),
-          Icon(Icons.push_pin, size: 18, color: Theme.of(context).colorScheme.primary),
-        ],
+      trailing: IconButton(
+        icon: const Icon(Icons.push_pin, size: 18),
+        tooltip: 'Browse source',
+        onPressed: () => context.push('/provider/${provider.id}'),
       ),
       onTap: () => context.push('/provider/${provider.id}'),
     );
@@ -235,11 +223,33 @@ class _SourceTile extends StatelessWidget {
 // Extensions Tab
 // ═══════════════════════════════════════════════════════════
 
-class ExtensionsTab extends ConsumerWidget {
+class ExtensionsTab extends ConsumerStatefulWidget {
   const ExtensionsTab({super.key});
 
   @override
-  Widget build(BuildContext context, WidgetRef ref) {
+  ConsumerState<ExtensionsTab> createState() => _ExtensionsTabState();
+}
+
+class _ExtensionsTabState extends ConsumerState<ExtensionsTab> {
+  bool _updating = false;
+
+  Future<void> _updateAll() async {
+    setState(() => _updating = true);
+    try {
+      final count = await updateAllRegistries(ref);
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        count > 0
+            ? SnackBar(content: Text('Updated $count registry(ies)'))
+            : const SnackBar(content: Text('All extensions are up to date')),
+      );
+    } finally {
+      if (mounted) setState(() => _updating = false);
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
     final providersAsync = ref.watch(availableProvidersProvider);
     final enabled = ref.watch(enabledProvidersProvider);
 
@@ -268,6 +278,20 @@ class ExtensionsTab extends ConsumerWidget {
 
         return ListView(
           children: [
+            Padding(
+              padding: const EdgeInsets.fromLTRB(16, 12, 16, 0),
+              child: OutlinedButton.icon(
+                onPressed: _updating ? null : _updateAll,
+                icon: _updating
+                    ? const SizedBox(
+                        width: 16,
+                        height: 16,
+                        child: CircularProgressIndicator(strokeWidth: 2),
+                      )
+                    : const Icon(Icons.update, size: 18),
+                label: Text(_updating ? 'Updating...' : 'Update all'),
+              ),
+            ),
             if (installed.isNotEmpty) ...[
               _sectionHeader(context, 'Installed'),
               ...installed.map((p) => _ExtensionTile(

@@ -9,6 +9,7 @@ class CoverImage extends StatelessWidget {
   final double? height;
   final BoxFit fit;
   final BorderRadius? borderRadius;
+  final Map<String, String>? imageHeaders;
 
   const CoverImage({
     super.key,
@@ -17,6 +18,7 @@ class CoverImage extends StatelessWidget {
     this.height,
     this.fit = BoxFit.cover,
     this.borderRadius,
+    this.imageHeaders,
   });
 
   @override
@@ -40,6 +42,7 @@ class CoverImage extends StatelessWidget {
         width: width,
         height: height,
         fit: fit,
+        headers: imageHeaders,
         errorBuilder: (_, _, _) => placeholder,
       ),
     );

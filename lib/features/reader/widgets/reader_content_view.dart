@@ -35,34 +35,63 @@ Widget buildChapterContent({
   );
 }
 
+/// Returns just the filename portion of a path, handling both
+/// Unix ('/') and Windows ('\') separators regardless of which
+/// platform the app is currently running on.
+String _fileNameOf(String path) {
+  final normalized = path.replaceAll('\\', '/');
+  final segments = normalized.split('/');
+  return segments.isNotEmpty ? segments.last : path;
+}
+
 Widget _buildPdfView(String filePath, ReaderSettings settings) {
-  return Center(
-    child: Column(
-      mainAxisAlignment: MainAxisAlignment.center,
-      children: [
-        Icon(Icons.picture_as_pdf, size: 64, color: settings.textColor.withValues(alpha: 0.5)),
-        const SizedBox(height: 16),
-        Text(
-          'PDF Document',
-          style: TextStyle(fontSize: 18, fontWeight: FontWeight.w600, color: settings.textColor),
-        ),
-        const SizedBox(height: 8),
-        Text(
-          filePath.split('/').last,
-          style: TextStyle(color: settings.textColor.withValues(alpha: 0.5), fontSize: 12),
-        ),
-        const SizedBox(height: 24),
-        FilledButton.icon(
-          onPressed: () async {
-            final uri = Uri.file(filePath);
-            if (await canLaunchUrl(uri)) {
-              await launchUrl(uri, mode: LaunchMode.externalApplication);
-            }
-          },
-          icon: const Icon(Icons.open_in_new, size: 18),
-          label: const Text('Open in PDF Viewer'),
-        ),
-      ],
+  return Builder(
+    builder: (context) => Center(
+      child: Column(
+        mainAxisAlignment: MainAxisAlignment.center,
+        children: [
+          Icon(
+            Icons.picture_as_pdf,
+            size: 64,
+            color: settings.textColor.withValues(alpha: 0.5),
+          ),
+          const SizedBox(height: 16),
+          Text(
+            'PDF Document',
+            style: TextStyle(
+              fontSize: 18,
+              fontWeight: FontWeight.w600,
+              color: settings.textColor,
+            ),
+          ),
+          const SizedBox(height: 8),
+          Text(
+            _fileNameOf(filePath),
+            style: TextStyle(
+              color: settings.textColor.withValues(alpha: 0.5),
+              fontSize: 12,
+            ),
+          ),
+          const SizedBox(height: 24),
+          FilledButton.icon(
+            onPressed: () async {
+              final uri = Uri.file(filePath);
+              final launched =
+                  await canLaunchUrl(uri) &&
+                  await launchUrl(uri, mode: LaunchMode.externalApplication);
+              if (!launched && context.mounted) {
+                ScaffoldMessenger.of(context).showSnackBar(
+                  const SnackBar(
+                    content: Text('Could not find an app to open this PDF.'),
+                  ),
+                );
+              }
+            },
+            icon: const Icon(Icons.open_in_new, size: 18),
+            label: const Text('Open in PDF Viewer'),
+          ),
+        ],
+      ),
     ),
   );
 }
@@ -85,7 +114,10 @@ Widget buildContinuousContent({
 }) {
   return ListView.builder(
     controller: scrollController,
-    padding: EdgeInsets.symmetric(horizontal: settings.paddingH, vertical: settings.paddingV),
+    padding: EdgeInsets.symmetric(
+      horizontal: settings.paddingH,
+      vertical: settings.paddingV,
+    ),
     itemCount: chapters.length,
     itemBuilder: (context, index) {
       final chapterId = chapters[index].id;
@@ -111,7 +143,8 @@ Widget buildContinuousContent({
 
       final isEpub = chapters[index].url.startsWith('epub://');
       if (index > 0 && !isEpub) {
-        final currentChapterId = (chapters.isNotEmpty && currentIndex < chapters.length)
+        final currentChapterId =
+            (chapters.isNotEmpty && currentIndex < chapters.length)
             ? chapters[currentIndex].id
             : -1;
         return Column(
@@ -122,11 +155,17 @@ Widget buildContinuousContent({
               padding: const EdgeInsets.symmetric(vertical: 24),
               child: Column(
                 children: [
-                  Container(height: 1, color: settings.textColor.withValues(alpha: 0.2)),
+                  Container(
+                    height: 1,
+                    color: settings.textColor.withValues(alpha: 0.2),
+                  ),
                   const SizedBox(height: 24),
                   Text(
                     'Chapter ${index + 1}',
-                    style: TextStyle(color: settings.textColor.withValues(alpha: 0.4), fontSize: 12),
+                    style: TextStyle(
+                      color: settings.textColor.withValues(alpha: 0.4),
+                      fontSize: 12,
+                    ),
                   ),
                   const SizedBox(height: 8),
                   Text(
@@ -139,7 +178,10 @@ Widget buildContinuousContent({
                     ),
                   ),
                   const SizedBox(height: 24),
-                  Container(height: 1, color: settings.textColor.withValues(alpha: 0.2)),
+                  Container(
+                    height: 1,
+                    color: settings.textColor.withValues(alpha: 0.2),
+                  ),
                 ],
               ),
             ),
@@ -157,7 +199,8 @@ Widget buildContinuousContent({
         );
       }
 
-      final currentChapterId = (chapters.isNotEmpty && currentIndex < chapters.length)
+      final currentChapterId =
+          (chapters.isNotEmpty && currentIndex < chapters.length)
           ? chapters[currentIndex].id
           : -1;
       return buildChapterContent(
@@ -180,7 +223,11 @@ Widget _buildChapterError(String error, ReaderSettings settings) {
       children: [
         const Icon(Icons.error_outline, size: 48, color: Colors.red),
         const SizedBox(height: 16),
-        Text(error, style: TextStyle(color: settings.textColor), textAlign: TextAlign.center),
+        Text(
+          error,
+          style: TextStyle(color: settings.textColor),
+          textAlign: TextAlign.center,
+        ),
         const SizedBox(height: 16),
       ],
     ),
@@ -216,7 +263,8 @@ Widget buildPagedContent({
             onPageChanged(index);
             loadChapter(chapters[index].id);
             if (index > 0) loadChapter(chapters[index - 1].id);
-            if (index < chapters.length - 1) loadChapter(chapters[index + 1].id);
+            if (index < chapters.length - 1)
+              loadChapter(chapters[index + 1].id);
           },
           itemBuilder: (context, index) {
             final chapterId = chapters[index].id;
@@ -228,11 +276,15 @@ Widget buildPagedContent({
             if (error != null) {
               return _buildChapterError(error, settings);
             }
-            final currentChapterId = (chapters.isNotEmpty && currentIndex < chapters.length)
+            final currentChapterId =
+                (chapters.isNotEmpty && currentIndex < chapters.length)
                 ? chapters[currentIndex].id
                 : -1;
             return SingleChildScrollView(
-              padding: EdgeInsets.symmetric(horizontal: settings.paddingH, vertical: settings.paddingV),
+              padding: EdgeInsets.symmetric(
+                horizontal: settings.paddingH,
+                vertical: settings.paddingV,
+              ),
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
@@ -275,12 +327,17 @@ Widget buildPagedContent({
             ),
             Text(
               '${currentIndex + 1} / ${chapters.length}',
-              style: TextStyle(color: settings.textColor.withValues(alpha: 0.7), fontSize: 13),
+              style: TextStyle(
+                color: settings.textColor.withValues(alpha: 0.7),
+                fontSize: 13,
+              ),
             ),
             TextButton.icon(
-              onPressed: currentIndex < chapters.length - 1 ? goToNextChapter : null,
-              icon: const Text('Next'),
-              label: const Icon(Icons.chevron_right, size: 20),
+              onPressed: currentIndex < chapters.length - 1
+                  ? goToNextChapter
+                  : null,
+              icon: const Icon(Icons.chevron_right, size: 20),
+              label: const Text('Next'),
             ),
           ],
         ),

@@ -1,31 +1,30 @@
+import 'dart:async';
+
 import 'package:audio_service/audio_service.dart';
 
-/// Handles background audio playback and media notification controls via audio_service.
+/// Handles background audio playback and media notification controls.
 ///
-/// On Android this runs a foreground service, keeping audio alive when the
-/// screen is off. It also provides lock screen / notification media controls.
-///
-/// Actual audio playback is handled by the TTS player (just_audio); this
-/// handler only manages the notification/state that audio_service exposes.
-class BackgroundAudioHandler extends BaseAudioHandler with QueueHandler, SeekHandler {
-  /// Callbacks wired from TtsManager.
-  void Function()? onPlay;
-  void Function()? onPause;
-  void Function()? onStop;
-  void Function()? onSkipNext;
-  void Function()? onSkipPrevious;
-  void Function(Duration position)? onSeek;
-  void Function()? onSeekForward;
-  void Function()? onSeekBackward;
+/// Actual TTS playback is owned by [TtsPlaybackController]/just_audio.
+/// This handler exposes playback state to Android's foreground notification,
+/// lock-screen controls, and media buttons.
+class BackgroundAudioHandler extends BaseAudioHandler
+    with QueueHandler, SeekHandler {
+  /// Callbacks wired by TtsManager.
+  FutureOr<void> Function()? onPlay;
+  FutureOr<void> Function()? onPause;
+  FutureOr<void> Function()? onStop;
+  FutureOr<void> Function()? onSkipNext;
+  FutureOr<void> Function()? onSkipPrevious;
+  FutureOr<void> Function(Duration position)? onSeek;
+  FutureOr<void> Function()? onSeekForward;
+  FutureOr<void> Function()? onSeekBackward;
+
+  bool _stopping = false;
 
   BackgroundAudioHandler() {
-    // Forward media button actions to callbacks
-    playbackState.add(playbackState.value.copyWith(
-      processingState: AudioProcessingState.idle,
-    ));
+    _setIdleState();
   }
 
-  /// Update the media notification with current TTS state.
   void updateMediaInfo({
     required String title,
     required String artist,
@@ -33,71 +32,149 @@ class BackgroundAudioHandler extends BaseAudioHandler with QueueHandler, SeekHan
     required Duration position,
     required Duration duration,
   }) {
-    mediaItem.add(MediaItem(
-      id: 'tts',
-      title: title,
-      artist: artist,
-      duration: duration,
-    ));
+    final safeDuration = duration < Duration.zero ? Duration.zero : duration;
 
-    playbackState.add(playbackState.value.copyWith(
-      controls: [
-        MediaControl.skipToPrevious,
-        if (isPlaying) MediaControl.pause else MediaControl.play,
-        MediaControl.stop,
-        MediaControl.skipToNext,
-      ],
-      systemActions: const {
-        MediaAction.seek,
-        MediaAction.seekForward,
-        MediaAction.seekBackward,
-      },
-      processingState: AudioProcessingState.ready,
-      playing: isPlaying,
-      updatePosition: position,
-      speed: 1.0,
-    ));
+    final safePosition = position < Duration.zero
+        ? Duration.zero
+        : safeDuration > Duration.zero && position > safeDuration
+        ? safeDuration
+        : position;
+
+    mediaItem.add(
+      MediaItem(
+        id: 'tts',
+        title: title,
+        artist: artist,
+        duration: safeDuration,
+      ),
+    );
+
+    playbackState.add(
+      playbackState.value.copyWith(
+        controls: <MediaControl>[
+          MediaControl.skipToPrevious,
+          if (isPlaying) MediaControl.pause else MediaControl.play,
+          MediaControl.stop,
+          MediaControl.skipToNext,
+        ],
+        systemActions: const <MediaAction>{
+          MediaAction.seek,
+          MediaAction.seekForward,
+          MediaAction.seekBackward,
+        },
+        processingState: AudioProcessingState.ready,
+        playing: isPlaying,
+        updatePosition: safePosition,
+        speed: 1.0,
+      ),
+    );
+  }
+
+  Future<void> _invoke(FutureOr<void> Function()? callback) async {
+    if (callback == null) return;
+    await callback();
+  }
+
+  Future<void> _invokePosition(
+    FutureOr<void> Function(Duration position)? callback,
+    Duration position,
+  ) async {
+    if (callback == null) return;
+    await callback(position);
   }
 
   @override
-  Future<void> play() async => onPlay?.call();
+  Future<void> play() async {
+    await _invoke(onPlay);
+  }
 
   @override
-  Future<void> pause() async => onPause?.call();
+  Future<void> pause() async {
+    await _invoke(onPause);
+  }
 
   @override
   Future<void> stop() async {
-    onStop?.call();
-    await dismiss();
+    if (_stopping) return;
+
+    _stopping = true;
+
+    try {
+      await _invoke(onStop);
+    } finally {
+      dismiss();
+      _stopping = false;
+    }
   }
 
-  /// Clears the notification/state without invoking [onStop]. Used for
-  /// app-internal calls: the manager's own stop() already runs the teardown,
-  /// and calling back into it here would re-enter stop() forever.
+  /// Clears notification/media-session state without invoking [onStop].
   Future<void> dismiss() async {
-    playbackState.add(playbackState.value.copyWith(
-      processingState: AudioProcessingState.idle,
-      playing: false,
-    ));
-    await super.stop();
+    _setIdleState();
+    mediaItem.add(null);
+
+    // BaseAudioHandler.stop() is not awaited here because some versions of
+    // audio_service expose the inherited implementation differently to the
+    // analyzer. The state above is the actual state we need to publish.
+    super.stop();
+  }
+
+  void _setIdleState() {
+    playbackState.add(
+      playbackState.value.copyWith(
+        controls: const <MediaControl>[],
+        systemActions: const <MediaAction>{},
+        processingState: AudioProcessingState.idle,
+        playing: false,
+        updatePosition: Duration.zero,
+        speed: 1.0,
+      ),
+    );
   }
 
   @override
-  Future<void> seek(Duration position) async => onSeek?.call(position);
+  Future<void> seek(Duration position) async {
+    await _invokePosition(onSeek, position);
+  }
 
   @override
-  Future<void> seekForward(bool begin) async => onSeekForward?.call();
+  Future<void> seekForward(bool begin) async {
+    if (!begin) return;
+    await _invoke(onSeekForward);
+  }
 
   @override
-  Future<void> seekBackward(bool begin) async => onSeekBackward?.call();
+  Future<void> seekBackward(bool begin) async {
+    if (!begin) return;
+    await _invoke(onSeekBackward);
+  }
 
   @override
-  Future<void> onTaskRemoved() async => onStop?.call();
+  Future<void> skipToNext() async {
+    await _invoke(onSkipNext);
+  }
+
+  @override
+  Future<void> skipToPrevious() async {
+    await _invoke(onSkipPrevious);
+  }
+
+  @override
+  Future<void> onTaskRemoved() async {
+    if (_stopping) return;
+
+    _stopping = true;
+
+    try {
+      await _invoke(onStop);
+    } finally {
+      dismiss();
+      _stopping = false;
+    }
+  }
 }
 
-/// Initializes audio_service and returns the handler.
 Future<BackgroundAudioHandler> initAudioService() async {
-  return await AudioService.init<BackgroundAudioHandler>(
+  return AudioService.init<BackgroundAudioHandler>(
     builder: () => BackgroundAudioHandler(),
     config: const AudioServiceConfig(
       androidNotificationChannelId: 'dev.grish.noveldock.tts',

@@ -193,7 +193,7 @@ class _NovelDetailScreenState extends ConsumerState<NovelDetailScreen> {
     try {
       final novelDao = ref.read(novelDaoProvider);
       final chapterDao = ref.read(chapterDaoProvider);
-      final instance = await loadProviderById(_novel!.providerId, ref);
+      final instance = await loadProviderById(_novel!.providerId, ref.container);
       if (instance != null) {
         final novelUrl = await instance.getNovelInfoUrl(_novel!.url);
         if (novelUrl != null) {

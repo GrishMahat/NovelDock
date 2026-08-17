@@ -7,7 +7,11 @@ class HtmlPreprocessor {
   /// Clean HTML content for rendering.
   /// Returns cleaned HTML string.
   /// If [keepCss] is true, preserves <style> and <link> tags (for EPUB content).
-  static String clean(String rawHtml, {bool stripAuthorNotes = true, bool keepCss = false}) {
+  static String clean(
+    String rawHtml, {
+    bool stripAuthorNotes = true,
+    bool keepCss = false,
+  }) {
     final document = html_parser.parse(rawHtml);
 
     // 1. Remove <script> tags
@@ -33,15 +37,33 @@ class HtmlPreprocessor {
     document.querySelectorAll('meta').forEach((e) => e.remove());
 
     // 7. Remove ad-related elements
-    document.querySelectorAll('[class*="ad"], [class*="Ad"], [id*="ad"], [id*="Ad"]').forEach((e) => e.remove());
-    document.querySelectorAll('[class*="banner"], [class*="Banner"]').forEach((e) => e.remove());
-    document.querySelectorAll('[class*="popup"], [class*="Popup"]').forEach((e) => e.remove());
-    document.querySelectorAll('[class*="modal"], [class*="Modal"]').forEach((e) => e.remove());
-    document.querySelectorAll('[class*="overlay"], [class*="Overlay"]').forEach((e) => e.remove());
+    document
+        .querySelectorAll(
+          '[class*="ad"], [class*="Ad"], [id*="ad"], [id*="Ad"]',
+        )
+        .forEach((e) => e.remove());
+    document
+        .querySelectorAll('[class*="banner"], [class*="Banner"]')
+        .forEach((e) => e.remove());
+    document
+        .querySelectorAll('[class*="popup"], [class*="Popup"]')
+        .forEach((e) => e.remove());
+    document
+        .querySelectorAll('[class*="modal"], [class*="Modal"]')
+        .forEach((e) => e.remove());
+    document
+        .querySelectorAll('[class*="overlay"], [class*="Overlay"]')
+        .forEach((e) => e.remove());
 
     // 8. Remove tracking pixels (1x1 images)
-    document.querySelectorAll('img[width="1"], img[height="1"]').forEach((e) => e.remove());
-    document.querySelectorAll('img[style*="display:none"], img[style*="visibility:hidden"]').forEach((e) => e.remove());
+    document
+        .querySelectorAll('img[width="1"], img[height="1"]')
+        .forEach((e) => e.remove());
+    document
+        .querySelectorAll(
+          'img[style*="display:none"], img[style*="visibility:hidden"]',
+        )
+        .forEach((e) => e.remove());
 
     // 9. Remove empty divs and spans (common in ad containers)
     document.querySelectorAll('div, span').forEach((e) {
@@ -52,8 +74,12 @@ class HtmlPreprocessor {
 
     // 10. Remove author notes container (if enabled)
     if (stripAuthorNotes) {
-      document.querySelectorAll('.qnauthornotecontainer').forEach((e) => e.remove());
-      document.querySelectorAll('[class*="author-note"], [class*="authorNote"]').forEach((e) => e.remove());
+      document
+          .querySelectorAll('.qnauthornotecontainer')
+          .forEach((e) => e.remove());
+      document
+          .querySelectorAll('[class*="author-note"], [class*="authorNote"]')
+          .forEach((e) => e.remove());
     }
 
     // 11. Remove translator/editor credit blocks
@@ -92,14 +118,17 @@ class HtmlPreprocessor {
 
     document.querySelectorAll('td, th').forEach((cell) {
       final existingStyle = cell.attributes['style'] ?? '';
-      cell.attributes['style'] = '$existingStyle padding: 4px 8px; border: 1px solid #444;'.trim();
+      cell.attributes['style'] =
+          '$existingStyle padding: 4px 8px; border: 1px solid #444;'.trim();
     });
 
     // 14. Convert ... to unicode ellipsis
-    document.body?.innerHtml = document.body?.innerHtml
-            .replaceAll('...', '\u2026')
-            .replaceAll('....', '\u2026') ??
-        '';
+    final currentBodyHtml = document.body?.innerHtml;
+    if (currentBodyHtml != null) {
+      document.body?.innerHtml = currentBodyHtml
+          .replaceAll('....', '\u2026')
+          .replaceAll('...', '\u2026');
+    }
 
     // 15. Remove <center> tags (unwrap content)
     document.querySelectorAll('center').forEach((center) {

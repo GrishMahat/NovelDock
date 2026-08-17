@@ -1,36 +1,57 @@
-import 'package:drift/drift.dart' hide Column;
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:infinite_scroll_pagination/infinite_scroll_pagination.dart';
 
 import '../../core/providers/engine.dart';
+import '../../core/providers/filters.dart';
 import '../../core/network/client.dart';
+import '../../core/providers/novel_opener.dart';
 import '../../core/utils/logger.dart';
-import '../../core/providers/database_providers.dart';
-import '../../core/database/database.dart';
-import '../../theme/app_theme.dart';
+import '../../widgets/novel_card.dart';
+import '../search/providers/search_providers.dart';
+import '../search/widgets/filter_sheet.dart';
+import '../settings/providers/provider_management_providers.dart';
 
 const _tag = 'ProviderScreen';
 
+enum _ListMode { popular, latest, search }
+
 class ProviderScreen extends ConsumerStatefulWidget {
   final String providerId;
+
   const ProviderScreen({super.key, required this.providerId});
 
   @override
   ConsumerState<ProviderScreen> createState() => _ProviderScreenState();
 }
 
-class _ProviderScreenState extends ConsumerState<ProviderScreen> {
+class _ProviderScreenState extends ConsumerState<ProviderScreen>
+    with SingleTickerProviderStateMixin {
   late final PagingController<int, SearchResultItem> _pagingController;
+  late final TabController _tabController;
   bool _isGridView = true;
   ProviderInstance? _instance;
   bool _hasReachedEnd = false;
   static const _maxPages = 100;
 
+  _ListMode _mode = _ListMode.popular;
+  String _query = '';
+  FilterValues _filters = const FilterValues();
+  final _searchController = TextEditingController();
+
+  bool get _canLatest => _instance?.flags.hasLatest ?? false;
+  bool get _canFilter => _instance?.flags.hasFilters ?? false;
+
   @override
   void initState() {
     super.initState();
+    _tabController = TabController(length: 2, vsync: this);
+    _tabController.addListener(() {
+      if (!_tabController.indexIsChanging) return;
+      if (_mode == _ListMode.search) return;
+      _setMode(_tabController.index == 1 ? _ListMode.latest : _ListMode.popular);
+    });
     _pagingController = PagingController(
       getNextPageKey: (state) {
         if (_hasReachedEnd) return null;
@@ -44,89 +65,92 @@ class _ProviderScreenState extends ConsumerState<ProviderScreen> {
       },
       fetchPage: _fetchPage,
     );
+    _ensureLoaded().then((_) {
+      if (mounted) setState(() {});
+    });
   }
 
   @override
   void dispose() {
     _pagingController.dispose();
+    _tabController.dispose();
+    _searchController.dispose();
     super.dispose();
   }
 
+  Future<ProviderInstance?> _ensureLoaded() async {
+    if (_instance == null) {
+      _instance = await loadProviderById(widget.providerId, ref.container);
+      if (_instance == null) {
+        Log.e(_tag, 'No cached provider for ${widget.providerId}');
+      }
+    }
+    return _instance;
+  }
+
   Future<List<SearchResultItem>> _fetchPage(int pageKey) async {
-    Log.i(_tag, 'Fetching page $pageKey for provider: ${widget.providerId}');
+    Log.i(_tag, 'Fetching page $pageKey for provider: ${widget.providerId} '
+        '(mode: $_mode, query: "$_query")');
 
     try {
-      // Use cached provider instance
-      if (_instance == null) {
-        _instance = await loadProviderById(widget.providerId, ref);
-        if (_instance == null) {
-          Log.e(_tag, 'No cached provider for ${widget.providerId}');
-          return [];
-        }
-        Log.ok(_tag, 'Provider loaded');
+      final instance = await _ensureLoaded();
+      if (instance == null) return [];
+
+      final dio = await ref.read(dioProvider.future);
+
+      String? url;
+      switch (_mode) {
+        case _ListMode.latest:
+          url = await instance.getLatestUrl(pageKey);
+        case _ListMode.search:
+          Log.i(_tag, 'Search mode: hasFunction(getSearchConfig)='
+              '${instance.hasFunction('getSearchConfig')}, '
+              'exported=${instance.exportedFunctions.length} fns');
+          if (instance.hasFunction('getSearchConfig')) {
+            final results = await searchProviderOnce(
+              instance,
+              dio,
+              _query,
+              _filters,
+              pageKey,
+            );
+            if (results != null) {
+              if (!results.hasNextPage) _hasReachedEnd = true;
+              Log.ok(_tag, 'Got ${results.results.length} results');
+              return results.results
+                  .map((e) => _toItem(e))
+                  .toList();
+            }
+            Log.w(_tag, 'searchProviderOnce returned null/empty, '
+                'falling back to GET search URL');
+          }
+          url = await instance.getSearchUrl(
+            _query,
+            pageKey,
+            filters: _filters,
+          );
+          Log.i(_tag, 'GET fallback URL: $url');
+        case _ListMode.popular:
+          url = await instance.getMainPageUrl(pageKey, filters: _filters);
       }
 
-      // Try to get main page URL
-      final mainUrl = await _instance!.call('getMainPageUrl', [pageKey]);
-      if (mainUrl != null && mainUrl is String) {
-        Log.i(_tag, 'Fetching main page: $mainUrl');
-        final dio = await ref.read(dioProvider.future);
-        final response = await dio.get(mainUrl);
-        final html = response.data.toString();
-        Log.i(_tag, 'Got ${html.length} chars of HTML');
-
-        final results = await _instance!.parseSearchResults(html);
-        if (results != null) {
-          if (!results.hasNextPage) _hasReachedEnd = true;
-          Log.ok(_tag, 'Got ${results.results.length} results');
-          return results.results
-              .map(
-                (e) => SearchResultItem(
-                  title: e.title,
-                  url: e.url,
-                  cover: e.cover,
-                  author: e.author,
-                  summary: e.summary,
-                  rating: e.rating,
-                  latestChapter: e.latestChapter,
-                  providerId: widget.providerId,
-                  coverHeaders: e.coverHeaders,
-                ),
-              )
-              .toList();
-        }
+      // Fallback for providers without a main page: empty search.
+      if (url == null && _mode == _ListMode.popular) {
+        url = await instance.getSearchUrl('', pageKey);
       }
+      if (url == null) return [];
 
-      // Fallback: try search with empty query
-      Log.i(_tag, 'Trying empty search...');
-      final searchUrl = await _instance!.getSearchUrl('', pageKey);
-      if (searchUrl != null) {
-        Log.i(_tag, 'Fetching: $searchUrl');
-        final dio = await ref.read(dioProvider.future);
-        final response = await dio.get(searchUrl);
-        final html = response.data.toString();
-        Log.i(_tag, 'Got ${html.length} chars of HTML');
+      Log.i(_tag, 'Fetching: $url');
+      final response = await dio.get(url);
+      final html = response.data.toString();
 
-        final results = await _instance!.parseSearchResults(html);
-        if (results != null) {
-          if (!results.hasNextPage) _hasReachedEnd = true;
-          Log.ok(_tag, 'Got ${results.results.length} results');
-          return results.results
-              .map(
-                (e) => SearchResultItem(
-                  title: e.title,
-                  url: e.url,
-                  cover: e.cover,
-                  author: e.author,
-                  summary: e.summary,
-                  rating: e.rating,
-                  latestChapter: e.latestChapter,
-                  providerId: widget.providerId,
-                  coverHeaders: e.coverHeaders,
-                ),
-              )
-              .toList();
-        }
+      final results = await instance.parseSearchResults(html);
+      if (results != null) {
+        if (!results.hasNextPage) _hasReachedEnd = true;
+        Log.ok(_tag, 'Got ${results.results.length} results');
+        return results.results
+            .map((e) => _toItem(e))
+            .toList();
       }
 
       Log.w(_tag, 'No results found');
@@ -137,230 +161,232 @@ class _ProviderScreenState extends ConsumerState<ProviderScreen> {
     }
   }
 
-  @override
-  Widget build(BuildContext context) {
-    return Scaffold(
-      appBar: AppBar(
-        title: Text(widget.providerId),
-        actions: [
-          IconButton(
-            icon: Icon(_isGridView ? Icons.view_list : Icons.grid_view),
-            onPressed: () => setState(() => _isGridView = !_isGridView),
-          ),
-        ],
-      ),
-      body: PagingListener<int, SearchResultItem>(
-        controller: _pagingController,
-        builder: (context, state, fetchNextPage) {
-          if (_isGridView) {
-            return PagedGridView<int, SearchResultItem>(
-              state: state,
-              fetchNextPage: fetchNextPage,
-              gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
-                crossAxisCount: 3,
-                childAspectRatio: 0.68,
-                crossAxisSpacing: 8,
-                mainAxisSpacing: 8,
-              ),
-              padding: const EdgeInsets.all(8),
-              builderDelegate: PagedChildBuilderDelegate<SearchResultItem>(
-                itemBuilder: (context, item, index) => _buildGridItem(item),
-                noItemsFoundIndicatorBuilder: (context) =>
-                    const Center(child: Text('No items found')),
-                firstPageProgressIndicatorBuilder: (context) =>
-                    const Center(child: CircularProgressIndicator()),
-              ),
-            );
-          } else {
-            return PagedListView<int, SearchResultItem>(
-              state: state,
-              fetchNextPage: fetchNextPage,
-              builderDelegate: PagedChildBuilderDelegate<SearchResultItem>(
-                itemBuilder: (context, item, index) => _buildListItem(item),
-                noItemsFoundIndicatorBuilder: (context) =>
-                    const Center(child: Text('No items found')),
-                firstPageProgressIndicatorBuilder: (context) =>
-                    const Center(child: CircularProgressIndicator()),
-              ),
-            );
-          }
-        },
-      ),
+  SearchResultItem _toItem(SearchResultItem e) {
+    return SearchResultItem(
+      title: e.title,
+      url: e.url,
+      cover: e.cover,
+      author: e.author,
+      summary: e.summary,
+      rating: e.rating,
+      latestChapter: e.latestChapter,
+      providerId: widget.providerId,
+      coverHeaders: e.coverHeaders,
     );
   }
 
   Future<void> _openNovel(SearchResultItem item) async {
     if (item.providerId == null) return;
-    final novelDao = ref.read(novelDaoProvider);
-    final chapterDao = ref.read(chapterDaoProvider);
-    final id = await novelDao.insertOrGetNovel(
-      providerId: item.providerId!,
-      url: item.url,
-      title: item.title,
-      author: item.author,
-      coverUrl: item.cover,
-    );
-    if (!mounted) return;
-
-    // Navigate immediately with local data
+    final id = await NovelOpener(ref).open(item);
+    if (!mounted || id <= 0) return;
     context.push('/novel/$id');
-
-    // Fetch novel details and chapters in the background
-    _fetchNovelDetails(id, item);
   }
 
-  Future<void> _fetchNovelDetails(int id, SearchResultItem item) async {
-    if (!mounted) return;
-    try {
-      final instance = await loadProviderById(item.providerId!, ref);
-      if (instance != null) {
-        final novelDao = ref.read(novelDaoProvider);
-        final chapterDao = ref.read(chapterDaoProvider);
+  void _setMode(_ListMode mode) {
+    if (_mode == mode) return;
+    setState(() => _mode = mode);
+    _hasReachedEnd = false;
+    _pagingController.refresh();
+  }
 
-        final novelUrl = await instance.getNovelInfoUrl(item.url);
-        if (novelUrl != null) {
-          final dio = await ref.read(dioProvider.future);
-          final response = await dio.get(novelUrl);
-          final info = await instance.parseNovelInfo(response.data.toString());
-          if (info != null && mounted) {
-            novelDao.updateNovel(
-              NovelsCompanion(
-                id: Value(id),
-                providerId: Value(item.providerId!),
-                url: Value(item.url),
-                title: Value(item.title),
-                author: Value(item.author ?? info.author),
-                coverUrl: Value(item.cover ?? info.cover),
-                description: Value(info.description),
-                genres: Value(info.genres.join(',')),
-                status: Value(info.status),
-                addedAt: Value(DateTime.now().millisecondsSinceEpoch),
-              ),
-            );
-            final bookId = item.url.split('/').last.split('.').first;
-            final chapterList = <ChaptersCompanion>[];
-            if (info.chapters.isEmpty && bookId.isNotEmpty) {
-              var page = 0;
-              var chapterIndex = 0;
-              while (true) {
-                final chaptersUrl = await instance.call('getChaptersApiUrl', [
-                  bookId,
-                  page,
-                ]);
-                if (chaptersUrl == null || chaptersUrl is! String) break;
-                final chResponse = await dio.get(chaptersUrl);
-                final chHtml = chResponse.data.toString();
-                if (chHtml.trim().isEmpty) break;
-                final chList = await instance.call('parseChapterList', [
-                  chHtml,
-                ]);
-                if (chList == null || chList is! List || chList.isEmpty) break;
-                for (var i = 0; i < chList.length; i++) {
-                  final ch = chList[i] as Map<String, dynamic>;
-                  chapterList.add(
-                    ChaptersCompanion(
-                      novelId: Value(id),
-                      name: Value(ch['name'] as String? ?? ''),
-                      url: Value(ch['url'] as String? ?? ''),
-                      index: Value(chapterIndex.toDouble()),
-                    ),
-                  );
-                  chapterIndex++;
-                }
-                page++;
-              }
-            } else {
-              for (var i = 0; i < info.chapters.length; i++) {
-                final ch = info.chapters[i];
-                chapterList.add(
-                  ChaptersCompanion(
-                    novelId: Value(id),
-                    name: Value(ch.name),
-                    url: Value(ch.url),
-                    index: Value(i.toDouble()),
-                  ),
-                );
-              }
-            }
-            await chapterDao.insertChaptersForNovel(id, chapterList);
-          }
-        }
+  void _submitSearch(String q) {
+    final query = q.trim();
+    setState(() => _query = query);
+    if (query.isEmpty) {
+      _setMode(
+        _tabController.index == 1 ? _ListMode.latest : _ListMode.popular,
+      );
+      return;
+    }
+    _setMode(_ListMode.search);
+  }
+
+  void _clearSearch() {
+    _searchController.clear();
+    _submitSearch('');
+  }
+
+  Future<void> _openFilterSheet() async {
+    final instance = await _ensureLoaded();
+    if (instance == null || !instance.flags.hasFilters) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('This source has no filters')),
+        );
       }
-    } catch (_) {}
+      return;
+    }
+    final defs = await instance.getFilters();
+    if (defs.isEmpty) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('This source has no filters')),
+        );
+      }
+      return;
+    }
+    if (!mounted) return;
+    final applied = await FilterSheet.show(
+      context,
+      defs: defs,
+      initial: _filters,
+      onApply: (values) async {},
+    );
+    if (applied != null) {
+      setState(() => _filters = applied);
+      _hasReachedEnd = false;
+      _pagingController.refresh();
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final providersAsync = ref.watch(availableProvidersProvider);
+    final title = providersAsync.value
+            ?.where((p) => p.id == widget.providerId)
+            .firstOrNull
+            ?.name ??
+        widget.providerId;
+
+    return Scaffold(
+      appBar: AppBar(
+        title: Text(title),
+        actions: [
+          IconButton(
+            icon: Icon(_isGridView ? Icons.view_list : Icons.grid_view),
+            tooltip: 'Display mode',
+            onPressed: () => setState(() => _isGridView = !_isGridView),
+          ),
+        ],
+      ),
+      body: Column(
+        children: [
+          Padding(
+            padding: const EdgeInsets.fromLTRB(12, 8, 12, 0),
+            child: TextField(
+              controller: _searchController,
+              textInputAction: TextInputAction.search,
+              decoration: InputDecoration(
+                hintText: 'Search in this source...',
+                prefixIcon: const Icon(Icons.search),
+                suffixIcon: _query.isNotEmpty
+                    ? IconButton(
+                        icon: const Icon(Icons.close),
+                        tooltip: 'Clear search',
+                        onPressed: _clearSearch,
+                      )
+                    : null,
+                isDense: true,
+                border: OutlineInputBorder(
+                  borderRadius: BorderRadius.circular(12),
+                ),
+              ),
+              onSubmitted: _submitSearch,
+            ),
+          ),
+          if (_canLatest || _canFilter)
+            Row(
+              children: [
+                if (_canLatest)
+                  Expanded(
+                    child: IgnorePointer(
+                      ignoring: _mode == _ListMode.search,
+                      child: TabBar(
+                        controller: _tabController,
+                        tabs: const [
+                          Tab(text: 'Popular'),
+                          Tab(text: 'Latest'),
+                        ],
+                      ),
+                    ),
+                  )
+                else
+                  const SizedBox(width: 12),
+                if (_canFilter)
+                  IconButton(
+                    icon: const Icon(Icons.filter_list),
+                    tooltip: 'Filters',
+                    onPressed: _openFilterSheet,
+                  ),
+              ],
+            ),
+          Expanded(
+            child: _instance == null
+                ? const Center(child: CircularProgressIndicator())
+                : PagingListener<int, SearchResultItem>(
+                    controller: _pagingController,
+                    builder: (context, state, fetchNextPage) {
+                      if (_isGridView) {
+                        return PagedGridView<int, SearchResultItem>(
+                          state: state,
+                          fetchNextPage: fetchNextPage,
+                          gridDelegate:
+                              const SliverGridDelegateWithFixedCrossAxisCount(
+                            crossAxisCount: 3,
+                            childAspectRatio: 0.68,
+                            crossAxisSpacing: 8,
+                            mainAxisSpacing: 8,
+                          ),
+                          padding: const EdgeInsets.all(8),
+                          builderDelegate: PagedChildBuilderDelegate<
+                              SearchResultItem>(
+                            itemBuilder: (context, item, index) =>
+                                _buildGridItem(item),
+                            noItemsFoundIndicatorBuilder: (context) => Center(
+                              child: Text(
+                                _mode == _ListMode.search
+                                    ? 'No results for "$_query"'
+                                    : 'No items found',
+                              ),
+                            ),
+                            firstPageProgressIndicatorBuilder: (context) =>
+                                const Center(
+                              child: CircularProgressIndicator(),
+                            ),
+                            newPageProgressIndicatorBuilder: (context) =>
+                                const Padding(
+                              padding: EdgeInsets.all(16),
+                              child: Center(child: CircularProgressIndicator()),
+                            ),
+                          ),
+                        );
+                      }
+                      return PagedListView<int, SearchResultItem>(
+                        state: state,
+                        fetchNextPage: fetchNextPage,
+                        builderDelegate: PagedChildBuilderDelegate<
+                            SearchResultItem>(
+                          itemBuilder: (context, item, index) =>
+                              _buildListItem(item),
+                          noItemsFoundIndicatorBuilder: (context) => Center(
+                            child: Text(
+                              _mode == _ListMode.search
+                                  ? 'No results for "$_query"'
+                                  : 'No items found',
+                            ),
+                          ),
+                          firstPageProgressIndicatorBuilder: (context) =>
+                              const Center(child: CircularProgressIndicator()),
+                          newPageProgressIndicatorBuilder: (context) =>
+                              const Padding(
+                            padding: EdgeInsets.all(16),
+                            child: Center(child: CircularProgressIndicator()),
+                          ),
+                        ),
+                      );
+                    },
+                  ),
+          ),
+        ],
+      ),
+    );
   }
 
   Widget _buildGridItem(SearchResultItem item) {
-    return Card(
-      clipBehavior: Clip.antiAlias,
-      child: InkWell(
-        onTap: () => _openNovel(item),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.stretch,
-          children: [
-            Expanded(
-              child: item.cover != null
-                  ? Image.network(
-                      item.cover!,
-                      fit: BoxFit.cover,
-                      errorBuilder: (_, _, _) => Container(
-                        color: AppTheme.kSurfaceVariantDark,
-                        child: const Icon(Icons.broken_image),
-                      ),
-                    )
-                  : Container(
-                      color: AppTheme.kSurfaceVariantDark,
-                      child: const Icon(Icons.book, size: 32),
-                    ),
-            ),
-            Padding(
-              padding: const EdgeInsets.all(6),
-              child: Text(
-                item.title,
-                style: const TextStyle(
-                  fontSize: 11,
-                  fontWeight: FontWeight.w500,
-                ),
-                maxLines: 2,
-                overflow: TextOverflow.ellipsis,
-              ),
-            ),
-          ],
-        ),
-      ),
-    );
+    return NovelGridCard(item: item, onTap: () => _openNovel(item));
   }
 
   Widget _buildListItem(SearchResultItem item) {
-    return ListTile(
-      leading: item.cover != null
-          ? ClipRRect(
-              borderRadius: BorderRadius.circular(4),
-              child: Image.network(
-                item.cover!,
-                width: 48,
-                height: 64,
-                fit: BoxFit.cover,
-                errorBuilder: (_, _, _) => Container(
-                  width: 48,
-                  height: 64,
-                  color: AppTheme.kSurfaceVariantDark,
-                  child: const Icon(Icons.broken_image),
-                ),
-              ),
-            )
-          : Container(
-              width: 48,
-              height: 64,
-              color: AppTheme.kSurfaceVariantDark,
-              child: const Icon(Icons.book),
-            ),
-      title: Text(item.title, maxLines: 2, overflow: TextOverflow.ellipsis),
-      subtitle: Text(
-        item.author ?? '',
-        style: const TextStyle(fontSize: 12),
-        maxLines: 1,
-      ),
-      onTap: () => _openNovel(item),
-    );
+    return NovelListTile(item: item, onTap: () => _openNovel(item));
   }
 }
