@@ -50,13 +50,13 @@ Widget radio(String title, String value, String groupValue, ValueChanged<String?
   );
 }
 
-Widget radioTts(String title, TtsHighlightMode value, TtsHighlightMode groupValue, ValueChanged<TtsHighlightMode> onChanged) {
+Widget radioTts(BuildContext context, String title, TtsHighlightMode value, TtsHighlightMode groupValue, ValueChanged<TtsHighlightMode> onChanged) {
   return ListTile(
     dense: true,
     contentPadding: EdgeInsets.zero,
     leading: Icon(
       value == groupValue ? Icons.radio_button_checked : Icons.radio_button_unchecked,
-      color: value == groupValue ? AppTheme.kPrimary : AppTheme.kTextSecondaryDark,
+      color: value == groupValue ? AppTheme.kPrimary : Theme.of(context).colorScheme.onSurfaceVariant,
       size: 20,
     ),
     title: Text(title, style: const TextStyle(fontSize: 14)),

@@ -111,7 +111,7 @@ class _LibraryScreenState extends ConsumerState<LibraryScreen>
                 Icon(
                   Icons.library_books,
                   size: 64,
-                  color: AppTheme.kTextSecondaryDark.withValues(alpha: 0.5),
+                  color: Theme.of(context).colorScheme.onSurfaceVariant.withValues(alpha: 0.5),
                 ),
                 const SizedBox(height: 16),
                 Text(
@@ -121,11 +121,11 @@ class _LibraryScreenState extends ConsumerState<LibraryScreen>
                   style: const TextStyle(fontSize: 16),
                 ),
                 const SizedBox(height: 8),
-                const Text(
+                Text(
                   'Search for novels and add them\nto your library.',
                   textAlign: TextAlign.center,
                   style: TextStyle(
-                    color: AppTheme.kTextSecondaryDark,
+                    color: Theme.of(context).colorScheme.onSurfaceVariant,
                     fontSize: 13,
                   ),
                 ),
@@ -170,17 +170,17 @@ class _LibraryScreenState extends ConsumerState<LibraryScreen>
         height: height,
         fit: BoxFit.cover,
         placeholder: (_, __) => Container(
-          color: AppTheme.kSurfaceVariantDark,
+          color: Theme.of(context).colorScheme.surfaceContainerHighest,
           child: const Icon(Icons.book, size: 32),
         ),
         errorWidget: (_, __, ___) => Container(
-          color: AppTheme.kSurfaceVariantDark,
+          color: Theme.of(context).colorScheme.surfaceContainerHighest,
           child: const Icon(Icons.book, size: 32),
         ),
       );
     }
     return Container(
-      color: AppTheme.kSurfaceVariantDark,
+      color: Theme.of(context).colorScheme.surfaceContainerHighest,
       child: const Icon(Icons.book, size: 32),
     );
   }
@@ -294,7 +294,7 @@ class _LibraryScreenState extends ConsumerState<LibraryScreen>
                       novel.author!,
                       maxLines: 1,
                       overflow: TextOverflow.ellipsis,
-                      style: const TextStyle(fontSize: 11, color: AppTheme.kTextSecondaryDark),
+                      style: TextStyle(fontSize: 11, color: Theme.of(context).colorScheme.onSurfaceVariant),
                     ),
                 ],
               ),
@@ -303,12 +303,12 @@ class _LibraryScreenState extends ConsumerState<LibraryScreen>
               Container(
                 padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
                 decoration: BoxDecoration(
-                  color: AppTheme.kSurfaceVariantDark,
+                  color: Theme.of(context).colorScheme.surfaceContainerHighest,
                   borderRadius: BorderRadius.circular(4),
                 ),
                 child: Text(
                   novel.status!,
-                  style: const TextStyle(fontSize: 10, color: AppTheme.kTextSecondaryDark),
+                  style: TextStyle(fontSize: 10, color: Theme.of(context).colorScheme.onSurfaceVariant),
                 ),
               ),
           ],

@@ -4,7 +4,6 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../../core/providers/models.dart';
 import '../../../core/utils/logger.dart';
-import '../../../theme/app_theme.dart';
 import '../../../widgets/shimmer_list.dart';
 import '../providers/provider_management_providers.dart';
 
@@ -87,7 +86,7 @@ class _ProviderManagementPageState extends ConsumerState<ProviderManagementPage>
           Icon(
             Icons.cloud_off,
             size: 64,
-            color: AppTheme.kTextSecondaryDark.withValues(alpha: 0.5),
+            color: Theme.of(context).colorScheme.onSurfaceVariant.withValues(alpha: 0.5),
           ),
           const SizedBox(height: 16),
           const Text(
@@ -95,10 +94,10 @@ class _ProviderManagementPageState extends ConsumerState<ProviderManagementPage>
             style: TextStyle(fontSize: 18, fontWeight: FontWeight.w600),
           ),
           const SizedBox(height: 8),
-          const Text(
+          Text(
             'Add a registry URL or import a JSON file\nto get started.',
             textAlign: TextAlign.center,
-            style: TextStyle(color: AppTheme.kTextSecondaryDark),
+            style: TextStyle(color: Theme.of(context).colorScheme.onSurfaceVariant),
           ),
           const SizedBox(height: 24),
           Row(
@@ -178,9 +177,9 @@ class _ProviderManagementPageState extends ConsumerState<ProviderManagementPage>
                           padding: const EdgeInsets.only(top: 2),
                           child: Text(
                             registry.description!,
-                            style: const TextStyle(
+                            style: TextStyle(
                               fontSize: 12,
-                              color: AppTheme.kTextSecondaryDark,
+                              color: Theme.of(context).colorScheme.onSurfaceVariant,
                             ),
                             maxLines: 1,
                             overflow: TextOverflow.ellipsis,
@@ -215,7 +214,7 @@ class _ProviderManagementPageState extends ConsumerState<ProviderManagementPage>
               padding: const EdgeInsets.only(left: 4, top: 4),
               child: Text(
                 registry.url,
-                style: const TextStyle(fontSize: 11, color: AppTheme.kTextSecondaryDark),
+                style: TextStyle(fontSize: 11, color: Theme.of(context).colorScheme.onSurfaceVariant),
                 maxLines: 1,
                 overflow: TextOverflow.ellipsis,
               ),
@@ -235,7 +234,7 @@ class _ProviderManagementPageState extends ConsumerState<ProviderManagementPage>
       case 'deprecated':
         return Colors.red;
       default:
-        return AppTheme.kTextSecondaryDark;
+        return Theme.of(context).colorScheme.onSurfaceVariant;
     }
   }
 

@@ -1,7 +1,6 @@
 import 'package:flutter/material.dart';
 
 import '../core/providers/engine.dart';
-import '../theme/app_theme.dart';
 import 'cover_image.dart';
 
 /// Reusable novel result card in a grid.
@@ -168,9 +167,9 @@ class NovelCompactTile extends StatelessWidget {
                       item.author!,
                       maxLines: 1,
                       overflow: TextOverflow.ellipsis,
-                      style: const TextStyle(
+                      style: TextStyle(
                         fontSize: 11,
-                        color: AppTheme.kTextSecondaryDark,
+                        color: Theme.of(context).colorScheme.onSurfaceVariant,
                       ),
                     ),
                 ],

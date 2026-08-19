@@ -39,7 +39,7 @@ class AboutPage extends StatelessWidget {
               return Center(
                 child: Text(
                   'Version $version',
-                  style: const TextStyle(color: AppTheme.kTextSecondaryDark),
+                  style: TextStyle(color: Theme.of(context).colorScheme.onSurfaceVariant),
                 ),
               );
             },
@@ -64,7 +64,7 @@ class AboutPage extends StatelessWidget {
 
           const SizedBox(height: 16),
           _buildSection('Credits'),
-          const Card(
+          Card(
             child: Padding(
               padding: EdgeInsets.all(16),
               child: Column(
@@ -75,7 +75,7 @@ class AboutPage extends StatelessWidget {
                   Text(
                     'Multi-platform novel reader and downloader. '
                     'Supports reading from various novel websites via a plugin system.',
-                    style: TextStyle(fontSize: 13, color: AppTheme.kTextSecondaryDark),
+                    style: TextStyle(fontSize: 13, color: Theme.of(context).colorScheme.onSurfaceVariant),
                   ),
                 ],
               ),
@@ -84,14 +84,14 @@ class AboutPage extends StatelessWidget {
 
           const SizedBox(height: 16),
           _buildSection('License'),
-          const Card(
+          Card(
             child: Padding(
               padding: EdgeInsets.all(16),
               child: Text(
                 'This software is provided as-is, without warranty of any kind. '
                 'Use at your own risk. Content accessed through this app belongs to '
                 'the respective content providers.',
-                style: TextStyle(fontSize: 12, color: AppTheme.kTextSecondaryDark),
+                style: TextStyle(fontSize: 12, color: Theme.of(context).colorScheme.onSurfaceVariant),
               ),
             ),
           ),

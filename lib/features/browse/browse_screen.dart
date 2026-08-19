@@ -3,14 +3,13 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
 import '../../core/providers/models.dart';
-import '../../theme/app_theme.dart';
 import '../../widgets/error_view.dart';
 import '../../widgets/provider_avatar.dart';
 import '../../widgets/shimmer_list.dart';
 import '../settings/providers/provider_management_providers.dart';
 import 'webview_screen.dart';
 
-/// Browse screen — Sources tab for browsing providers, Extensions tab for
+/// Browse screen. Installed tab for browsing sources, Catalog tab for
 /// install/uninstall.
 class BrowseScreen extends ConsumerStatefulWidget {
   const BrowseScreen({super.key});
@@ -28,7 +27,7 @@ class _BrowseScreenState extends ConsumerState<BrowseScreen>
   @override
   void initState() {
     super.initState();
-    _tabController = TabController(length: 3, vsync: this);
+    _tabController = TabController(length: 2, vsync: this);
   }
 
   @override
@@ -73,38 +72,36 @@ class _BrowseScreenState extends ConsumerState<BrowseScreen>
         bottom: TabBar(
           controller: _tabController,
           tabs: [
-            const Tab(text: 'Sources'),
-            _extensionsTab(),
-            const Tab(text: 'Migrate'),
+            const Tab(text: 'Installed'),
+            _catalogTab(),
           ],
         ),
       ),
       body: TabBarView(
         controller: _tabController,
         children: [
-          const SourcesTab(),
-          const ExtensionsTab(),
-          const Center(child: Text('Migrate — coming soon')),
+          const InstalledTab(),
+          const CatalogTab(),
         ],
       ),
     );
   }
 
-  Widget _extensionsTab() {
+  Widget _catalogTab() {
     return Consumer(
       builder: (context, ref, _) {
         final providersAsync = ref.watch(availableProvidersProvider);
         final enabled = ref.watch(enabledProvidersProvider);
         return providersAsync.when(
-          loading: () => const Tab(text: 'Extensions'),
-          error: (_, _) => const Tab(text: 'Extensions'),
+          loading: () => const Tab(text: 'Catalog'),
+          error: (_, _) => const Tab(text: 'Catalog'),
           data: (providers) {
             final installed = providers.where((p) => enabled.contains(p.id)).length;
             return Tab(
               child: Row(
                 mainAxisSize: MainAxisSize.min,
                 children: [
-                  const Text('Extensions'),
+                  const Text('Catalog'),
                   if (installed > 0) ...[
                     const SizedBox(width: 6),
                     Container(
@@ -130,11 +127,11 @@ class _BrowseScreenState extends ConsumerState<BrowseScreen>
 }
 
 // ═══════════════════════════════════════════════════════════
-// Sources Tab
+// Installed Tab
 // ═══════════════════════════════════════════════════════════
 
-class SourcesTab extends ConsumerWidget {
-  const SourcesTab({super.key});
+class InstalledTab extends ConsumerWidget {
+  const InstalledTab({super.key});
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
@@ -157,14 +154,14 @@ class SourcesTab extends ConsumerWidget {
               mainAxisAlignment: MainAxisAlignment.center,
               children: [
                 Icon(Icons.explore_off,
-                    size: 64, color: AppTheme.kTextSecondaryDark.withValues(alpha: 0.5)),
+                    size: 64, color: Theme.of(context).colorScheme.onSurfaceVariant.withValues(alpha: 0.5)),
                 const SizedBox(height: 16),
                 const Text('No sources installed',
                     style: TextStyle(fontSize: 18, fontWeight: FontWeight.w600)),
                 const SizedBox(height: 8),
-                const Text(
-                  'Go to Extensions tab to install providers.',
-                  style: TextStyle(color: AppTheme.kTextSecondaryDark),
+                Text(
+                  'Go to the Catalog tab to add sources.',
+                  style: TextStyle(color: Theme.of(context).colorScheme.onSurfaceVariant),
                 ),
               ],
             ),
@@ -220,17 +217,17 @@ class _SourceTile extends StatelessWidget {
 }
 
 // ═══════════════════════════════════════════════════════════
-// Extensions Tab
+// Catalog Tab
 // ═══════════════════════════════════════════════════════════
 
-class ExtensionsTab extends ConsumerStatefulWidget {
-  const ExtensionsTab({super.key});
+class CatalogTab extends ConsumerStatefulWidget {
+  const CatalogTab({super.key});
 
   @override
-  ConsumerState<ExtensionsTab> createState() => _ExtensionsTabState();
+  ConsumerState<CatalogTab> createState() => _CatalogTabState();
 }
 
-class _ExtensionsTabState extends ConsumerState<ExtensionsTab> {
+class _CatalogTabState extends ConsumerState<CatalogTab> {
   bool _updating = false;
 
   Future<void> _updateAll() async {
@@ -256,7 +253,7 @@ class _ExtensionsTabState extends ConsumerState<ExtensionsTab> {
     return providersAsync.when(
       loading: () => const ShimmerList(),
       error: (e, _) => ErrorView(
-        message: 'Failed to load extensions',
+        message: 'Failed to load catalog',
         onRetry: () => ref.invalidate(availableProvidersProvider),
       ),
       data: (providers) {
@@ -367,136 +364,130 @@ class _ExtensionTile extends StatelessWidget {
           ],
         ],
       ),
-      trailing: isInstalled
-          ? IconButton(
-              icon: const Icon(Icons.settings, size: 20),
-              onPressed: () => _showSettings(context),
-            )
-          : Row(
-              mainAxisSize: MainAxisSize.min,
+      trailing: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          IconButton(
+            icon: Icon(
+              Icons.info_outline,
+              size: 20,
+              color: isInstalled
+                  ? null
+                  : Theme.of(context).colorScheme.onSurfaceVariant,
+            ),
+            tooltip: 'Info',
+            onPressed: () =>
+                _showProviderInfo(context, provider, isInstalled, onToggle),
+          ),
+          Switch(
+            value: isInstalled,
+            onChanged: (_) => onToggle(),
+          ),
+        ],
+      ),
+      onTap: () => _showProviderInfo(context, provider, isInstalled, onToggle),
+    );
+  }
+}
+
+// ═══════════════════════════════════════════════════════════
+// Provider info sheet (shared by Installed and Catalog tabs)
+// ═══════════════════════════════════════════════════════════
+
+void _showProviderInfo(
+  BuildContext context,
+  ProviderMeta provider,
+  bool isInstalled,
+  VoidCallback onToggle,
+) {
+  showModalBottomSheet(
+    context: context,
+    isScrollControlled: true,
+    builder: (context) => DraggableScrollableSheet(
+      initialChildSize: 0.6,
+      minChildSize: 0.3,
+      maxChildSize: 0.9,
+      expand: false,
+      builder: (context, scrollController) => ListView(
+        controller: scrollController,
+        children: [
+          // Header
+          Padding(
+            padding: const EdgeInsets.all(16),
+            child: Row(
               children: [
-                IconButton(
-                  icon: Icon(Icons.language, size: 20, color: AppTheme.kTextSecondaryDark),
-                  onPressed: () {
-                    Navigator.push(
-                      context,
-                      MaterialPageRoute(
-                        builder: (_) => WebViewScreen(
-                          url: provider.baseUrl,
-                          title: provider.name,
-                        ),
+                ProviderAvatar(provider: provider),
+                const SizedBox(width: 12),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        provider.name,
+                        style: const TextStyle(fontSize: 18, fontWeight: FontWeight.w600),
                       ),
-                    );
-                  },
-                ),
-                IconButton(
-                  icon: const Icon(Icons.download, size: 20),
-                  onPressed: onToggle,
+                      Text(
+                        provider.baseUrl,
+                        style: TextStyle(fontSize: 12, color: Theme.of(context).colorScheme.onSurfaceVariant),
+                      ),
+                    ],
+                  ),
                 ),
               ],
             ),
-      onTap: isInstalled ? () => context.push('/provider/${provider.id}') : null,
-    );
-  }
+          ),
+          const Divider(height: 1),
 
-  void _showSettings(BuildContext context) {
-    showModalBottomSheet(
-      context: context,
-      isScrollControlled: true,
-      builder: (context) => DraggableScrollableSheet(
-        initialChildSize: 0.6,
-        minChildSize: 0.3,
-        maxChildSize: 0.9,
-        expand: false,
-        builder: (context, scrollController) => ListView(
-          controller: scrollController,
-          children: [
-            // Header
-            Padding(
-              padding: const EdgeInsets.all(16),
-              child: Row(
-                children: [
-                  ProviderAvatar(provider: provider),
-                  const SizedBox(width: 12),
-                  Expanded(
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Text(
-                          provider.name,
-                          style: const TextStyle(fontSize: 18, fontWeight: FontWeight.w600),
-                        ),
-                        Text(
-                          provider.baseUrl,
-                          style: const TextStyle(fontSize: 12, color: AppTheme.kTextSecondaryDark),
-                        ),
-                      ],
-                    ),
+          // Info section
+          _infoTile(context, Icons.language, 'Language', provider.lang.toUpperCase()),
+          _infoTile(context, Icons.code, 'Version', provider.version),
+          if (provider.author != null)
+            _infoTile(context, Icons.person_outline, 'Author', provider.author!),
+          if (provider.nsfw)
+            _infoTile(context, Icons.warning_amber, 'Content', 'NSFW (18+)'),
+          if (provider.registryId != null)
+            _infoTile(context, Icons.folder_open, 'Registry', provider.registryId!),
+
+          const Divider(height: 1),
+
+          // Actions
+          SwitchListTile(
+            secondary: const Icon(Icons.download_done),
+            title: const Text('Installed'),
+            value: isInstalled,
+            onChanged: (_) {
+              Navigator.pop(context);
+              onToggle();
+            },
+          ),
+          ListTile(
+            leading: const Icon(Icons.open_in_browser),
+            title: const Text('Open homepage'),
+            onTap: () {
+              Navigator.pop(context);
+              Navigator.push(
+                context,
+                MaterialPageRoute(
+                  builder: (_) => WebViewScreen(
+                    url: provider.baseUrl,
+                    title: provider.name,
                   ),
-                ],
-              ),
-            ),
-            const Divider(height: 1),
-
-            // Info section
-            _infoTile(Icons.language, 'Language', provider.lang.toUpperCase()),
-            _infoTile(Icons.code, 'Version', provider.version),
-            if (provider.author != null)
-              _infoTile(Icons.person_outline, 'Author', provider.author!),
-            if (provider.nsfw)
-              _infoTile(Icons.warning_amber, 'Content', 'NSFW (18+)'),
-            if (provider.registryId != null)
-              _infoTile(Icons.folder_open, 'Registry', provider.registryId!),
-
-            const Divider(height: 1),
-
-            // Actions
-            SwitchListTile(
-              secondary: const Icon(Icons.download_done),
-              title: const Text('Installed'),
-              value: true,
-              onChanged: (val) {
-                Navigator.pop(context);
-                onToggle();
-              },
-            ),
-            ListTile(
-              leading: const Icon(Icons.open_in_browser),
-              title: const Text('Open homepage'),
-              onTap: () {
-                Navigator.pop(context);
-                Navigator.push(
-                  context,
-                  MaterialPageRoute(
-                    builder: (_) => WebViewScreen(
-                      url: provider.baseUrl,
-                      title: provider.name,
-                    ),
-                  ),
-                );
-              },
-            ),
-            ListTile(
-              leading: const Icon(Icons.delete_outline, color: Colors.red),
-              title: const Text('Uninstall', style: TextStyle(color: Colors.red)),
-              onTap: () {
-                Navigator.pop(context);
-                onToggle();
-              },
-            ),
-          ],
-        ),
+                ),
+              );
+            },
+          ),
+        ],
       ),
-    );
-  }
+    ),
+  );
+}
 
-  Widget _infoTile(IconData icon, String label, String value) {
+Widget _infoTile(BuildContext context, IconData icon, String label, String value) {
     return ListTile(
-      leading: Icon(icon, size: 20, color: AppTheme.kTextSecondaryDark),
+      leading: Icon(icon, size: 20, color: Theme.of(context).colorScheme.onSurfaceVariant),
       title: Text(label, style: const TextStyle(fontSize: 12)),
       subtitle: Text(value),
       dense: true,
     );
   }
-}
 

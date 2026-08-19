@@ -4,7 +4,7 @@ import 'package:flutter/material.dart';
 import '../../../core/database/database.dart';
 import '../../../theme/app_theme.dart';
 
-/// List item for library screen — cover thumbnail + title + author + play button.
+/// List item for library screen. Cover thumbnail + title + author + play button.
 class LibraryListItem extends StatelessWidget {
   final Novel novel;
   final VoidCallback onTap;
@@ -24,7 +24,7 @@ class LibraryListItem extends StatelessWidget {
     return ListTile(
       leading: ClipRRect(
         borderRadius: BorderRadius.circular(4),
-        child: _buildCover(48, 64),
+        child: _buildCover(context, 48, 64),
       ),
       title: Text(novel.title, maxLines: 1, overflow: TextOverflow.ellipsis),
       subtitle: Text(
@@ -43,17 +43,17 @@ class LibraryListItem extends StatelessWidget {
     );
   }
 
-  Widget _buildCover(double width, double height) {
+  Widget _buildCover(BuildContext context, double width, double height) {
     if (novel.coverUrl != null && novel.coverUrl!.isNotEmpty) {
       return CachedNetworkImage(
         imageUrl: novel.coverUrl!,
         width: width,
         height: height,
         fit: BoxFit.cover,
-        placeholder: (_, __) => Container(width: width, height: height, color: AppTheme.kSurfaceVariantDark, child: const Icon(Icons.book, size: 32)),
-        errorWidget: (_, __, ___) => Container(width: width, height: height, color: AppTheme.kSurfaceVariantDark, child: const Icon(Icons.book, size: 32)),
+        placeholder: (_, __) => Container(width: width, height: height, color: Theme.of(context).colorScheme.surfaceContainerHighest, child: const Icon(Icons.book, size: 32)),
+        errorWidget: (_, __, ___) => Container(width: width, height: height, color: Theme.of(context).colorScheme.surfaceContainerHighest, child: const Icon(Icons.book, size: 32)),
       );
     }
-    return Container(width: width, height: height, color: AppTheme.kSurfaceVariantDark, child: const Icon(Icons.book, size: 32));
+    return Container(width: width, height: height, color: Theme.of(context).colorScheme.surfaceContainerHighest, child: const Icon(Icons.book, size: 32));
   }
 }

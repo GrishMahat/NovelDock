@@ -5,7 +5,6 @@ import 'package:go_router/go_router.dart';
 import '../../core/providers/engine.dart';
 import '../../core/providers/models.dart';
 import '../../core/providers/novel_opener.dart';
-import '../../theme/app_theme.dart';
 import '../../widgets/cover_image.dart';
 import '../../widgets/novel_card.dart';
 import '../../widgets/provider_avatar.dart';
@@ -13,7 +12,7 @@ import '../settings/providers/provider_management_providers.dart';
 import 'providers/search_providers.dart';
 import 'widgets/filter_sheet.dart';
 
-/// Global search results — one horizontal row per source.
+/// Global search results, one horizontal row per source.
 ///
 /// Tapping a row header opens that source's complete loaded result set in a
 /// bottom sheet.
@@ -29,6 +28,7 @@ class SearchResultsScreen extends ConsumerStatefulWidget {
 
 class _SearchResultsScreenState extends ConsumerState<SearchResultsScreen> {
   late final TextEditingController _searchController;
+  bool _isSearching = false;
 
   @override
   void initState() {
@@ -134,17 +134,24 @@ class _SearchResultsScreenState extends ConsumerState<SearchResultsScreen> {
     return Scaffold(
       appBar: AppBar(
         titleSpacing: 0,
-        title: TextField(
-          controller: _searchController,
-          textInputAction: TextInputAction.search,
-          textCapitalization: TextCapitalization.none,
-          autocorrect: false,
-          decoration: const InputDecoration(
-            hintText: 'Search novels...',
-            border: InputBorder.none,
-          ),
-          onSubmitted: _onSearch,
-        ),
+        title: _isSearching
+            ? TextField(
+                controller: _searchController,
+                autofocus: true,
+                textInputAction: TextInputAction.search,
+                textCapitalization: TextCapitalization.none,
+                autocorrect: false,
+                decoration: const InputDecoration(
+                  hintText: 'Search novels...',
+                  border: InputBorder.none,
+                ),
+                onSubmitted: _onSearch,
+              )
+            : Text(
+                widget.query,
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+              ),
         actions: [
           if (searchState.isLoading)
             const Padding(
@@ -157,14 +164,25 @@ class _SearchResultsScreenState extends ConsumerState<SearchResultsScreen> {
                 ),
               ),
             )
+          else if (!_isSearching)
+            IconButton(
+              icon: const Icon(Icons.search),
+              tooltip: 'Search',
+              onPressed: () => setState(() => _isSearching = true),
+            )
           else
             IconButton(
-              icon: const Icon(Icons.tune),
-              tooltip: 'Search sources',
-              onPressed: providersAsync.isLoading
-                  ? null
-                  : () => _openSourceSheet(providers, selected),
+              icon: const Icon(Icons.close),
+              tooltip: 'Close search',
+              onPressed: () => setState(() => _isSearching = false),
             ),
+          IconButton(
+            icon: const Icon(Icons.tune),
+            tooltip: 'Search sources',
+            onPressed: providersAsync.isLoading
+                ? null
+                : () => _openSourceSheet(providers, selected),
+          ),
         ],
       ),
       body: _SearchRows(
@@ -216,11 +234,11 @@ class _SearchRows extends ConsumerWidget {
         .toList(growable: false);
 
     if (activeProviders.isEmpty) {
-      return const Center(
+      return Center(
         child: Text(
           'No sources selected.\nTap the tune icon to pick sources.',
           textAlign: TextAlign.center,
-          style: TextStyle(color: AppTheme.kTextSecondaryDark),
+          style: TextStyle(color: Theme.of(context).colorScheme.onSurfaceVariant),
         ),
       );
     }
@@ -229,18 +247,41 @@ class _SearchRows extends ConsumerWidget {
       (provider) => searchState.stateFor(provider.id).isLoading,
     );
 
-    final visible = activeProviders
+    final loaded = activeProviders
         .where((provider) => searchState.stateFor(provider.id).loaded)
         .toList(growable: false);
+
+    final resultRows = loaded
+        .where(
+          (provider) => searchState.stateFor(provider.id).results.isNotEmpty,
+        )
+        .toList(growable: false)
+      ..sort(
+        (a, b) => searchState
+            .stateFor(b.id)
+            .results
+            .length
+            .compareTo(searchState.stateFor(a.id).results.length),
+      );
+
+    // Rows for providers that returned nothing are deferred. They only
+    // appear once every provider has finished, and always at the bottom.
+    final allCompleted = activeProviders.every((provider) {
+      final state = searchState.stateFor(provider.id);
+      return !state.isLoading && (state.loaded || state.error != null);
+    });
+
+    final emptyRows = allCompleted
+        ? loaded
+              .where(
+                (provider) => searchState.stateFor(provider.id).results.isEmpty,
+              )
+              .toList(growable: false)
+        : const <ProviderMeta>[];
 
     final hasAnyResults = activeProviders.any(
       (provider) => searchState.stateFor(provider.id).results.isNotEmpty,
     );
-
-    final allCompleted = activeProviders.every((provider) {
-      final state = searchState.stateFor(provider.id);
-      return state.loaded && !state.isLoading;
-    });
 
     final allFailed = activeProviders.every((provider) {
       final state = searchState.stateFor(provider.id);
@@ -265,10 +306,10 @@ class _SearchRows extends ConsumerWidget {
                 style: TextStyle(fontSize: 18, fontWeight: FontWeight.w600),
               ),
               const SizedBox(height: 8),
-              const Text(
+              Text(
                 'None of the selected sources returned results.',
                 textAlign: TextAlign.center,
-                style: TextStyle(color: AppTheme.kTextSecondaryDark),
+                style: TextStyle(color: Theme.of(context).colorScheme.onSurfaceVariant),
               ),
               const SizedBox(height: 16),
               FilledButton.icon(
@@ -286,8 +327,8 @@ class _SearchRows extends ConsumerWidget {
 
     // Once every active provider has completed and none returned anything,
     // this really is the "no results" state.
-    if (allCompleted && visible.isEmpty) {
-      return const Center(
+    if (allCompleted && resultRows.isEmpty) {
+      return Center(
         child: Padding(
           padding: EdgeInsets.all(24),
           child: Column(
@@ -296,7 +337,7 @@ class _SearchRows extends ConsumerWidget {
               Icon(
                 Icons.search_off,
                 size: 64,
-                color: AppTheme.kTextSecondaryDark,
+                color: Theme.of(context).colorScheme.onSurfaceVariant,
               ),
               SizedBox(height: 16),
               Text('No results found', style: TextStyle(fontSize: 18)),
@@ -304,7 +345,7 @@ class _SearchRows extends ConsumerWidget {
               Text(
                 'Try a different query.',
                 textAlign: TextAlign.center,
-                style: TextStyle(color: AppTheme.kTextSecondaryDark),
+                style: TextStyle(color: Theme.of(context).colorScheme.onSurfaceVariant),
               ),
             ],
           ),
@@ -315,7 +356,7 @@ class _SearchRows extends ConsumerWidget {
     return ListView(
       padding: const EdgeInsets.symmetric(vertical: 8),
       children: [
-        for (final provider in visible)
+        for (final provider in [...resultRows, ...emptyRows])
           _ProviderRow(
             provider: provider,
             state: searchState.stateFor(provider.id),
@@ -332,8 +373,6 @@ class _SearchRows extends ConsumerWidget {
 // ═══════════════════════════════════════════════════════════
 
 class _ProviderRow extends ConsumerWidget {
-  static const _previewCount = 8;
-
   final ProviderMeta provider;
   final ProviderSearchState state;
   final void Function(SearchResultItem) onOpen;
@@ -410,10 +449,11 @@ class _ProviderRow extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    final preview = state.results.take(_previewCount).toList(growable: false);
+    final results = state.results;
 
-    final hasMorePreview =
-        state.results.length > _previewCount || state.hasNextPage;
+    // The strip shows every loaded result; the "View all" card only
+    // appears while more pages can still be fetched.
+    final hasMorePreview = state.hasNextPage;
 
     final providerState = ref.watch(searchProvider).stateFor(provider.id);
 
@@ -463,20 +503,20 @@ class _ProviderRow extends ConsumerWidget {
                     ),
                   )
                 else if (providerState.results.isEmpty)
-                  const Text(
+                  Text(
                     'No results',
                     style: TextStyle(
                       fontSize: 12,
-                      color: AppTheme.kTextSecondaryDark,
+                      color: Theme.of(context).colorScheme.onSurfaceVariant,
                     ),
                   )
                 else
                   Text(
                     '${providerState.results.length}'
                     '${providerState.hasNextPage ? '+' : ''}',
-                    style: const TextStyle(
+                    style: TextStyle(
                       fontSize: 12,
-                      color: AppTheme.kTextSecondaryDark,
+                      color: Theme.of(context).colorScheme.onSurfaceVariant,
                     ),
                   ),
                 const Icon(Icons.chevron_right, size: 20),
@@ -484,29 +524,42 @@ class _ProviderRow extends ConsumerWidget {
             ),
           ),
         ),
-        if (preview.isNotEmpty)
+        if (results.isNotEmpty)
           SizedBox(
             height: 200,
-            child: ListView.separated(
-              scrollDirection: Axis.horizontal,
-              padding: const EdgeInsets.symmetric(horizontal: 12),
-              itemCount: preview.length + (hasMorePreview ? 1 : 0),
-              separatorBuilder: (_, __) => const SizedBox(width: 8),
-              itemBuilder: (context, index) {
-                if (index >= preview.length) {
-                  return SizedBox(
-                    width: 112,
-                    child: Center(
-                      child: OutlinedButton.icon(
-                        onPressed: () => _showFullList(context, ref),
-                        icon: const Icon(Icons.arrow_forward, size: 18),
-                        label: const Text('View all'),
-                      ),
-                    ),
-                  );
+            // Auto-paginate: when the strip is scrolled to its end and the
+            // provider still has another page, fetch it and append inline.
+            child: NotificationListener<ScrollNotification>(
+              onNotification: (notification) {
+                final metrics = notification.metrics;
+                final ps = ref.read(searchProvider).stateFor(provider.id);
+                if (ps.hasNextPage &&
+                    !ps.isLoading &&
+                    metrics.pixels >= metrics.maxScrollExtent - 200) {
+                  ref.read(searchProvider.notifier).loadMore(provider.id);
                 }
+                return false;
+              },
+              child: ListView.separated(
+                scrollDirection: Axis.horizontal,
+                padding: const EdgeInsets.symmetric(horizontal: 12),
+                itemCount: results.length + (hasMorePreview ? 1 : 0),
+                separatorBuilder: (_, __) => const SizedBox(width: 8),
+                itemBuilder: (context, index) {
+                  if (index >= results.length) {
+                    return SizedBox(
+                      width: 112,
+                      child: Center(
+                        child: OutlinedButton.icon(
+                          onPressed: () => _showFullList(context, ref),
+                          icon: const Icon(Icons.arrow_forward, size: 18),
+                          label: const Text('View all'),
+                        ),
+                      ),
+                    );
+                  }
 
-                final item = preview[index];
+                  final item = results[index];
 
                 return SizedBox(
                   width: 112,
@@ -538,6 +591,7 @@ class _ProviderRow extends ConsumerWidget {
                 );
               },
             ),
+          ),
           )
         else if (providerState.isLoading)
           const Padding(
@@ -552,13 +606,13 @@ class _ProviderRow extends ConsumerWidget {
             ),
           )
         else if (providerState.error == null)
-          const Padding(
+          Padding(
             padding: EdgeInsets.fromLTRB(16, 0, 16, 12),
             child: Text(
               'No results',
               style: TextStyle(
                 fontSize: 12,
-                color: AppTheme.kTextSecondaryDark,
+                color: Theme.of(context).colorScheme.onSurfaceVariant,
               ),
             ),
           ),

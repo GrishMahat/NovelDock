@@ -41,7 +41,7 @@ void showChapterListSheet({
                     radius: 16,
                     backgroundColor: isCurrent
                         ? AppTheme.kPrimary.withValues(alpha: 0.2)
-                        : AppTheme.kSurfaceVariantDark,
+                        : Theme.of(context).colorScheme.surfaceContainerHighest,
                     child: Text(
                       '${index + 1}',
                       style: TextStyle(
@@ -119,7 +119,7 @@ void showEpubTocSheet({
 }
 
 /// Returns just the filename portion of a path/URL, with any query
-/// string or fragment stripped — used to compare EPUB TOC `href`s
+/// string or fragment stripped, used to compare EPUB TOC `href`s
 /// against chapter URLs without false-positive substring matches
 /// (e.g. "ch1.html" incorrectly matching inside "ch10.html").
 String _fileNameOf(String pathOrUrl) {
@@ -168,7 +168,7 @@ Widget buildTocEntry({
                 Icons.folder,
                 size: 18,
                 color: isDisabled
-                    ? AppTheme.kTextSecondaryDark.withValues(alpha: 0.4)
+                    ? Theme.of(context).colorScheme.onSurfaceVariant.withValues(alpha: 0.4)
                     : null,
               )
             : null,
@@ -180,7 +180,7 @@ Widget buildTocEntry({
             fontSize: depth == 0 ? 14 : 13,
             fontWeight: depth == 0 ? FontWeight.w500 : FontWeight.normal,
             color: isDisabled
-                ? AppTheme.kTextSecondaryDark.withValues(alpha: 0.4)
+                ? Theme.of(context).colorScheme.onSurfaceVariant.withValues(alpha: 0.4)
                 : null,
           ),
         ),

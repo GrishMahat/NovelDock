@@ -1,8 +1,8 @@
 import 'dart:convert';
 
+import 'package:flutter/services.dart' show rootBundle;
 import 'package:flutter_js/flutter_js.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:flutter_riverpod/legacy.dart';
 
 import 'filters.dart';
 import 'registry.dart';
@@ -35,6 +35,12 @@ class ProviderFeatureFlags {
   final bool hasLatest;
   final bool hasFilters;
 
+  /// Whether this provider can apply filters to its search (via
+  /// `getSearchUrl`). When false, the app runs normal (unfiltered) search
+  /// even if filters are active, instead of sending filters into a search
+  /// path that ignores them.
+  final bool searchFilters;
+
   const ProviderFeatureFlags({
     this.hasMainPage = false,
     this.hasReviews = false,
@@ -44,6 +50,7 @@ class ProviderFeatureFlags {
     this.hasChapterApi = false,
     this.hasLatest = false,
     this.hasFilters = false,
+    this.searchFilters = true,
   });
 
   factory ProviderFeatureFlags.fromJson(Map<String, dynamic> json) {
@@ -56,6 +63,7 @@ class ProviderFeatureFlags {
       hasChapterApi: json['hasChapterApi'] as bool? ?? false,
       hasLatest: json['hasLatest'] as bool? ?? false,
       hasFilters: json['hasFilters'] as bool? ?? false,
+      searchFilters: json['searchFilters'] as bool? ?? true,
     );
   }
 
@@ -89,7 +97,7 @@ class ProviderEngine {
 
   /// Load a provider from JS source code.
   ///
-  /// Each provider gets its own JS runtime: providers are loaded into a
+  /// Each provider gets its own JS runtime. Providers are loaded into a
   /// shared global scope (`var module = { exports: {} }`), so loading a
   /// second provider would overwrite the first one's exports.
   Future<ProviderInstance> loadProvider(String jsSource) async {
@@ -102,6 +110,7 @@ class ProviderEngine {
 
     final wrappedSource = '''
       var module = { exports: {} };
+      ${await _providerHelpersSource()}
       $jsSource
       JSON.stringify(Object.keys(module.exports).filter(function(k) { return typeof module.exports[k] === 'function'; }));
     ''';
@@ -122,6 +131,25 @@ class ProviderEngine {
     } catch (_) {}
 
     return exported;
+  }
+
+  /// Cached source of the bundled provider helpers library.
+  static String? _helpersSource;
+
+  /// Loads `assets/providers/provider_helpers.js` once and caches it.
+  /// Returns an empty string (no helpers) if the asset is missing, so a
+  /// broken bundle degrades to providers that carry their own helpers.
+  Future<String> _providerHelpersSource() async {
+    if (_helpersSource != null) return _helpersSource!;
+    try {
+      _helpersSource = await rootBundle.loadString(
+        'assets/providers/provider_helpers.js',
+      );
+    } catch (e) {
+      Log.w(_tag, 'Failed to load provider helpers asset: $e');
+      _helpersSource = '';
+    }
+    return _helpersSource!;
   }
 }
 
@@ -184,8 +212,9 @@ class ProviderInstance {
     }
   }
 
-  /// Full search — calls the provider's search function directly if available.
+  /// Full search. Calls the provider's search function directly if available.
   Future<SearchResults?> search(String query, int page) async {
+    if (!hasFunction('search')) return null;
     try {
       final result = await call('search', [query, page]);
       if (result != null && result is Map<String, dynamic>) {
@@ -208,8 +237,10 @@ class ProviderInstance {
     return result?.toString();
   }
 
-  Future<SearchResults?> parseSearchResults(String html) async {
-    final result = await call('parseSearchResults', [html]);
+  /// Parse search results. [data] is either an HTML string (GET path) or a
+  /// byte list (binary POST path, e.g. gRPC-Web providers).
+  Future<SearchResults?> parseSearchResults(Object data) async {
+    final result = await call('parseSearchResults', [data]);
     if (result == null) return null;
     try {
       if (result is Map<String, dynamic>) {
@@ -518,9 +549,49 @@ final providerEngineProvider = Provider<ProviderEngine>((ref) {
   return engine;
 });
 
+/// Loads a provider's JS, evaluates it, and loads its feature flags.
+///
+/// One module owns the whole load path. Callers just
+/// `ref.read(providerInstanceProvider(id).future)`. The family caches per
+/// provider id, so concurrent callers share one load. After a registry
+/// update, invalidate the family to force a fresh instance.
+final providerInstanceProvider =
+    FutureProvider.family<ProviderInstance?, String>((ref, providerId) async {
+  Log.i(_tag, 'Loading provider: $providerId');
+
+  final registry = await ref.watch(registryManagerProvider.future);
+  final engine = ref.watch(providerEngineProvider);
+
+  final jsSource = await registry.loadCachedProviderJs(providerId);
+  if (jsSource == null) {
+    Log.w(_tag, 'No cached JS for provider: $providerId');
+    return null;
+  }
+
+  try {
+    final instance = await engine.loadProvider(jsSource);
+    await instance.loadFlags();
+    return instance;
+  } catch (e) {
+    Log.e(_tag, 'Failed to load provider: $providerId', e);
+    return null;
+  }
+});
+
+
 /// Manages loaded provider instances keyed by provider ID.
+class LoadedProvidersNotifier extends Notifier<Map<String, ProviderInstance>> {
+  @override
+  Map<String, ProviderInstance> build() => {};
+
+  /// Cache a freshly-loaded provider instance under [providerId].
+  void cache(String providerId, ProviderInstance instance) {
+    state = {...state, providerId: instance};
+  }
+}
+
 final loadedProvidersProvider =
-    StateProvider<Map<String, ProviderInstance>>((ref) => {});
+    NotifierProvider<LoadedProvidersNotifier, Map<String, ProviderInstance>>(LoadedProvidersNotifier.new);
 
 /// Load a provider's JS from disk cache, evaluate it, and cache the instance.
 /// Returns cached instance if already loaded.
@@ -546,11 +617,7 @@ Future<ProviderInstance?> loadProviderById(
   // Load feature flags
   await instance.loadFlags();
 
-  final current = container.read(loadedProvidersProvider);
-  container.read(loadedProvidersProvider.notifier).state = {
-    ...current,
-    providerId: instance,
-  };
+  container.read(loadedProvidersProvider.notifier).cache(providerId, instance);
 
   return instance;
 }

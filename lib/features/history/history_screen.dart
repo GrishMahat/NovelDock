@@ -11,7 +11,7 @@ import '../../widgets/shimmer_list.dart';
 
 const _tag = 'History';
 
-/// History screen — shows reading history timeline.
+/// History screen, showing the reading history timeline.
 class HistoryScreen extends ConsumerStatefulWidget {
   const HistoryScreen({super.key});
 
@@ -56,7 +56,7 @@ class _HistoryScreenState extends ConsumerState<HistoryScreen> {
                       )
                     : null,
                 filled: true,
-                fillColor: AppTheme.kSurfaceVariantDark,
+                fillColor: Theme.of(context).colorScheme.surfaceContainerHighest,
                 border: OutlineInputBorder(
                   borderRadius: BorderRadius.circular(12),
                   borderSide: BorderSide.none,
@@ -103,16 +103,16 @@ class _HistoryScreenState extends ConsumerState<HistoryScreen> {
                       mainAxisAlignment: MainAxisAlignment.center,
                       children: [
                         Icon(Icons.history, size: 64,
-                            color: AppTheme.kTextSecondaryDark.withValues(alpha: 0.5)),
+                            color: Theme.of(context).colorScheme.onSurfaceVariant.withValues(alpha: 0.5)),
                         const SizedBox(height: 16),
                         const Text('No reading history',
                             style: TextStyle(fontSize: 16)),
                         const SizedBox(height: 8),
-                        const Text(
+                        Text(
                           'Start reading novels to build\nyour history.',
                           textAlign: TextAlign.center,
                           style: TextStyle(
-                              color: AppTheme.kTextSecondaryDark, fontSize: 13),
+                              color: Theme.of(context).colorScheme.onSurfaceVariant, fontSize: 13),
                         ),
                       ],
                     ),
@@ -184,10 +184,10 @@ class _HistoryScreenState extends ConsumerState<HistoryScreen> {
           padding: const EdgeInsets.fromLTRB(16, 16, 16, 8),
           child: Text(
             group.key,
-            style: const TextStyle(
+            style: TextStyle(
               fontSize: 14,
               fontWeight: FontWeight.w600,
-              color: AppTheme.kTextSecondaryDark,
+              color: Theme.of(context).colorScheme.onSurfaceVariant,
             ),
           ),
         );
@@ -242,7 +242,7 @@ class _HistoryScreenState extends ConsumerState<HistoryScreen> {
   }
 }
 
-/// History list tile — loads novel + chapter info from DB
+/// History list tile. Loads novel + chapter info from DB.
 class _HistoryTile extends ConsumerWidget {
   final ReadingHistoryData entry;
   final NovelDao novelDao;
@@ -290,7 +290,7 @@ class _HistoryTile extends ConsumerWidget {
                         errorBuilder: (_, __, ___) => Container(
                           width: 40,
                           height: 56,
-                          color: AppTheme.kSurfaceVariantDark,
+                          color: Theme.of(context).colorScheme.surfaceContainerHighest,
                           child: const Icon(Icons.book, size: 20),
                         ),
                       ),
@@ -299,7 +299,7 @@ class _HistoryTile extends ConsumerWidget {
                       width: 40,
                       height: 56,
                       decoration: BoxDecoration(
-                        color: AppTheme.kSurfaceVariantDark,
+                        color: Theme.of(context).colorScheme.surfaceContainerHighest,
                         borderRadius: BorderRadius.circular(4),
                       ),
                       child: const Icon(Icons.book, size: 20),

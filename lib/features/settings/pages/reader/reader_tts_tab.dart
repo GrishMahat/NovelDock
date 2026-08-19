@@ -44,7 +44,7 @@ class TtsTab extends ConsumerWidget {
                         'Neural voices, works on all platforms',
                         style: TextStyle(
                           fontSize: 12,
-                          color: AppTheme.kTextSecondaryDark,
+                          color: Theme.of(context).colorScheme.onSurfaceVariant,
                         ),
                       ),
                     ],
@@ -104,7 +104,7 @@ class TtsTab extends ConsumerWidget {
         // ── Highlight ──
         section('Read-along Highlight'),
 
-        radioTts(
+        radioTts(context,
           'Paragraph',
           TtsHighlightMode.paragraph,
           ttsState.highlightMode,
@@ -115,7 +115,7 @@ class TtsTab extends ConsumerWidget {
           },
         ),
 
-        radioTts(
+        radioTts(context,
           'Sentence',
           TtsHighlightMode.sentence,
           ttsState.highlightMode,
@@ -126,7 +126,7 @@ class TtsTab extends ConsumerWidget {
           },
         ),
 
-        radioTts('Word', TtsHighlightMode.word, ttsState.highlightMode, (
+        radioTts(context, 'Word', TtsHighlightMode.word, ttsState.highlightMode, (
           value,
         ) {
           if (value == null) return;
@@ -526,7 +526,7 @@ class _VoicePickerSheetState extends State<_VoicePickerSheet> {
                   '${filtered.length} voices',
                   style: TextStyle(
                     fontSize: 11,
-                    color: AppTheme.kTextSecondaryDark,
+                    color: Theme.of(context).colorScheme.onSurfaceVariant,
                   ),
                 ),
               ),
@@ -606,7 +606,7 @@ class _VoicePickerSheetState extends State<_VoicePickerSheet> {
                                   : Icons.play_circle_outline,
                               color: isPlaying
                                   ? AppTheme.kPrimary
-                                  : AppTheme.kTextSecondaryDark,
+                                  : Theme.of(context).colorScheme.onSurfaceVariant,
                             ),
                             tooltip: isPlaying ? 'Stop sample' : 'Play sample',
                             onPressed: _sampleBusy && !isPlaying

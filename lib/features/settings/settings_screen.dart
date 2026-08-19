@@ -145,7 +145,7 @@ class _SettingsTile extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return ListTile(
-      leading: Icon(icon, color: AppTheme.kTextSecondaryDark),
+      leading: Icon(icon, color: Theme.of(context).colorScheme.onSurfaceVariant),
       title: Text(title),
       subtitle: Text(subtitle, style: const TextStyle(fontSize: 12)),
       trailing: const Icon(Icons.chevron_right),

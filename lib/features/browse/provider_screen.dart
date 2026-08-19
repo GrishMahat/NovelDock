@@ -31,6 +31,7 @@ class _ProviderScreenState extends ConsumerState<ProviderScreen>
   late final PagingController<int, SearchResultItem> _pagingController;
   late final TabController _tabController;
   bool _isGridView = true;
+  bool _isSearching = false;
   ProviderInstance? _instance;
   bool _hasReachedEnd = false;
   static const _maxPages = 100;
@@ -201,11 +202,6 @@ class _ProviderScreenState extends ConsumerState<ProviderScreen>
     _setMode(_ListMode.search);
   }
 
-  void _clearSearch() {
-    _searchController.clear();
-    _submitSearch('');
-  }
-
   Future<void> _openFilterSheet() async {
     final instance = await _ensureLoaded();
     if (instance == null || !instance.flags.hasFilters) {
@@ -250,8 +246,31 @@ class _ProviderScreenState extends ConsumerState<ProviderScreen>
 
     return Scaffold(
       appBar: AppBar(
-        title: Text(title),
+        title: _isSearching
+            ? TextField(
+                controller: _searchController,
+                autofocus: true,
+                textInputAction: TextInputAction.search,
+                decoration: const InputDecoration(
+                  hintText: 'Search in this source...',
+                  border: InputBorder.none,
+                ),
+                onSubmitted: _submitSearch,
+              )
+            : Text(title),
         actions: [
+          if (!_isSearching)
+            IconButton(
+              icon: const Icon(Icons.search),
+              tooltip: 'Search in this source',
+              onPressed: () => setState(() => _isSearching = true),
+            )
+          else
+            IconButton(
+              icon: const Icon(Icons.close),
+              tooltip: 'Close search',
+              onPressed: () => setState(() => _isSearching = false),
+            ),
           IconButton(
             icon: Icon(_isGridView ? Icons.view_list : Icons.grid_view),
             tooltip: 'Display mode',
@@ -261,29 +280,6 @@ class _ProviderScreenState extends ConsumerState<ProviderScreen>
       ),
       body: Column(
         children: [
-          Padding(
-            padding: const EdgeInsets.fromLTRB(12, 8, 12, 0),
-            child: TextField(
-              controller: _searchController,
-              textInputAction: TextInputAction.search,
-              decoration: InputDecoration(
-                hintText: 'Search in this source...',
-                prefixIcon: const Icon(Icons.search),
-                suffixIcon: _query.isNotEmpty
-                    ? IconButton(
-                        icon: const Icon(Icons.close),
-                        tooltip: 'Clear search',
-                        onPressed: _clearSearch,
-                      )
-                    : null,
-                isDense: true,
-                border: OutlineInputBorder(
-                  borderRadius: BorderRadius.circular(12),
-                ),
-              ),
-              onSubmitted: _submitSearch,
-            ),
-          ),
           if (_canLatest || _canFilter)
             Row(
               children: [

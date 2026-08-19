@@ -6,7 +6,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../../theme/app_theme.dart';
 import '../../settings/pages/reader/reader_settings_state.dart';
 
-/// Inline reader settings bottom sheet — shown from reader controls.
+/// Inline reader settings bottom sheet, shown from reader controls.
 class ReaderSettingsSheet extends ConsumerStatefulWidget {
   final ScrollController scrollController;
   const ReaderSettingsSheet({super.key, required this.scrollController});
@@ -147,7 +147,7 @@ class _ReaderSettingsSheetState extends ConsumerState<ReaderSettingsSheet> {
     );
   }
 
-  Widget _section(String title) => Padding(padding: const EdgeInsets.only(bottom: 8), child: Text(title, style: const TextStyle(fontSize: 14, fontWeight: FontWeight.w600, color: AppTheme.kTextSecondaryDark)));
+  Widget _section(String title) => Padding(padding: const EdgeInsets.only(bottom: 8), child: Text(title, style: TextStyle(fontSize: 14, fontWeight: FontWeight.w600, color: Theme.of(context).colorScheme.onSurfaceVariant)));
 
   Widget _slider(String label, double value, double min, double max, String display, ValueChanged<double> onChanged) {
     return Padding(padding: const EdgeInsets.symmetric(vertical: 4), child: Row(children: [

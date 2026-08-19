@@ -1,3 +1,4 @@
+import 'package:dio/dio.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:drift/drift.dart' hide Column;
 
@@ -9,18 +10,22 @@ import 'engine.dart';
 
 const _tag = 'NovelOpener';
 
-/// Shared logic for opening a search/browse result as a novel:
-/// inserts it into the DB, navigates to the detail screen, then fetches
-/// novel info + chapter list in the background.
+/// Shared logic for a novel's lifecycle:
+/// - [open]: insert a search/browse result and fetch its details in the
+///   background.
+/// - [refreshNovel]: re-fetch info + chapter list for an existing novel
+///   without resetting [Novels.addedAt].
+/// - [firstChapterId]: entry chapter used by "play from start" actions.
 class NovelOpener {
   final WidgetRef ref;
 
   NovelOpener(this.ref);
 
-  /// Insert the novel into the DB and return its row id.
-  Future<int> insertNovel(SearchResultItem item) async {
+  /// Insert the novel into the DB and report whether the row was newly
+  /// created (as opposed to an already-existing one).
+  Future<(int, bool)> insertNovel(SearchResultItem item) async {
     final novelDao = ref.read(novelDaoProvider);
-    return novelDao.insertOrGetNovel(
+    return novelDao.insertOrGetNovelWithStatus(
       providerId: item.providerId!,
       url: item.url,
       title: item.title,
@@ -37,17 +42,21 @@ class NovelOpener {
       Log.e(_tag, 'No providerId, aborting');
       return -1;
     }
-    final id = await insertNovel(item);
+    final (id, isNew) = await insertNovel(item);
     if (id > 0) {
-      fetchNovelDetails(id, item);
+      fetchNovelDetails(id, item, isNew: isNew);
     }
     return id;
   }
 
   /// Fetch novel details and chapters in the background.
-  Future<void> fetchNovelDetails(int id, SearchResultItem item) async {
+  Future<void> fetchNovelDetails(
+    int id,
+    SearchResultItem item, {
+    bool isNew = false,
+  }) async {
     try {
-      final instance = await loadProviderById(item.providerId!, ref.container);
+      final instance = await ref.read(providerInstanceProvider(item.providerId!).future);
       if (instance == null) return;
       final novelDao = ref.read(novelDaoProvider);
       final chapterDao = ref.read(chapterDaoProvider);
@@ -71,56 +80,162 @@ class NovelOpener {
           description: Value(info.description),
           genres: Value(info.genres.join(',')),
           status: Value(info.status),
-          addedAt: Value(DateTime.now().millisecondsSinceEpoch),
+          addedAt: isNew
+              ? Value(DateTime.now().millisecondsSinceEpoch)
+              : const Value.absent(),
         ),
       );
 
-      final bookId = item.url.split('/').last.split('.').first;
-      final chapterList = <ChaptersCompanion>[];
-      if (info.chapters.isEmpty && bookId.isNotEmpty) {
-        var page = 0;
-        var chapterIndex = 0;
-        while (true) {
+      await _insertChapters(instance, id, item.url, info.chapters, dio);
+    } catch (e) {
+      Log.w(_tag, 'Failed to fetch novel details: $e');
+    }
+  }
+
+  /// Re-fetch info + chapters for an existing novel. Unlike
+  /// [fetchNovelDetails], [Novels.addedAt] is preserved. Refreshing must
+  /// not reset the date the novel was added to the library.
+  /// Returns false when the novel or its provider is unavailable.
+  Future<bool> refreshNovel(int novelId) async {
+    try {
+      final novelDao = ref.read(novelDaoProvider);
+      final novel = await novelDao.getNovelById(novelId);
+      if (novel == null) return false;
+
+      final instance = await ref.read(providerInstanceProvider(novel.providerId).future);
+      if (instance == null) return false;
+
+      final novelUrl = await instance.getNovelInfoUrl(novel.url);
+      if (novelUrl == null) return false;
+
+      final dio = await ref.read(dioProvider.future);
+      final response = await dio.get(novelUrl);
+      final info = await instance.parseNovelInfo(response.data.toString());
+      if (info == null) return false;
+
+      await novelDao.updateNovel(
+        NovelsCompanion(
+          id: Value(novelId),
+          providerId: Value(novel.providerId),
+          url: Value(novel.url),
+          title: Value(info.title),
+          author: Value(info.author),
+          coverUrl: Value(info.cover ?? novel.coverUrl),
+          description: Value(info.description),
+          genres: Value(info.genres.join(',')),
+          status: Value(info.status),
+        ),
+      );
+
+      await _insertChapters(instance, novelId, novel.url, info.chapters, dio);
+      return true;
+    } catch (e) {
+      Log.w(_tag, 'Failed to refresh novel $novelId: $e');
+      return false;
+    }
+  }
+
+  /// Chapter id of the novel's first chapter, or null if it has none.
+  Future<int?> firstChapterId(int novelId) async {
+    final chapterDao = ref.read(chapterDaoProvider);
+    final chapters = await chapterDao.getChaptersForNovel(novelId);
+    if (chapters.isEmpty) return null;
+    return chapters.first.id;
+  }
+
+  /// Build and store the chapter list for a novel. Falls back to the
+  /// provider's paginated chapter API when the parsed novel info carries
+  /// no chapters (e.g. LightNovels/ScribbleHub style listings).
+  Future<void> _insertChapters(
+    ProviderInstance instance,
+    int novelId,
+    String novelUrl,
+    List<NovelChapter> chapters,
+    Dio dio,
+  ) async {
+    final chapterDao = ref.read(chapterDaoProvider);
+
+    final bookId = novelUrl.split('/').last.split('.').first;
+    final chapterList = <ChaptersCompanion>[];
+    try {
+      if (chapters.isEmpty && bookId.isNotEmpty) {
+      var page = 0;
+      var chapterIndex = 0;
+      while (true) {
+        final config = instance.hasFunction('getChaptersApiConfig')
+            ? await instance.call('getChaptersApiConfig', [bookId, page])
+            : null;
+        Object? chData;
+        if (config is Map<String, dynamic> &&
+            config['url'] is String &&
+            config['body'] is List) {
+          final headers = (config['headers'] as Map<String, dynamic>?)
+                  ?.map((k, v) => MapEntry(k, v.toString())) ??
+              const <String, String>{};
+          final chResponse = await dio.post(
+            config['url'] as String,
+            data: Uint8List.fromList((config['body'] as List).cast<int>()),
+            options: Options(
+              headers: headers,
+              responseType: ResponseType.bytes,
+              followRedirects: false,
+              validateStatus: (status) => status != null && status < 500,
+            ),
+          );
+          if (chResponse.statusCode != 200) break;
+          chData = chResponse.data;
+        } else {
           final chaptersUrl = await instance.call('getChaptersApiUrl', [
             bookId,
             page,
           ]);
           if (chaptersUrl == null || chaptersUrl is! String) break;
-          final chResponse = await dio.get(chaptersUrl);
-          final chHtml = chResponse.data.toString();
-          if (chHtml.trim().isEmpty) break;
-          final chList = await instance.call('parseChapterList', [chHtml]);
-          if (chList == null || chList is! List || chList.isEmpty) break;
-          for (var i = 0; i < chList.length; i++) {
-            final ch = chList[i] as Map<String, dynamic>;
-            chapterList.add(
-              ChaptersCompanion(
-                novelId: Value(id),
-                name: Value(ch['name'] as String? ?? ''),
-                url: Value(ch['url'] as String? ?? ''),
-                index: Value(chapterIndex.toDouble()),
-              ),
-            );
-            chapterIndex++;
-          }
-          page++;
-        }
-      } else {
-        for (var i = 0; i < info.chapters.length; i++) {
-          final ch = info.chapters[i];
-          chapterList.add(
-            ChaptersCompanion(
-              novelId: Value(id),
-              name: Value(ch.name),
-              url: Value(ch.url),
-              index: Value(i.toDouble()),
+          final chResponse = await dio.get(
+            chaptersUrl,
+            options: Options(
+              // Tolerate non-2xx (e.g. Syosetu answers 404 one page past
+              // the last chapter list) so the loop ends cleanly instead of
+              // aborting chapter insertion with a DioException.
+              validateStatus: (status) => status != null && status < 500,
+              responseType: ResponseType.plain,
             ),
           );
+          if (chResponse.statusCode != 200) break;
+          chData = chResponse.data.toString();
+          if ((chData as String).trim().isEmpty) break;
         }
+        final chList = await instance.call('parseChapterList', [chData]);
+        if (chList == null || chList is! List || chList.isEmpty) break;
+        for (var i = 0; i < chList.length; i++) {
+          final ch = chList[i] as Map<String, dynamic>;
+          chapterList.add(
+            ChaptersCompanion(
+              novelId: Value(novelId),
+              name: Value(ch['name'] as String? ?? ''),
+              url: Value(ch['url'] as String? ?? ''),
+              index: Value(chapterIndex.toDouble()),
+            ),
+          );
+          chapterIndex++;
+        }
+        page++;
       }
-      await chapterDao.insertChaptersForNovel(id, chapterList);
+    } else {
+      for (var i = 0; i < chapters.length; i++) {
+        final ch = chapters[i];
+        chapterList.add(
+          ChaptersCompanion(
+            novelId: Value(novelId),
+            name: Value(ch.name),
+            url: Value(ch.url),
+            index: Value(i.toDouble()),
+          ),
+        );
+      }
+      }
     } catch (e) {
       Log.w(_tag, 'Failed to fetch novel details: $e');
     }
+    await chapterDao.insertChaptersForNovel(novelId, chapterList);
   }
 }

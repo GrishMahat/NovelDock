@@ -262,7 +262,7 @@ class _StorageInfoCardState extends State<_StorageInfoCard> {
             const SizedBox(height: 8),
             Text(
               '$_fileCount files · ${_formatSize(_totalSize)}',
-              style: TextStyle(fontSize: 12, color: AppTheme.kTextSecondaryDark),
+              style: TextStyle(fontSize: 12, color: Theme.of(context).colorScheme.onSurfaceVariant),
             ),
             const SizedBox(height: 8),
             SizedBox(

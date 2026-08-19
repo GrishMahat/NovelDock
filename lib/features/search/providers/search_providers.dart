@@ -1,4 +1,5 @@
 import 'dart:convert';
+import 'dart:typed_data';
 
 import 'package:dio/dio.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -109,21 +110,19 @@ class SearchState {
 // ═══════════════════════════════════════════════════════════
 
 final searchHistoryProvider =
-    StateNotifierProvider<SearchHistoryNotifier, List<String>>((ref) {
-      return SearchHistoryNotifier(ref);
-    });
+    NotifierProvider<SearchHistoryNotifier, List<String>>(SearchHistoryNotifier.new);
 
-class SearchHistoryNotifier extends StateNotifier<List<String>> {
-  final Ref ref;
-
+class SearchHistoryNotifier extends Notifier<List<String>> {
   static const _key = 'search_history';
   static const _maxEntries = 12;
 
   Future<void> _saveQueue = Future<void>.value();
   int _mutationVersion = 0;
 
-  SearchHistoryNotifier(this.ref) : super(const []) {
+  @override
+  List<String> build() {
     _load();
+    return const [];
   }
 
   Future<void> _load() async {
@@ -203,13 +202,11 @@ class SearchHistoryNotifier extends StateNotifier<List<String>> {
 /// participate. Once the user explicitly chooses, the exact selected set
 /// is respected, including an intentionally empty set.
 final searchProviderSelectionProvider =
-    StateNotifierProvider<SearchProviderSelectionNotifier, Set<String>>(
-      (ref) => SearchProviderSelectionNotifier(ref),
+    NotifierProvider<SearchProviderSelectionNotifier, Set<String>>(
+      SearchProviderSelectionNotifier.new,
     );
 
-class SearchProviderSelectionNotifier extends StateNotifier<Set<String>> {
-  final Ref ref;
-
+class SearchProviderSelectionNotifier extends Notifier<Set<String>> {
   static const _key = 'search_providers';
 
   bool _explicit = false;
@@ -217,8 +214,10 @@ class SearchProviderSelectionNotifier extends StateNotifier<Set<String>> {
   Future<void> _saveQueue = Future<void>.value();
   int _mutationVersion = 0;
 
-  SearchProviderSelectionNotifier(this.ref) : super(const {}) {
+  @override
+  Set<String> build() {
     _load();
+    return const {};
   }
 
   Future<void> _load() async {
@@ -295,14 +294,12 @@ class SearchProviderSelectionNotifier extends StateNotifier<Set<String>> {
 // Notifier
 // ═══════════════════════════════════════════════════════════
 
-class SearchNotifier extends StateNotifier<SearchState> {
-  final Ref ref;
-
-  SearchNotifier(this.ref) : super(const SearchState());
+class SearchNotifier extends Notifier<SearchState> {
+  @override
+  SearchState build() => const SearchState();
 
   /// Monotonically increasing request token per provider.
   ///
-  /// Every new request invalidates the previous request for that provider.
   /// This lets a new query or filter search start immediately instead of
   /// being blocked behind stale work.
   final Map<String, int> _requestTokens = {};
@@ -426,16 +423,10 @@ class SearchNotifier extends StateNotifier<SearchState> {
     _updateProviderIfCurrentQuery(providerId, nextState, expectedQuery);
 
     try {
-      var cached = ref.read(loadedProvidersProvider)[providerId];
-
-      if (cached == null) {
-        Log.i(_tag, 'Loading provider JS for $providerId...');
-        cached = await loadProviderById(providerId, ref.container);
-      }
+      var cached = await ref.read(providerInstanceProvider(providerId).future);
 
       if (!_isCurrentRequest(providerId, requestToken)) return;
       if (state.query != expectedQuery) return;
-
       if (cached == null) {
         Log.w(_tag, 'Could not load provider $providerId, skipping');
 
@@ -555,7 +546,8 @@ class SearchNotifier extends StateNotifier<SearchState> {
   /// 2. direct search when no filters are active,
   /// 3. GET via getSearchUrl (filter-aware).
   ///
-  /// When filters are active, only the filter-aware GET path is allowed.
+  /// When filters are active and the provider cannot apply them to search,
+  /// the unfiltered paths are used instead.
   Future<SearchResults?> _searchProviderOnce(
     ProviderInstance instance,
     Dio dio,
@@ -581,9 +573,15 @@ class SearchNotifier extends StateNotifier<SearchState> {
 // ═══════════════════════════════════════════════════════════
 
 /// Run the full search pipeline for one provider on one page:
-/// 1. POST search (getSearchConfig) when filters are empty,
-/// 2. direct search() when filters are empty,
+/// 1. POST search (getSearchConfig) when filters are empty, or always when
+///    the provider cannot apply filters to search,
+/// 2. direct search() when filters are empty, or when the provider cannot
+///    apply filters to search,
 /// 3. GET via getSearchUrl, which is filter-aware.
+///
+/// When filters are active and the provider declares `searchFilters: false`,
+/// the filter-aware GET path cannot express the selection, so the normal
+/// search paths are used instead (the provider ignores filters in search).
 Future<SearchResults?> searchProviderOnce(
   ProviderInstance instance,
   Dio dio,
@@ -595,27 +593,32 @@ Future<SearchResults?> searchProviderOnce(
 
   // When filters are active, skip search paths that cannot receive them.
   final filtersActive = !filters.isEmpty;
+  // A provider that cannot apply filters to search must not be pushed down
+  // the filter-aware GET path. It would silently drop the filters, and for
+  // some sites it returns an unusable URL. Run the unfiltered search instead.
+  final filtersSupported = instance.flags.searchFilters;
+  final useUnfilteredPaths = !filtersActive || !filtersSupported;
 
   // 1. POST-based search
   //
   // The existing provider POST contract does not expose a filter argument,
   // so using it with active filters would silently ignore the user's
   // selection.
-  if (!filtersActive && instance.hasFunction('getSearchConfig')) {
+  if (useUnfilteredPaths && instance.hasFunction('getSearchConfig')) {
     Log.i(_tag, 'POST search: has getSearchConfig');
 
     try {
-      final searchConfig = await instance.call('getSearchConfig', []);
+      final searchConfig = await instance.call('getSearchConfig', [query, page]);
 
       Log.i(_tag, 'POST search: config = $searchConfig');
 
-      if (searchConfig is Map<String, dynamic>) {
-        final results = await postSearch(
+        if (searchConfig is Map<String, dynamic>) {
+        final results = await postNovelList(
           instance,
           dio,
           searchConfig,
-          query,
-          page,
+          query: query,
+          page: page,
         );
 
         Log.i(_tag, 'POST search: results = ${results?.results.length}');
@@ -640,8 +643,8 @@ Future<SearchResults?> searchProviderOnce(
   // 2. Direct search function.
   //
   // This path cannot receive filters, so do not use it when filters
-  // are active.
-  if (!filtersActive) {
+  // are active and the provider supports filter-aware search.
+  if (useUnfilteredPaths) {
     final directResults = await instance.search(query, page);
 
     Log.i(_tag, 'Direct search: ${directResults?.results.length}');
@@ -654,12 +657,16 @@ Future<SearchResults?> searchProviderOnce(
   // 3. URL-based GET search.
   //
   // This is the filter-aware fallback and the only path used when
-  // filters are active.
-  final searchUrl = await instance.getSearchUrl(query, page, filters: filters);
+  // filters are active and the provider supports them in search.
+  final searchUrl = await instance.getSearchUrl(
+    query,
+    page,
+    filters: filtersSupported ? filters : const FilterValues(),
+  );
 
   Log.i(_tag, 'GET search URL: $searchUrl');
 
-  if (searchUrl == null || searchUrl.isEmpty) {
+  if (searchUrl == null) {
     return null;
   }
 
@@ -686,37 +693,45 @@ Future<SearchResults?> searchProviderOnce(
 }
 
 // ═══════════════════════════════════════════════════════════
-// POST search
+// POST search / browse
 // ═══════════════════════════════════════════════════════════
 
-/// Handle POST-based search.
+/// Handle POST-based list fetching (search or browse).
 ///
 /// The POST typically responds with a 3xx redirect to the results page.
 /// Dio does not expose the final POST redirect as the result page when
 /// redirect following is disabled, so the Location header is followed
 /// manually with GET.
-Future<SearchResults?> postSearch(
+///
+/// Two config shapes are supported:
+///  - `{url, fields, headers, resultUrlPattern?}`, a form-encoded body
+///    (the classic contract; `keyboard` is injected when [query] is set).
+///  - `{url, headers, body}`, a raw binary body (e.g. gRPC-Web framing);
+///    the response is fetched as bytes and passed to the provider's
+///    `parseSearchResults` as a byte list.
+Future<SearchResults?> postNovelList(
   ProviderInstance instance,
   Dio dio,
-  Map<String, dynamic> config,
-  String query,
-  int page,
-) async {
+  Map<String, dynamic> config, {
+  String? query,
+  int page = 1,
+}) async {
   try {
     final url = config['url'] as String?;
     final fields = config['fields'] as Map<String, dynamic>?;
     final headers = config['headers'] as Map<String, dynamic>?;
+    final rawBody = config['body'] as List?;
     final resultPattern = config['resultUrlPattern'] as String?;
 
     if (url == null || url.isEmpty) {
-      Log.w(_tag, 'postSearch: config has no "url"');
+      Log.w(_tag, 'postNovelList: config has no "url"');
       return null;
     }
 
     // Build form data from provider config.
     final formData = <String, String>{
       if (fields != null) ...fields.map((k, v) => MapEntry(k, v.toString())),
-      'keyboard': query,
+      'keyboard': ?query,
     };
 
     // Build headers from provider config.
@@ -724,24 +739,45 @@ Future<SearchResults?> postSearch(
       if (headers != null) ...headers.map((k, v) => MapEntry(k, v.toString())),
     };
 
-    final formBody = formData.entries
-        .map(
-          (e) =>
-              '${Uri.encodeComponent(e.key)}='
-              '${Uri.encodeComponent(e.value)}',
-        )
-        .join('&');
+    final isBinary = rawBody != null;
 
-    Log.i(_tag, 'postSearch: POST $url bodyLength=${formBody.length}');
+    final Object body;
+    if (isBinary) {
+      // Raw binary body (gRPC-Web frame, etc). The provider builds the
+      // request payload itself; response bytes go to parseSearchResults.
+      body = Uint8List.fromList(rawBody.cast<int>());
+    } else {
+      // Build form data from provider config.
+      final formData = <String, String>{
+        if (fields != null) ...fields.map((k, v) => MapEntry(k, v.toString())),
+        'keyboard': ?query,
+      };
+      body = formData.entries
+          .map(
+            (e) =>
+                '${Uri.encodeComponent(e.key)}='
+                '${Uri.encodeComponent(e.value)}',
+          )
+          .join('&');
+    }
+
+    Log.i(
+      _tag,
+      'postNovelList: POST $url '
+      'binary=$isBinary bodyLength=${(body as dynamic).length}',
+    );
 
     final response = await dio.post(
       url,
-      data: formBody,
+      data: body,
       options: Options(
-        headers: {
-          ...requestHeaders,
-          'Content-Type': 'application/x-www-form-urlencoded',
-        },
+        headers: isBinary
+            ? requestHeaders
+            : {
+                ...requestHeaders,
+                'Content-Type': 'application/x-www-form-urlencoded',
+              },
+        responseType: isBinary ? ResponseType.bytes : ResponseType.plain,
         followRedirects: false,
         validateStatus: (status) => status != null && status < 500,
       ),
@@ -752,7 +788,7 @@ Future<SearchResults?> postSearch(
 
     Log.i(
       _tag,
-      'postSearch: status=$status '
+      'postNovelList: status=$status '
       'hasLocation=${location != null && location.isNotEmpty}',
     );
 
@@ -768,7 +804,7 @@ Future<SearchResults?> postSearch(
     if (isRedirect) {
       // A redirect without Location cannot be followed safely.
       if (location == null || location.isEmpty) {
-        Log.w(_tag, 'postSearch: redirect response has no Location header');
+        Log.w(_tag, 'postNovelList: redirect response has no Location header');
 
         // Do not attempt to manufacture a search ID from an empty
         // Location value. The normal search pipeline will continue
@@ -779,25 +815,23 @@ Future<SearchResults?> postSearch(
       resultUrl = response.requestOptions.uri.resolve(location).toString();
     } else if (status == 200) {
       // Provider returned results directly.
-      final html = response.data.toString();
+      final data = response.data;
 
-      Log.i(_tag, 'postSearch: direct results page bytes=${html.length}');
+      Log.i(_tag, 'postNovelList: direct results bytes=${data.length}');
 
-      final parsed = await instance.parseSearchResults(html);
+      final parsed = await instance.parseSearchResults(data);
 
-      Log.i(_tag, 'postSearch: parsed ${parsed?.results.length} results');
+      Log.i(_tag, 'postNovelList: parsed ${parsed?.results.length} results');
 
       return parsed;
     } else {
-      Log.w(_tag, 'postSearch: unexpected status $status, aborting');
+      Log.w(_tag, 'postNovelList: unexpected status $status, aborting');
       return null;
     }
 
     // Optional URL pattern can still be used if the provider explicitly
     // gives one and the redirect target needs page substitution.
-    if (resultUrl != null &&
-        resultPattern != null &&
-        resultPattern.isNotEmpty) {
+    if (resultPattern != null && resultPattern.isNotEmpty) {
       final resolvedPattern = resultPattern.replaceAll(
         '{page}',
         page.toString(),
@@ -817,30 +851,46 @@ Future<SearchResults?> postSearch(
       }
     }
 
-    Log.i(_tag, 'postSearch: fetching results: $resultUrl');
+    Log.i(_tag, 'postNovelList: fetching results: $resultUrl');
 
     final resultResponse = await dio.get(resultUrl);
     final html = resultResponse.data.toString();
 
     Log.i(
       _tag,
-      'postSearch: results page status=${resultResponse.statusCode} '
+      'postNovelList: results page status=${resultResponse.statusCode} '
       'bytes=${html.length}',
     );
 
     final parsed = await instance.parseSearchResults(html);
 
-    Log.i(_tag, 'postSearch: parsed ${parsed?.results.length} results');
+    Log.i(_tag, 'postNovelList: parsed ${parsed?.results.length} results');
 
     return parsed;
   } catch (e) {
-    Log.e(_tag, 'POST search failed', e);
+    Log.e(_tag, 'POST novel list failed', e);
     return null;
   }
 }
 
-final searchProvider = StateNotifierProvider<SearchNotifier, SearchState>((
-  ref,
-) {
-  return SearchNotifier(ref);
-});
+/// POST-based search (wraps [postNovelList] with a query).
+Future<SearchResults?> postSearch(
+  ProviderInstance instance,
+  Dio dio,
+  Map<String, dynamic> config,
+  String query,
+  int page,
+) =>
+    postNovelList(instance, dio, config, query: query, page: page);
+
+/// POST-based browse (wraps [postNovelList] without a query).
+Future<SearchResults?> postBrowse(
+  ProviderInstance instance,
+  Dio dio,
+  Map<String, dynamic> config,
+  int page,
+) =>
+    postNovelList(instance, dio, config, page: page);
+
+final searchProvider =
+    NotifierProvider<SearchNotifier, SearchState>(SearchNotifier.new);

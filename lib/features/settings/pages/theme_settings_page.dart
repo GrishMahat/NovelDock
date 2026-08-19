@@ -94,7 +94,7 @@ class ThemeSettingsPage extends ConsumerWidget {
         children: [
           _buildSection('Theme Mode'),
           ..._themeModes.map((mode) => ListTile(
-            leading: Icon(mode.$3, color: AppTheme.kTextSecondaryDark),
+            leading: Icon(mode.$3, color: Theme.of(context).colorScheme.onSurfaceVariant),
             title: Text(mode.$2),
             trailing: Radio<String>(
               value: mode.$1,

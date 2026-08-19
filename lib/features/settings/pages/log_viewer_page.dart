@@ -4,7 +4,6 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../../core/utils/log_buffer.dart';
 import '../../../core/utils/logger.dart';
-import '../../../theme/app_theme.dart';
 
 class LogViewerPage extends ConsumerStatefulWidget {
   const LogViewerPage({super.key});
@@ -168,13 +167,13 @@ class _LogViewerPageState extends ConsumerState<LogViewerPage> {
               children: [
                 Text(
                   '${filtered.length} / ${entries.length} entries',
-                  style: const TextStyle(fontSize: 11, color: AppTheme.kTextSecondaryDark),
+                  style: TextStyle(fontSize: 11, color: Theme.of(context).colorScheme.onSurfaceVariant),
                 ),
                 const Spacer(),
                 if (entries.isNotEmpty)
                   Text(
                     entries.last.formatted.split(' ').first,
-                    style: const TextStyle(fontSize: 10, color: AppTheme.kTextSecondaryDark),
+                    style: TextStyle(fontSize: 10, color: Theme.of(context).colorScheme.onSurfaceVariant),
                   ),
               ],
             ),
@@ -184,7 +183,7 @@ class _LogViewerPageState extends ConsumerState<LogViewerPage> {
                 ? Center(
                     child: Text(
                       entries.isEmpty ? 'No log entries yet' : 'No matching entries',
-                      style: const TextStyle(color: AppTheme.kTextSecondaryDark),
+                      style: TextStyle(color: Theme.of(context).colorScheme.onSurfaceVariant),
                     ),
                   )
                 : ListView.builder(

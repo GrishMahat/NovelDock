@@ -13,7 +13,6 @@ import '../../core/config/app_config.dart';
 import '../../core/database/database.dart';
 import '../../core/providers/database_providers.dart';
 import '../../core/utils/logger.dart';
-import '../../theme/app_theme.dart';
 
 const _tag = 'Import';
 
@@ -110,14 +109,14 @@ class _ImportScreenState extends ConsumerState<ImportScreen> {
                 mainAxisAlignment: MainAxisAlignment.center,
                 children: [
                   Icon(Icons.file_upload, size: 64,
-                      color: AppTheme.kTextSecondaryDark.withValues(alpha: 0.5)),
+                      color: Theme.of(context).colorScheme.onSurfaceVariant.withValues(alpha: 0.5)),
                   const SizedBox(height: 16),
                   const Text('Import EPUB or PDF',
                       style: TextStyle(fontSize: 18, fontWeight: FontWeight.w600)),
                   const SizedBox(height: 8),
-                  const Text('Select a file from your device\nto add to your library.',
+                  Text('Select a file from your device\nto add to your library.',
                       textAlign: TextAlign.center,
-                      style: TextStyle(color: AppTheme.kTextSecondaryDark)),
+                      style: TextStyle(color: Theme.of(context).colorScheme.onSurfaceVariant)),
                   if (_importedFile != null) ...[
                     const SizedBox(height: 16),
                     Card(child: ListTile(
@@ -264,7 +263,7 @@ class _ImportScreenState extends ConsumerState<ImportScreen> {
 
   Future<void> _parsePdf(String filePath, int novelId) async {
     try {
-      // Store PDF as single chapter — rendered by pdfrx in reader
+      // Store PDF as single chapter, rendered by pdfrx in reader.
       final chapterDao = ref.read(chapterDaoProvider);
       await chapterDao.insertChapter(ChaptersCompanion(
         novelId: Value(novelId),

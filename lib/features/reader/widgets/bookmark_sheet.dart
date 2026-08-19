@@ -20,9 +20,9 @@ Future<String?> showAddBookmarkDialog(
         children: [
           Text(
             chapterName,
-            style: const TextStyle(
+            style: TextStyle(
               fontSize: 13,
-              color: AppTheme.kTextSecondaryDark,
+              color: Theme.of(context).colorScheme.onSurfaceVariant,
             ),
           ),
           const SizedBox(height: 12),

@@ -68,7 +68,7 @@ class BackupRestorePage extends ConsumerWidget {
                     'They will be re-downloaded from registries on restore.',
                     style: TextStyle(
                       fontSize: 12,
-                      color: AppTheme.kTextSecondaryDark,
+                      color: Theme.of(context).colorScheme.onSurfaceVariant,
                     ),
                   ),
                 ],

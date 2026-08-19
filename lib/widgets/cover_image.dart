@@ -1,6 +1,5 @@
 import 'package:flutter/material.dart';
 
-import '../theme/app_theme.dart';
 
 /// Reusable cover image widget with placeholder fallback.
 class CoverImage extends StatelessWidget {
@@ -27,7 +26,7 @@ class CoverImage extends StatelessWidget {
       width: width,
       height: height,
       decoration: BoxDecoration(
-        color: AppTheme.kSurfaceVariantDark,
+        color: Theme.of(context).colorScheme.surfaceContainerHighest,
         borderRadius: borderRadius,
       ),
       child: const Icon(Icons.book, size: 32),

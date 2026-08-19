@@ -10,10 +10,10 @@ class StatusChip extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final (color, label) = switch (status.toLowerCase()) {
-      'ongoing' => (AppTheme.kOngoing, 'Ongoing'),
+      'ongoing' => (Theme.of(context).extension<AppColors>()!.ongoing, 'Ongoing'),
       'completed' => (Colors.green, 'Completed'),
       'dropped' => (Colors.red, 'Dropped'),
-      _ => (AppTheme.kTextSecondaryDark, status),
+      _ => (Theme.of(context).colorScheme.onSurfaceVariant, status),
     };
 
     return Container(

@@ -90,7 +90,8 @@ dependencies:
   flutter_background_service_android: ^6.3.1
   flutter_background_service_ios: ^5.0.3
   flutter_background_service: 5.1.0
-  dio_http2_adapter: ^2.8.0
+  dio_http2_adapter:
+    path: third_party/dio_http2_adapter
 
 dev_dependencies:
   flutter_test:
@@ -121,7 +122,11 @@ flutter:
   uses-material-design: true
   assets:
     - assets/images/
+    - assets/providers/
   fonts:
+    - family: Sora
+      fonts:
+        - asset: assets/fonts/Sora-Variable.ttf
     - family: Literata
       fonts:
         - asset: assets/fonts/Literata-Regular.ttf

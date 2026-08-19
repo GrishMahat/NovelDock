@@ -51,6 +51,28 @@ class NovelDao extends DatabaseAccessor<AppDatabase> with _$NovelDaoMixin {
     ));
   }
 
+  /// Insert the novel if it does not exist yet and report whether the row
+  /// was newly created (as opposed to an already-existing one).
+  Future<(int, bool)> insertOrGetNovelWithStatus({
+    required String providerId,
+    required String url,
+    required String title,
+    String? author,
+    String? coverUrl,
+  }) async {
+    final existing = await getNovelByUrl(url);
+    if (existing != null) return (existing.id, false);
+    final id = await insertNovel(NovelsCompanion(
+      providerId: Value(providerId),
+      url: Value(url),
+      title: Value(title),
+      author: Value(author),
+      coverUrl: Value(coverUrl),
+      addedAt: Value(DateTime.now().millisecondsSinceEpoch),
+    ));
+    return (id, true);
+  }
+
   Future<List<Novel>> getAllNovels() {
     return select(novels).get();
   }

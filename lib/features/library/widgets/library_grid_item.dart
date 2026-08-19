@@ -4,7 +4,7 @@ import 'package:flutter/material.dart';
 import '../../../core/database/database.dart';
 import '../../../theme/app_theme.dart';
 
-/// Grid item for library screen — book cover + title + play button overlay.
+/// Grid item for library screen. Book cover + title + play button overlay.
 class LibraryGridItem extends StatelessWidget {
   final Novel novel;
   final VoidCallback onTap;
@@ -33,7 +33,7 @@ class LibraryGridItem extends StatelessWidget {
               child: Stack(
                 fit: StackFit.expand,
                 children: [
-                  _buildCover(),
+                  _buildCover(context),
                   Positioned(
                     right: 4,
                     bottom: 4,
@@ -64,15 +64,15 @@ class LibraryGridItem extends StatelessWidget {
     );
   }
 
-  Widget _buildCover() {
+  Widget _buildCover(BuildContext context) {
     if (novel.coverUrl != null && novel.coverUrl!.isNotEmpty) {
       return CachedNetworkImage(
         imageUrl: novel.coverUrl!,
         fit: BoxFit.cover,
-        placeholder: (_, __) => Container(color: AppTheme.kSurfaceVariantDark, child: const Icon(Icons.book, size: 32)),
-        errorWidget: (_, __, ___) => Container(color: AppTheme.kSurfaceVariantDark, child: const Icon(Icons.book, size: 32)),
+        placeholder: (_, __) => Container(color: Theme.of(context).colorScheme.surfaceContainerHighest, child: const Icon(Icons.book, size: 32)),
+        errorWidget: (_, __, ___) => Container(color: Theme.of(context).colorScheme.surfaceContainerHighest, child: const Icon(Icons.book, size: 32)),
       );
     }
-    return Container(color: AppTheme.kSurfaceVariantDark, child: const Icon(Icons.book, size: 32));
+    return Container(color: Theme.of(context).colorScheme.surfaceContainerHighest, child: const Icon(Icons.book, size: 32));
   }
 }

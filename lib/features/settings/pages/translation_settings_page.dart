@@ -139,7 +139,7 @@ class TranslationSettingsPage extends ConsumerWidget {
 
           const SizedBox(height: 16),
           _buildSection('About'),
-          const Card(
+          Card(
             child: Padding(
               padding: EdgeInsets.all(16),
               child: Column(
@@ -151,7 +151,7 @@ class TranslationSettingsPage extends ConsumerWidget {
                     'Offline mode uses Google ML Kit for on-device translation. '
                     'Online mode uses Google Translate API (no key required). '
                     'Offline translations are cached locally.',
-                    style: TextStyle(fontSize: 13, color: AppTheme.kTextSecondaryDark),
+                    style: TextStyle(fontSize: 13, color: Theme.of(context).colorScheme.onSurfaceVariant),
                   ),
                 ],
               ),

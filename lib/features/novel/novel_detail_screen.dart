@@ -19,7 +19,7 @@ import 'widgets/download_range_sheet.dart';
 
 enum ChapterSort { indexAsc, indexDesc, nameAsc, nameDesc }
 
-/// Novel detail screen — shows novel info with tabs: Novel, Reviews, Related, Chapters.
+/// Novel detail screen. Shows novel info with tabs: Novel, Reviews, Related, Chapters.
 class NovelDetailScreen extends ConsumerStatefulWidget {
   final int novelId;
   const NovelDetailScreen({super.key, required this.novelId});
@@ -253,7 +253,7 @@ class _NovelDetailScreenState extends ConsumerState<NovelDetailScreen> {
           child: Column(
             mainAxisAlignment: MainAxisAlignment.center,
             children: [
-              Icon(Icons.book_outlined, size: 64, color: AppTheme.kTextSecondaryDark.withValues(alpha: 0.5)),
+              Icon(Icons.book_outlined, size: 64, color: Theme.of(context).colorScheme.onSurfaceVariant.withValues(alpha: 0.5)),
               const SizedBox(height: 16),
               const Text('Novel not found', style: TextStyle(fontSize: 18, fontWeight: FontWeight.w600)),
               const SizedBox(height: 8),
@@ -371,14 +371,14 @@ class _NovelDetailScreenState extends ConsumerState<NovelDetailScreen> {
                                 errorBuilder: (_, __, ___) => Container(
                                   width: 105,
                                   height: 145,
-                                  color: AppTheme.kSurfaceVariantDark,
+                                  color: Theme.of(context).colorScheme.surfaceContainerHighest,
                                   child: const Icon(Icons.book, size: 40),
                                 ),
                               )
                             : Container(
                                 width: 105,
                                 height: 145,
-                                color: AppTheme.kSurfaceVariantDark,
+                                color: Theme.of(context).colorScheme.surfaceContainerHighest,
                                 child: const Icon(Icons.book, size: 40),
                               ),
                       ),
@@ -399,12 +399,12 @@ class _NovelDetailScreenState extends ConsumerState<NovelDetailScreen> {
                             const SizedBox(height: 6),
                             Row(
                               children: [
-                                const Icon(Icons.person_outline, size: 16, color: AppTheme.kTextSecondaryDark),
+                                Icon(Icons.person_outline, size: 16, color: Theme.of(context).colorScheme.onSurfaceVariant),
                                 const SizedBox(width: 4),
                                 Expanded(
                                   child: Text(
                                     novel?.author ?? 'Unknown author',
-                                    style: const TextStyle(fontSize: 13, color: AppTheme.kTextSecondaryDark),
+                                    style: TextStyle(fontSize: 13, color: Theme.of(context).colorScheme.onSurfaceVariant),
                                     maxLines: 1,
                                     overflow: TextOverflow.ellipsis,
                                   ),
@@ -414,11 +414,11 @@ class _NovelDetailScreenState extends ConsumerState<NovelDetailScreen> {
                             const SizedBox(height: 4),
                             Row(
                               children: [
-                                const Icon(Icons.access_time, size: 16, color: AppTheme.kTextSecondaryDark),
+                                Icon(Icons.access_time, size: 16, color: Theme.of(context).colorScheme.onSurfaceVariant),
                                 const SizedBox(width: 4),
                                 Text(
                                   novel?.status ?? 'Ongoing',
-                                  style: const TextStyle(fontSize: 13, color: AppTheme.kTextSecondaryDark),
+                                  style: TextStyle(fontSize: 13, color: Theme.of(context).colorScheme.onSurfaceVariant),
                                 ),
                               ],
                             ),
@@ -521,12 +521,12 @@ class _NovelDetailScreenState extends ConsumerState<NovelDetailScreen> {
                       (_) => const ShimmerChapterTile(),
                     )
                   else if (sortedChapters.isEmpty)
-                    const Padding(
+                    Padding(
                       padding: EdgeInsets.symmetric(vertical: 24),
                       child: Center(
                         child: Text(
                           'No chapters available.',
-                          style: TextStyle(color: AppTheme.kTextSecondaryDark),
+                          style: TextStyle(color: Theme.of(context).colorScheme.onSurfaceVariant),
                         ),
                       ),
                     )
@@ -540,18 +540,18 @@ class _NovelDetailScreenState extends ConsumerState<NovelDetailScreen> {
                             style: TextStyle(
                               fontSize: 14,
                               fontWeight: chapter.read ? FontWeight.normal : FontWeight.w600,
-                              color: chapter.read ? AppTheme.kTextSecondaryDark : Colors.white,
+                              color: chapter.read ? Theme.of(context).colorScheme.onSurfaceVariant : Colors.white,
                             ),
                           ),
-                          subtitle: const Text(
+                          subtitle: Text(
                             'Available',
-                            style: TextStyle(fontSize: 11, color: AppTheme.kTextSecondaryDark),
+                            style: TextStyle(fontSize: 11, color: Theme.of(context).colorScheme.onSurfaceVariant),
                           ),
                           trailing: IconButton(
                             icon: Icon(
                               chapter.downloaded ? Icons.download_done : Icons.arrow_circle_down_outlined,
                               size: 20,
-                              color: AppTheme.kTextSecondaryDark,
+                              color: Theme.of(context).colorScheme.onSurfaceVariant,
                             ),
                             onPressed: () {},
                           ),
@@ -586,7 +586,7 @@ class _NovelDetailScreenState extends ConsumerState<NovelDetailScreen> {
     required bool isSelected,
     required VoidCallback onTap,
   }) {
-    final color = isSelected ? AppTheme.kPrimary : AppTheme.kTextSecondaryDark;
+    final color = isSelected ? AppTheme.kPrimary : Theme.of(context).colorScheme.onSurfaceVariant;
     return InkWell(
       onTap: onTap,
       borderRadius: BorderRadius.circular(8),

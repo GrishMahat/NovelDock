@@ -23,7 +23,7 @@ class TtsMiniPlayer extends ConsumerWidget {
 
     return Container(
       decoration: BoxDecoration(
-        color: AppTheme.kSurfaceVariantDark,
+        color: Theme.of(context).colorScheme.surfaceContainerHighest,
         boxShadow: [
           BoxShadow(
             color: Colors.black.withValues(alpha: 0.3),
@@ -82,7 +82,7 @@ class TtsMiniPlayer extends ConsumerWidget {
                           overflow: TextOverflow.ellipsis,
                           style: TextStyle(
                             fontSize: 12,
-                            color: AppTheme.kTextSecondaryDark,
+                            color: Theme.of(context).colorScheme.onSurfaceVariant,
                           ),
                         ),
                         const SizedBox(height: 2),
@@ -90,7 +90,7 @@ class TtsMiniPlayer extends ConsumerWidget {
                           '${ttsState.currentLineIndex + 1} / ${ttsState.totalLines}',
                           style: TextStyle(
                             fontSize: 10,
-                            color: AppTheme.kTextSecondaryDark.withValues(alpha: 0.7),
+                            color: Theme.of(context).colorScheme.onSurfaceVariant.withValues(alpha: 0.7),
                           ),
                         ),
                       ],

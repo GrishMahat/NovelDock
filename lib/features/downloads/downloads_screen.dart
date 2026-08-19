@@ -3,7 +3,6 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../core/database/database.dart';
 import '../../core/providers/database_providers.dart';
-import '../../theme/app_theme.dart';
 import '../../widgets/shimmer_list.dart';
 import '../settings/pages/download_settings_page.dart';
 
@@ -127,11 +126,11 @@ class _DownloadsScreenState extends ConsumerState<DownloadsScreen> {
                     child: Column(
                       mainAxisAlignment: MainAxisAlignment.center,
                       children: [
-                        Icon(Icons.download, size: 64, color: AppTheme.kTextSecondaryDark.withValues(alpha: 0.5)),
+                        Icon(Icons.download, size: 64, color: Theme.of(context).colorScheme.onSurfaceVariant.withValues(alpha: 0.5)),
                         const SizedBox(height: 16),
                         const Text('No downloads yet', style: TextStyle(fontSize: 16)),
                         const SizedBox(height: 8),
-                        const Text('Download novels from their detail page.', style: TextStyle(color: AppTheme.kTextSecondaryDark)),
+                        Text('Download novels from their detail page.', style: TextStyle(color: Theme.of(context).colorScheme.onSurfaceVariant)),
                       ],
                     ),
                   );
@@ -171,7 +170,7 @@ class _DownloadTile extends ConsumerWidget {
             final novel = novelSnapshot.data;
 
             return ListTile(
-              leading: _buildStatusIcon(download.status),
+              leading: _buildStatusIcon(context, download.status),
               title: Text(chapter?.name ?? 'Chapter #${download.chapterId}', maxLines: 1, overflow: TextOverflow.ellipsis),
               subtitle: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
@@ -195,7 +194,7 @@ class _DownloadTile extends ConsumerWidget {
     );
   }
 
-  Widget _buildStatusIcon(String status) {
+  Widget _buildStatusIcon(BuildContext context, String status) {
     switch (status) {
       case 'downloading':
         return const SizedBox(width: 24, height: 24, child: CircularProgressIndicator(strokeWidth: 2));
@@ -205,7 +204,7 @@ class _DownloadTile extends ConsumerWidget {
         return const Icon(Icons.error, color: Colors.red, size: 24);
       case 'queued':
       default:
-        return const Icon(Icons.schedule, color: AppTheme.kTextSecondaryDark, size: 24);
+        return Icon(Icons.schedule, color: Theme.of(context).colorScheme.onSurfaceVariant, size: 24);
     }
   }
 }

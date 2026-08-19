@@ -147,7 +147,17 @@ class _FilterSheetState extends State<FilterSheet> {
               child: ListView(
                 controller: scrollController,
                 padding: const EdgeInsets.only(bottom: 12),
-                children: [for (final def in widget.defs) _buildFilter(def)],
+                children: [
+                  // Small option lists (status, sort, ...) come first; large
+                  // lists (e.g. 50+ genres) sink to the bottom so they do not
+                  // push the quick filters out of view.
+                  for (final def in widget.defs
+                      .toList(growable: false)
+                        ..sort(
+                          (a, b) => _optionCount(a).compareTo(_optionCount(b)),
+                        ))
+                    _buildFilter(def),
+                ],
               ),
             ),
             SafeArea(
@@ -173,6 +183,15 @@ class _FilterSheetState extends State<FilterSheet> {
         );
       },
     );
+  }
+
+  static int _optionCount(FilterDef def) {
+    return switch (def) {
+      TextFilterDef() => 0,
+      SelectFilterDef d => d.options.length,
+      MultiSelectFilterDef d => d.options.length,
+      SortFilterDef d => d.options.length,
+    };
   }
 
   Widget _buildFilter(FilterDef def) {

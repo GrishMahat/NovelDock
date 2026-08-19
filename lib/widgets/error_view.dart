@@ -1,6 +1,5 @@
 import 'package:flutter/material.dart';
 
-import '../theme/app_theme.dart';
 
 /// Reusable error state widget shown when something fails.
 class ErrorView extends StatelessWidget {
@@ -28,7 +27,7 @@ class ErrorView extends StatelessWidget {
             Text(message, style: const TextStyle(fontSize: 16), textAlign: TextAlign.center),
             if (details != null) ...[
               const SizedBox(height: 8),
-              Text(details!, style: const TextStyle(color: AppTheme.kTextSecondaryDark, fontSize: 13), textAlign: TextAlign.center),
+              Text(details!, style: TextStyle(color: Theme.of(context).colorScheme.onSurfaceVariant, fontSize: 13), textAlign: TextAlign.center),
             ],
             if (onRetry != null) ...[
               const SizedBox(height: 24),

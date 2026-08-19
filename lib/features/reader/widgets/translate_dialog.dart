@@ -2,7 +2,6 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../../core/translation/translation_service.dart';
-import '../../../theme/app_theme.dart';
 import '../../settings/pages/translation_settings_page.dart';
 
 /// Shows a dialog for translating arbitrary text using the configured translation service.
@@ -39,7 +38,7 @@ void showTranslateDialog(BuildContext context, WidgetRef ref) {
                   width: double.infinity,
                   padding: const EdgeInsets.all(12),
                   decoration: BoxDecoration(
-                    color: AppTheme.kSurfaceVariantDark,
+                    color: Theme.of(context).colorScheme.surfaceContainerHighest,
                     borderRadius: BorderRadius.circular(8),
                   ),
                   child: Text(translatedText!, style: const TextStyle(fontSize: 14)),

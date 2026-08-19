@@ -1,5 +1,4 @@
 import 'package:flutter/material.dart';
-import '../theme/app_theme.dart';
 
 /// Reusable empty state widget shown when a list/section has no data.
 class EmptyState extends StatelessWidget {
@@ -25,21 +24,21 @@ class EmptyState extends StatelessWidget {
             Icon(
               icon,
               size: 64,
-              color: AppTheme.kTextSecondaryDark.withValues(alpha: 0.5),
+              color: Theme.of(context).colorScheme.onSurfaceVariant.withValues(alpha: 0.5),
             ),
             const SizedBox(height: 16),
             Text(
               title,
-              style: const TextStyle(
+              style: TextStyle(
                 fontSize: 16,
-                color: AppTheme.kBackgroundDark,
+                color: Theme.of(context).colorScheme.surface,
               ),
             ),
             if (subtitle != null) ...[
               const SizedBox(height: 8),
               Text(
                 subtitle!,
-                style: const TextStyle(color: AppTheme.kTextSecondaryDark),
+                style: TextStyle(color: Theme.of(context).colorScheme.onSurfaceVariant),
                 textAlign: TextAlign.center,
               ),
             ],

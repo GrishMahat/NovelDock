@@ -41,10 +41,10 @@ final dioProvider = FutureProvider<Dio>((ref) async {
         'Accept':
             'text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8',
         'Accept-Language': 'en-US,en;q=0.5',
-        // And except for this  I thought the Referer header would either
-        // help avoid flags or just get ignored, but no  it gets you flagged
+        // And except for this, I thought the Referer header would either
+        // help avoid flags or just get ignored, but no, it gets you flagged
         // by Cloudflare too, sometimes. Caused me a lot of pain and problems.
-        // Both the user agent and the Referer, I had to find one by one — the
+        // Both the user agent and the Referer, I had to find one by one. The
         // error didn't magically change, so at least I knew I was going in the
         // right direction.
         // 'Referer': 'https://www.google.com/',
@@ -54,14 +54,20 @@ final dioProvider = FutureProvider<Dio>((ref) async {
 
   dio.interceptors.add(CookieManager(cookieJar));
 
-  // Use the HTTP/2 adapter on all platforms: some sites (e.g. Cloudflare
+  // Use the HTTP/2 adapter on all platforms. Some sites (e.g. Cloudflare
   // protected ones) flag dart:io's plain HTTP/1.1 connections with a 403
   // "Just a moment..." challenge, while HTTP/2 passes. The adapter falls
   // back to dart:io automatically for servers that only support HTTP/1.1.
+  //
+  // dio_http2_adapter is vendored at third_party/dio_http2_adapter
+  // with one patch: the TLS ALPN offer includes http/1.1 alongside h2
+  // (upstream offers h2 only). Some servers (e.g. yomou.syosetu.com)
+  // reply to an h2-only ALPN offer with an invalid extension, killing the
+  // handshake; with both protocols offered they pick http/1.1 and the
+  // adapter's built-in fallback handles the request over plain HTTP/1.1.
   final http2 = Http2Adapter(ConnectionManager());
   dio.httpClientAdapter = http2;
   ref.onDispose(() => http2.connectionManager.close());
-
   dio.interceptors.add(
     InterceptorsWrapper(
       onRequest: (options, handler) {
