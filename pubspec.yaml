@@ -33,7 +33,10 @@ dependencies:
   json_annotation: ^4.12.0
 
   # JS Engine
-  flutter_js: ^0.8.7
+  flutter_js:
+    git:
+      url: https://github.com/GrishMahat/flutter_js.git
+      ref: v0.9.0
 
   # Content Rendering
   flutter_widget_from_html: ^0.17.2
