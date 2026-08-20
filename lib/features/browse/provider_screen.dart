@@ -274,6 +274,9 @@ class _ProviderScreenState extends ConsumerState<ProviderScreen>
           IconButton(
             icon: Icon(_isGridView ? Icons.view_list : Icons.grid_view),
             tooltip: 'Display mode',
+            iconSize: 26,
+            padding: const EdgeInsets.all(10),
+            constraints: const BoxConstraints(minWidth: 48, minHeight: 48),
             onPressed: () => setState(() => _isGridView = !_isGridView),
           ),
         ],
@@ -299,10 +302,19 @@ class _ProviderScreenState extends ConsumerState<ProviderScreen>
                 else
                   const SizedBox(width: 12),
                 if (_canFilter)
-                  IconButton(
-                    icon: const Icon(Icons.filter_list),
-                    tooltip: 'Filters',
-                    onPressed: _openFilterSheet,
+                  Padding(
+                    padding: const EdgeInsets.only(right: 4),
+                    child: IconButton.filledTonal(
+                      icon: const Icon(Icons.filter_list),
+                      tooltip: 'Filters',
+                      iconSize: 24,
+                      padding: const EdgeInsets.all(10),
+                      constraints: const BoxConstraints(
+                        minWidth: 48,
+                        minHeight: 48,
+                      ),
+                      onPressed: _openFilterSheet,
+                    ),
                   ),
               ],
             ),
