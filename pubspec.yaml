@@ -56,7 +56,7 @@ dependencies:
       ref: v0.0.4
   anni_mpris_service: ^0.1.0
   webview_flutter: ^4.12.0
-  google_mlkit_translation: ^0.14.0
+  google_mlkit_translation: ^0.15.1
   flutter_local_notifications: ^22.1.0
   permission_handler: ^13.0.1
   file_picker: ^12.0.0-beta.7
@@ -90,8 +90,7 @@ dependencies:
   flutter_background_service_android: ^6.3.1
   flutter_background_service_ios: ^5.0.3
   flutter_background_service: 5.1.0
-  dio_http2_adapter:
-    path: third_party/dio_http2_adapter
+  dio_http2_adapter: ^2.8.0
 
 dev_dependencies:
   flutter_test:
