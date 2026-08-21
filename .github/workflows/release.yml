@@ -86,7 +86,9 @@ jobs:
           NFPM_VERSION: 2.41.0
         run: |
           VERSION="${GITHUB_REF_NAME#v}"
-          PKG_VERSION="${VERSION//-/~}"
+          # tr, not ${VAR//-/~}: bash tilde-expands the substitution result,
+          # which once turned '~' into /home/runner inside the filename.
+          PKG_VERSION="$(printf '%s' "$VERSION" | tr '-' '~')"
 
           curl -sfL "https://github.com/goreleaser/nfpm/releases/download/v$NFPM_VERSION/nfpm_${NFPM_VERSION}_Linux_x86_64.tar.gz" | tar -xz nfpm
 
