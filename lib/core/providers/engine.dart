@@ -295,6 +295,21 @@ class ProviderInstance {
 
   // ─── Main Page / Category / Tag Browsing ─────────────────
 
+  /// POST-based browse config (getBrowseConfig): returns {url, headers, body}
+  /// for the given [mode] ("popular" | "latest"). Providers that register
+  /// `browseConfig` in their descriptor (e.g. WuxiaWorld's gRPC API) expose
+  /// this instead of the URL-based getMainPageUrl/getLatestUrl. Returns null
+  /// when the provider uses the URL convention.
+  Future<Map<String, dynamic>?> getBrowseConfig(
+    String mode, {
+    FilterValues filters = const FilterValues(),
+  }) async {
+    if (!hasFunction('getBrowseConfig')) return null;
+    final result = await call('getBrowseConfig', [mode, filters.toJson()]);
+    if (result is Map<String, dynamic>) return result;
+    return null;
+  }
+
   /// URL of the provider's main/explore page for [page].
   /// Providers may use [filters] when building the URL.
   Future<String?> getMainPageUrl(

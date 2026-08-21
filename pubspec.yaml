@@ -94,6 +94,7 @@ dependencies:
   flutter_background_service_ios: ^5.0.3
   flutter_background_service: 5.1.0
   dio_http2_adapter: ^2.8.0
+  window_manager: ^0.5.2
 
 dev_dependencies:
   flutter_test:

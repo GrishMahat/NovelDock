@@ -6,8 +6,13 @@ import 'package:go_router/go_router.dart';
 import '../../core/database/database.dart';
 import '../../core/display_mode.dart';
 import '../../core/providers/database_providers.dart';
-import '../../theme/app_theme.dart';
+import '../../core/utils/platform.dart';
+import '../../theme/tokens.dart';
+import '../../widgets/header_search_field.dart';
+import '../../widgets/max_width_box.dart';
+import '../../widgets/page_header.dart';
 import '../../widgets/shimmer_list.dart';
+import 'widgets/library_grid_item.dart';
 
 class LibraryScreen extends ConsumerStatefulWidget {
   const LibraryScreen({super.key});
@@ -20,6 +25,7 @@ class _LibraryScreenState extends ConsumerState<LibraryScreen>
     with SingleTickerProviderStateMixin {
   late final TabController _tabController;
   DisplayMode _displayMode = DisplayMode.grid;
+  String _filterQuery = '';
 
   static const _tabs = [
     'All',
@@ -53,6 +59,41 @@ class _LibraryScreenState extends ConsumerState<LibraryScreen>
 
   @override
   Widget build(BuildContext context) {
+    if (isDesktop) {
+      return Scaffold(
+        body: Column(
+          children: [
+            PageHeader(
+              title: 'Library',
+              search: HeaderSearchField(
+                hint: 'Filter library',
+                onChanged: (v) => setState(() => _filterQuery = v),
+              ),
+              actions: [
+                IconButton(
+                  icon: const Icon(Icons.file_upload),
+                  onPressed: () => context.push('/import'),
+                  tooltip: 'Import EPUB/PDF',
+                ),
+                IconButton(
+                  icon: Icon(_displayMode.icon),
+                  onPressed: () => setState(() => _displayMode = _displayMode.next),
+                  tooltip: 'Display mode',
+                ),
+              ],
+              tabController: _tabController,
+              tabs: _tabs.map((t) => Tab(text: t)).toList(),
+            ),
+            Expanded(
+              child: TabBarView(
+                controller: _tabController,
+                children: _tabs.asMap().entries.map((e) => _buildTabContent(e.key)).toList(),
+              ),
+            ),
+          ],
+        ),
+      );
+    }
     return Scaffold(
       appBar: AppBar(
         title: const Text('Library'),
@@ -102,60 +143,112 @@ class _LibraryScreenState extends ConsumerState<LibraryScreen>
         }
 
         final novels = snapshot.data ?? [];
+        final query = _filterQuery.trim().toLowerCase();
+        final filtered = query.isEmpty
+            ? novels
+            : novels
+                .where((n) =>
+                    n.title.toLowerCase().contains(query) ||
+                    (n.author?.toLowerCase().contains(query) ?? false))
+                .toList();
 
-        if (novels.isEmpty) {
+        if (filtered.isEmpty) {
+          if (query.isNotEmpty && novels.isNotEmpty) {
+            return Center(
+              child: Text(
+                'No results for "$_filterQuery"',
+                style: Theme.of(context)
+                    .textTheme
+                    .bodyMedium
+                    ?.copyWith(color: Theme.of(context).colorScheme.onSurfaceVariant),
+              ),
+            );
+          }
           return Center(
-            child: Column(
-              mainAxisAlignment: MainAxisAlignment.center,
-              children: [
-                Icon(
-                  Icons.library_books,
-                  size: 64,
-                  color: Theme.of(context).colorScheme.onSurfaceVariant.withValues(alpha: 0.5),
-                ),
-                const SizedBox(height: 16),
-                Text(
-                  _tabs[tabIndex] == 'All'
-                      ? 'No novels saved yet'
-                      : 'No ${_tabs[tabIndex]} novels',
-                  style: const TextStyle(fontSize: 16),
-                ),
-                const SizedBox(height: 8),
-                Text(
-                  'Search for novels and add them\nto your library.',
-                  textAlign: TextAlign.center,
-                  style: TextStyle(
-                    color: Theme.of(context).colorScheme.onSurfaceVariant,
-                    fontSize: 13,
+            child: MaxWidthBox(
+              padding: const EdgeInsets.symmetric(horizontal: Insets.xl, vertical: Insets.xxl),
+              child: Container(
+                width: double.infinity,
+                constraints: const BoxConstraints(maxWidth: 480),
+                padding: const EdgeInsets.symmetric(
+                    horizontal: Insets.xxl, vertical: Insets.xxxl),
+                decoration: BoxDecoration(
+                  color: Theme.of(context).colorScheme.surfaceContainerLow,
+                  borderRadius: Radii.card,
+                  border: Border.all(
+                    color: Theme.of(context).colorScheme.outlineVariant,
                   ),
                 ),
-              ],
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Icon(
+                      Icons.library_books,
+                      size: 56,
+                      color: Theme.of(context)
+                          .colorScheme
+                          .onSurfaceVariant
+                          .withValues(alpha: 0.5),
+                    ),
+                    const SizedBox(height: Insets.lg),
+                    Text(
+                      _tabs[tabIndex] == 'All'
+                          ? 'No novels saved yet'
+                          : 'No ${_tabs[tabIndex]} novels',
+                      style: Theme.of(context).textTheme.titleMedium,
+                    ),
+                    const SizedBox(height: Insets.sm),
+                    Text(
+                      'Search for novels and add them\nto your library.',
+                      textAlign: TextAlign.center,
+                      style: Theme.of(context)
+                          .textTheme
+                          .bodyMedium
+                          ?.copyWith(color: Theme.of(context).colorScheme.onSurfaceVariant),
+                    ),
+                    const SizedBox(height: Insets.lg),
+                    FilledButton.tonalIcon(
+                      onPressed: () => context.go('/browse'),
+                      icon: const Icon(Icons.explore, size: 18),
+                      label: const Text('Browse sources'),
+                    ),
+                  ],
+                ),
+              ),
             ),
           );
         }
 
         switch (_displayMode) {
           case DisplayMode.grid:
+            // Full-bleed: left-aligns with the header at any window size;
+            // wide windows get more columns instead of centering gutters.
             return GridView.builder(
-              padding: const EdgeInsets.all(8),
-              gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
-                crossAxisCount: 3,
+              padding: const EdgeInsets.fromLTRB(
+                  Insets.lg, Insets.lg, Insets.lg, Insets.xl),
+              gridDelegate: const SliverGridDelegateWithMaxCrossAxisExtent(
+                maxCrossAxisExtent: 180,
                 childAspectRatio: 0.68,
-                crossAxisSpacing: 8,
-                mainAxisSpacing: 8,
+                crossAxisSpacing: Insets.md,
+                mainAxisSpacing: Insets.md,
               ),
-              itemCount: novels.length,
-              itemBuilder: (context, index) => _buildGridItem(novels[index]),
+              itemCount: filtered.length,
+              itemBuilder: (context, index) => LibraryGridItem(
+                novel: filtered[index],
+                onTap: () => context.push('/novel/${filtered[index].id}'),
+                onPlay: () => _playNovel(filtered[index].id),
+                onLongPress: () => _showStatusMenu(filtered[index]),
+              ),
             );
           case DisplayMode.list:
             return ListView.builder(
-              itemCount: novels.length,
-              itemBuilder: (context, index) => _buildListItem(novels[index]),
+              itemCount: filtered.length,
+              itemBuilder: (context, index) => _buildListItem(filtered[index]),
             );
           case DisplayMode.compact:
             return ListView.builder(
-              itemCount: novels.length,
-              itemBuilder: (context, index) => _buildCompactItem(novels[index]),
+              itemCount: filtered.length,
+              itemBuilder: (context, index) => _buildCompactItem(filtered[index]),
             );
         }
       },
@@ -185,80 +278,24 @@ class _LibraryScreenState extends ConsumerState<LibraryScreen>
     );
   }
 
-  Widget _buildGridItem(Novel novel) {
-    return Card(
-      clipBehavior: Clip.antiAlias,
-      child: InkWell(
-        onTap: () => context.push('/novel/${novel.id}'),
-        onLongPress: () => _showStatusMenu(novel),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.stretch,
-          children: [
-            Expanded(
-              child: Stack(
-                fit: StackFit.expand,
-                children: [
-                  _buildCover(novel.coverUrl, double.infinity, double.infinity),
-                  // Play button overlay (bottom-right corner)
-                  Positioned(
-                    right: 4,
-                    bottom: 4,
-                    child: GestureDetector(
-                      onTap: () => _playNovel(novel.id),
-                      child: Container(
-                        width: 32,
-                        height: 32,
-                        decoration: BoxDecoration(
-                          color: AppTheme.kPrimary,
-                          shape: BoxShape.circle,
-                          boxShadow: [
-                            BoxShadow(
-                              color: Colors.black.withValues(alpha: 0.4),
-                              blurRadius: 4,
-                            ),
-                          ],
-                        ),
-                        child: const Icon(Icons.play_arrow, color: Colors.white, size: 20),
-                      ),
-                    ),
-                  ),
-                ],
-              ),
-            ),
-            Padding(
-              padding: const EdgeInsets.all(6),
-              child: Text(
-                novel.title,
-                style: const TextStyle(
-                  fontSize: 11,
-                  fontWeight: FontWeight.w500,
-                ),
-                maxLines: 2,
-                overflow: TextOverflow.ellipsis,
-              ),
-            ),
-          ],
-        ),
-      ),
-    );
-  }
-
   Widget _buildListItem(Novel novel) {
+    final scheme = Theme.of(context).colorScheme;
+    final text = Theme.of(context).textTheme;
     return ListTile(
       leading: ClipRRect(
-        borderRadius: BorderRadius.circular(4),
+        borderRadius: BorderRadius.all(Radii.sm),
         child: _buildCover(novel.coverUrl, 48, 64),
       ),
       title: Text(novel.title, maxLines: 1, overflow: TextOverflow.ellipsis),
       subtitle: Text(
         [novel.author, novel.status].where((s) => s != null && s.isNotEmpty).join(' · '),
-        style: const TextStyle(fontSize: 12),
+        style: text.bodySmall,
         maxLines: 1,
         overflow: TextOverflow.ellipsis,
       ),
       trailing: IconButton(
         icon: const Icon(Icons.play_circle_outline, size: 28),
-        color: AppTheme.kPrimary,
+        color: scheme.primary,
         onPressed: () => _playNovel(novel.id),
       ),
       onTap: () => context.push('/novel/${novel.id}'),
@@ -267,15 +304,17 @@ class _LibraryScreenState extends ConsumerState<LibraryScreen>
   }
 
   Widget _buildCompactItem(Novel novel) {
+    final scheme = Theme.of(context).colorScheme;
+    final text = Theme.of(context).textTheme;
     return InkWell(
       onTap: () => context.push('/novel/${novel.id}'),
       onLongPress: () => _showStatusMenu(novel),
       child: Padding(
-        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+        padding: const EdgeInsets.symmetric(horizontal: Insets.md, vertical: Insets.sm),
         child: Row(
           children: [
             ClipRRect(
-              borderRadius: BorderRadius.circular(3),
+              borderRadius: BorderRadius.all(Radii.sm),
               child: _buildCover(novel.coverUrl, 28, 38),
             ),
             const SizedBox(width: 10),
@@ -287,28 +326,28 @@ class _LibraryScreenState extends ConsumerState<LibraryScreen>
                     novel.title,
                     maxLines: 1,
                     overflow: TextOverflow.ellipsis,
-                    style: const TextStyle(fontSize: 13),
+                    style: text.bodyMedium,
                   ),
                   if (novel.author != null && novel.author!.isNotEmpty)
                     Text(
                       novel.author!,
                       maxLines: 1,
                       overflow: TextOverflow.ellipsis,
-                      style: TextStyle(fontSize: 11, color: Theme.of(context).colorScheme.onSurfaceVariant),
+                      style: text.bodySmall?.copyWith(color: scheme.onSurfaceVariant),
                     ),
                 ],
               ),
             ),
             if (novel.status != null && novel.status!.isNotEmpty)
               Container(
-                padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                padding: const EdgeInsets.symmetric(horizontal: Insets.sm, vertical: 2),
                 decoration: BoxDecoration(
-                  color: Theme.of(context).colorScheme.surfaceContainerHighest,
-                  borderRadius: BorderRadius.circular(4),
+                  color: scheme.surfaceContainerHighest,
+                  borderRadius: BorderRadius.all(Radii.sm),
                 ),
                 child: Text(
                   novel.status!,
-                  style: TextStyle(fontSize: 10, color: Theme.of(context).colorScheme.onSurfaceVariant),
+                  style: text.labelSmall?.copyWith(color: scheme.onSurfaceVariant),
                 ),
               ),
           ],
@@ -367,8 +406,8 @@ class _LibraryScreenState extends ConsumerState<LibraryScreen>
             ),
           const Divider(),
           ListTile(
-            leading: Icon(Icons.remove_circle, color: Colors.red.shade400),
-            title: Text('None', style: TextStyle(color: Colors.red.shade400)),
+            leading: Icon(Icons.remove_circle, color: Theme.of(context).colorScheme.error),
+            title: Text('None', style: TextStyle(color: Theme.of(context).colorScheme.error)),
             onTap: () {
               libraryDao.removeFromLibrary(novel.id);
               Navigator.pop(ctx);

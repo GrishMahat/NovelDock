@@ -4,6 +4,7 @@ import 'package:flutter_riverpod/legacy.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 import '../../../theme/app_theme.dart';
+import '../../../theme/tokens.dart';
 import '../../../core/utils/logger.dart';
 
 const _tag = 'ThemeSettings';
@@ -92,7 +93,7 @@ class ThemeSettingsPage extends ConsumerWidget {
       appBar: AppBar(title: const Text('Theme')),
       body: ListView(
         children: [
-          _buildSection('Theme Mode'),
+          _buildSection(context, 'Theme Mode'),
           ..._themeModes.map((mode) => ListTile(
             leading: Icon(mode.$3, color: Theme.of(context).colorScheme.onSurfaceVariant),
             title: Text(mode.$2),
@@ -105,7 +106,7 @@ class ThemeSettingsPage extends ConsumerWidget {
             ),
             onTap: () => ref.read(themeModeProvider.notifier).setMode(mode.$1),
           )),
-          _buildSection('Accent Color'),
+          _buildSection(context, 'Accent Color'),
           Padding(
             padding: const EdgeInsets.symmetric(horizontal: 12),
             child: Wrap(
@@ -120,9 +121,12 @@ class ThemeSettingsPage extends ConsumerWidget {
                     height: 56,
                     decoration: BoxDecoration(
                       color: c.$2,
-                      borderRadius: BorderRadius.circular(12),
+                      borderRadius: BorderRadius.all(Radii.lg),
                       border: isSelected
-                          ? Border.all(color: Colors.white, width: 3)
+                          ? Border.all(
+                              color: Theme.of(context).colorScheme.onSurface,
+                              width: 3,
+                            )
                           : null,
                       boxShadow: isSelected
                           ? [BoxShadow(color: c.$2.withValues(alpha: 0.5), blurRadius: 8)]
@@ -142,12 +146,14 @@ class ThemeSettingsPage extends ConsumerWidget {
     );
   }
 
-  Widget _buildSection(String title) {
+  Widget _buildSection(BuildContext context, String title) {
     return Padding(
       padding: const EdgeInsets.fromLTRB(16, 24, 16, 8),
       child: Text(
         title,
-        style: const TextStyle(fontSize: 14, fontWeight: FontWeight.w600, color: AppTheme.kPrimary),
+        style: Theme.of(context).textTheme.titleSmall?.copyWith(
+              color: Theme.of(context).colorScheme.primary,
+            ),
       ),
     );
   }

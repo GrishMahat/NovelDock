@@ -14,8 +14,11 @@ import '../../core/database/database.dart';
 import '../../core/providers/database_providers.dart';
 import '../../core/tts/tts_manager.dart';
 import '../../theme/app_theme.dart';
+import '../../theme/tokens.dart';
+import '../../widgets/max_width_box.dart';
 import '../settings/pages/reader/reader_settings_state.dart';
 import 'widgets/bookmark_sheet.dart';
+import 'widgets/chapter_sidebar.dart';
 import 'widgets/chapter_sheet.dart';
 import 'widgets/reader_content_view.dart';
 import 'widgets/reader_controls.dart';
@@ -32,12 +35,28 @@ class ReaderScreen extends ConsumerStatefulWidget {
 
 class _ReaderScreenState extends ConsumerState<ReaderScreen> {
   bool _showControls = false;
+  /// Chapter slider panel visibility (hover-driven on desktop).
+  bool _sliderVisible = false;
+  /// When pinned (Ctrl+L) the panel stays open regardless of mouse leave.
+  bool _sliderPinned = false;
   final ScrollController _scrollController = ScrollController();
   final PageController _pageController = PageController();
   double _scrollProgress = 0.0;
   final Map<String, GlobalKey> _chunkKeys = {};
   double? _ttsScrollCeiling;
   int _settingsVersion = 0;
+
+  /// Anchor autosave: last saved block index + throttle timestamp.
+  int _lastSavedAnchorBlock = -1;
+  DateTime _lastAnchorSave = DateTime.fromMillisecondsSinceEpoch(0);
+
+  /// Mirrored from the navigation state on every build so dispose() can save
+  /// the anchor without touching ref or protected notifier state.
+  int? _currentChapterId;
+
+  /// Captured in initState so dispose() can save the reading position
+  /// without touching `ref` (unsafe while unmounting).
+  ReaderNavigationNotifier? _navigationNotifier;
 
   /// Block index -> TTS paragraph index for the chapter TTS last started on.
   /// Paragraphs are the TTS units, so a chapter with headings/blockquotes has
@@ -52,29 +71,61 @@ class _ReaderScreenState extends ConsumerState<ReaderScreen> {
     SystemChrome.setPreferredOrientations([DeviceOrientation.portraitUp]);
     _scrollController.addListener(_onScroll);
 
-    ref.read(readerNavigationProvider(widget.novelId).notifier)
-        .loadChapters(widget.chapterId);
+    _navigationNotifier =
+        ref.read(readerNavigationProvider(widget.novelId).notifier);
+    _navigationNotifier!.loadChapters(widget.chapterId);
   }
 
   @override
   void dispose() {
-    _saveReadingPosition();
+    _saveReadingAnchor();
     _scrollController.dispose();
     _pageController.dispose();
     SystemChrome.setEnabledSystemUIMode(SystemUiMode.edgeToEdge);
     super.dispose();
   }
 
-  void _saveReadingPosition() {
-    final nav = ref.read(readerNavigationProvider(widget.novelId));
-    final chapter = nav.currentChapter;
-    if (chapter == null || !_scrollController.hasClients) return;
-    final pos = _scrollController.position;
-    final progress = pos.hasContentDimensions && pos.maxScrollExtent > 0
-        ? pos.pixels / pos.maxScrollExtent
-        : 0.0;
-    ref.read(readerNavigationProvider(widget.novelId).notifier)
-        .saveReadingPosition(progress);
+  /// Saves the resume anchor (visible content block) for the current chapter.
+  /// Skipped in paged mode: the scroll controller has no clients there, and
+  /// saving nothing must never overwrite a good anchor.
+  void _saveReadingAnchor() {
+    final notifier = _navigationNotifier;
+    final chapterId = _currentChapterId;
+    if (notifier == null || chapterId == null) return;
+    // No clients in paged mode.
+    if (!_scrollController.hasClients) return;
+    final block = _firstVisibleBlockIndex(chapterId);
+    if (block != null) notifier.saveReadingAnchor(chapterId, block);
+  }
+
+  /// Index of the first content block whose bottom edge is still below the
+  /// viewport top, i.e. the block the reader is currently looking at.
+  int? _firstVisibleBlockIndex(int chapterId) {
+    if (!_scrollController.hasClients) return null;
+    final scrollContext =
+        _scrollController.position.context.notificationContext;
+    final viewportBox = scrollContext?.findRenderObject() as RenderBox?;
+    if (viewportBox == null) return null;
+    final viewportTop = viewportBox.localToGlobal(Offset.zero).dy;
+
+    final prefix = '$chapterId-';
+    final indices = <int>[];
+    for (final key in _chunkKeys.keys) {
+      if (!key.startsWith(prefix)) continue;
+      final i = int.tryParse(key.substring(prefix.length));
+      if (i != null) indices.add(i);
+    }
+    indices.sort();
+    for (final i in indices) {
+      final context = _chunkKeys['$prefix$i']?.currentContext;
+      if (context == null) continue;
+      final box = context.findRenderObject() as RenderBox?;
+      if (box == null || !box.hasSize) continue;
+      if (box.localToGlobal(Offset.zero).dy + box.size.height > viewportTop) {
+        return i;
+      }
+    }
+    return null;
   }
 
   void _onScroll() {
@@ -88,6 +139,11 @@ class _ReaderScreenState extends ConsumerState<ReaderScreen> {
     final nav = ref.read(readerNavigationProvider(widget.novelId));
     final chapter = nav.currentChapter;
     if (chapter == null) return;
+
+    // Periodically persist the resume anchor while reading.
+    _autosaveAnchor(chapter.id);
+    // Follow the viewport across chapter boundaries (continuous mode).
+    _scrollSpy(nav);
 
     final settings = ref.read(readerSettingsProvider);
     if (settings.scrollMode == 'continuous' && progress > 0.85) {
@@ -109,10 +165,93 @@ class _ReaderScreenState extends ConsumerState<ReaderScreen> {
     }
   }
 
+  /// Throttled anchor persistence: saves when the visible block changes, at
+  /// most every 5 seconds (dispose always force-saves).
+  void _autosaveAnchor(int chapterId) {
+    final block = _firstVisibleBlockIndex(chapterId);
+    if (block == null || block == _lastSavedAnchorBlock) return;
+    _lastSavedAnchorBlock = block;
+    final now = DateTime.now();
+    if (now.difference(_lastAnchorSave).inSeconds < 5) return;
+    _lastAnchorSave = now;
+    ref
+        .read(readerNavigationProvider(widget.novelId).notifier)
+        .saveReadingAnchor(chapterId, block);
+  }
+
+  /// Continuous mode only: detect which chapter the viewport is actually in
+  /// by checking each chapter's first content block against the viewport top,
+  /// then sync navigation state so history and read-marking follow reality.
+  void _scrollSpy(ReaderNavigationState nav) {
+    if (nav.chapters.isEmpty) return;
+    final scrollContext =
+        _scrollController.position.context.notificationContext;
+    final viewportBox = scrollContext?.findRenderObject() as RenderBox?;
+    if (viewportBox == null) return;
+    final viewportTop = viewportBox.localToGlobal(Offset.zero).dy;
+    const threshold = 120.0;
+
+    int detected = nav.currentIndex;
+    // Forward: chapter starts at/above the viewport top have been passed.
+    for (var i = nav.currentIndex;
+        i < nav.chapters.length && i <= nav.currentIndex + 3;
+        i++) {
+      final context = _chunkKeys['${nav.chapters[i].id}-0']?.currentContext;
+      if (context == null) break;
+      final box = context.findRenderObject() as RenderBox?;
+      if (box == null) break;
+      if (box.localToGlobal(Offset.zero).dy <= viewportTop + threshold) {
+        detected = i;
+      } else {
+        break;
+      }
+    }
+    // Backward: current chapter's start has dropped below the viewport.
+    while (detected > 0) {
+      final context = _chunkKeys['${nav.chapters[detected].id}-0']?.currentContext;
+      if (context == null) break;
+      final box = context.findRenderObject() as RenderBox?;
+      if (box == null) break;
+      if (box.localToGlobal(Offset.zero).dy > viewportTop + threshold) {
+        detected--;
+      } else {
+        break;
+      }
+    }
+    if (detected != nav.currentIndex) {
+      ref
+          .read(readerNavigationProvider(widget.novelId).notifier)
+          .syncCurrentIndexFromScroll(detected);
+    }
+  }
+
+  /// Scrolls the saved content block into view once it exists in the tree.
+  /// Retries across frames because chapter content builds asynchronously.
+  void _restoreAnchor(int block) {
+    final nav = ref.read(readerNavigationProvider(widget.novelId));
+    final chapter = nav.currentChapter;
+    if (chapter == null) return;
+    final key = '${chapter.id}-$block';
+
+    void tryEnsure(int attempt) {
+      if (!mounted) return;
+      final context = _chunkKeys[key]?.currentContext;
+      if (context != null) {
+        Scrollable.ensureVisible(
+          context,
+          alignment: 0.08,
+          duration: Duration.zero,
+        );
+      } else if (attempt < 60) {
+        WidgetsBinding.instance.addPostFrameCallback((_) => tryEnsure(attempt + 1));
+      }
+    }
+    WidgetsBinding.instance.addPostFrameCallback((_) => tryEnsure(0));
+  }
+
   void _goToPreviousChapter() {
     ref.read(readerNavigationProvider(widget.novelId).notifier).goToPreviousChapter();
     if (_scrollController.hasClients) _scrollController.jumpTo(0);
-    _restoreReadingPosition();
   }
 
   void _goToNextChapter() {
@@ -123,22 +262,8 @@ class _ReaderScreenState extends ConsumerState<ReaderScreen> {
   void _jumpToChapter(int index) {
     ref.read(readerNavigationProvider(widget.novelId).notifier).jumpToChapter(index);
     if (_scrollController.hasClients) _scrollController.jumpTo(0);
-    _restoreReadingPosition();
-  }
-
-  void _restoreReadingPosition() async {
-    final nav = ref.read(readerNavigationProvider(widget.novelId));
-    final chapter = nav.currentChapter;
-    if (chapter == null) return;
-    final pos = await ref.read(readerNavigationProvider(widget.novelId).notifier)
-        .restoreReadingPosition(chapter.id);
-    if (pos != null && pos > 0 && _scrollController.hasClients) {
-      WidgetsBinding.instance.addPostFrameCallback((_) {
-        if (!_scrollController.hasClients) return;
-        final maxScroll = _scrollController.position.maxScrollExtent;
-        if (maxScroll > 0) _scrollController.jumpTo(pos * maxScroll);
-      });
-    }
+    // Reading intent: slide the panel away unless the user pinned it open.
+    if (!_sliderPinned) setState(() => _sliderVisible = false);
   }
 
   void _handleTap(TapUpDetails details) {
@@ -403,6 +528,18 @@ class _ReaderScreenState extends ConsumerState<ReaderScreen> {
     );
   }
 
+  void _toggleSliderPinned() {
+    setState(() {
+      _sliderPinned = !_sliderPinned;
+      _sliderVisible = _sliderPinned || _sliderVisible;
+    });
+  }
+
+  void _hideSlider() {
+    if (_sliderPinned || !_sliderVisible) return;
+    setState(() => _sliderVisible = false);
+  }
+
   void _showSettingsDialog() {
     showModalBottomSheet(
       context: context,
@@ -442,6 +579,7 @@ class _ReaderScreenState extends ConsumerState<ReaderScreen> {
     final contentState = ref.watch(contentProvider);
 
     final currentChapter = nav.currentChapter;
+    _currentChapterId = currentChapter?.id;
 
     ref.listen(ttsManagerProvider, (prev, next) {
       if (next.isSpeaking && prev?.currentLineIndex != next.currentLineIndex) {
@@ -459,20 +597,15 @@ class _ReaderScreenState extends ConsumerState<ReaderScreen> {
       }
     });
 
-    // Restore reading position when available
-    ref.listen<double?>(
-      readerNavigationProvider(widget.novelId).select((s) => s.restoredScrollPosition),
-      (prev, pos) {
-        if (pos != null && pos > 0 && _scrollController.hasClients) {
-          WidgetsBinding.instance.addPostFrameCallback((_) {
-            if (!_scrollController.hasClients) return;
-            final maxScroll = _scrollController.position.maxScrollExtent;
-            if (maxScroll > 0) {
-              _scrollController.jumpTo(pos * maxScroll);
-            }
-          });
-          ref.read(readerNavigationProvider(widget.novelId).notifier).clearRestoredScrollPosition();
-        }
+    // Restore the reading anchor once the chapter content is built
+    ref.listen<int?>(
+      readerNavigationProvider(widget.novelId).select((s) => s.restoredBlockIndex),
+      (prev, block) {
+        if (block == null) return;
+        _restoreAnchor(block);
+        ref
+            .read(readerNavigationProvider(widget.novelId).notifier)
+            .clearRestoredBlockIndex();
       },
     );
 
@@ -533,20 +666,70 @@ class _ReaderScreenState extends ConsumerState<ReaderScreen> {
                 SingleActivator(LogicalKeyboardKey.space): () {
                   setState(() => _showControls = !_showControls);
                 },
+                SingleActivator(LogicalKeyboardKey.keyL, control: true): _toggleSliderPinned,
               },
               child: Focus(
                 autofocus: true,
-                child: GestureDetector(
-                  onTapUp: (details) {
-                    if (ttsActive) return;
-                    _handleTap(details);
-                  },
-                  child: Stack(
-                    children: [
-                      readerBody,
-                      ..._overlayWidgets(settings, ttsState, ttsActive, currentChapter),
+                child: Stack(
+                  children: [
+                    GestureDetector(
+                      onTapUp: (details) {
+                        if (ttsActive) return;
+                        _handleTap(details);
+                      },
+                      child: Stack(
+                        children: [
+                          MaxWidthBox(
+                            maxWidth: Desktop.readerMaxWidth,
+                            padding: EdgeInsets.zero,
+                            child: readerBody,
+                          ),
+                          ..._overlayWidgets(settings, ttsState, ttsActive, currentChapter),
+                        ],
+                      ),
+                    ),
+                    if (nav.chapters.isNotEmpty) ...[
+                      // Invisible hover zone on the right edge reveals the slider.
+                      Positioned(
+                        top: 0,
+                        bottom: 0,
+                        right: 0,
+                        width: Desktop.readerEdgeZoneWidth,
+                        child: MouseRegion(
+                          opaque: false,
+                          onEnter: (_) {
+                            if (!_sliderVisible) {
+                              setState(() => _sliderVisible = true);
+                            }
+                          },
+                          child: const SizedBox.expand(),
+                        ),
+                      ),
+                      // Floating chapter slider panel.
+                      AnimatedPositioned(
+                        duration: Motion.base,
+                        curve: Curves.easeOutCubic,
+                        top: 0,
+                        bottom: 0,
+                        right: _sliderVisible
+                            ? 0
+                            : -(Desktop.readerSidebarWidth + Insets.sm),
+                        child: MouseRegion(
+                          onExit: (_) => _hideSlider(),
+                          child: ChapterSidebar(
+                            chapters: nav.chapters,
+                            currentIndex: nav.currentIndex,
+                            settings: settings,
+                            onJumpToChapter: _jumpToChapter,
+                            onClose: () => setState(() {
+                              _sliderVisible = false;
+                              _sliderPinned = false;
+                            }),
+                          ),
+                        ),
+                      ),
                     ],
-                  ),
+                  ],
                 ),
               ),
             )
@@ -575,6 +758,7 @@ class _ReaderScreenState extends ConsumerState<ReaderScreen> {
       if (_showControls && !ttsActive)
         buildReaderTopBar(
           context: context,
+          settings: settings,
           chapterName: currentChapter?.name ?? 'Chapter',
           onBack: () => Navigator.pop(context),
           onAddBookmark: _addBookmark,
@@ -582,18 +766,18 @@ class _ReaderScreenState extends ConsumerState<ReaderScreen> {
         ),
       if (_showControls && !ttsActive)
         buildReaderBottomBar(
+          settings: settings,
           onPrevious: _goToPreviousChapter,
           onNext: _goToNextChapter,
           onToggleTts: _toggleTts,
           onShowChapterList: _showChapterList,
-          hasEpubToc: false,
-          onShowEpubToc: () {},
-          onTranslate: () {},
           onSettings: _showSettingsDialog,
         ),
-      if (_showControls && !ttsActive) buildReaderProgressBar(_scrollProgress),
+      if (_showControls && !ttsActive)
+        buildReaderProgressBar(_scrollProgress, settings),
       if (ttsActive)
         buildTtsFloatingPlayer(
+          settings: settings,
           ttsState: ttsState,
           onSkipBack: () => ref.read(ttsManagerProvider.notifier).skipBackward(),
           onTogglePause: () => ref.read(ttsManagerProvider.notifier).togglePause(),

@@ -52,14 +52,15 @@ class AboutPage extends StatelessWidget {
             title: const Text('Source Code'),
             subtitle: const Text('GitHub'),
             trailing: const Icon(Icons.open_in_new, size: 18),
-            onTap: () => _launchUrl('https://github.com/user/NovelDock'),
+            onTap: () => _launchUrl('https://github.com/GrishMahat/NovelDock'),
           ),
           ListTile(
             leading: const Icon(Icons.bug_report),
             title: const Text('Report Issue'),
             subtitle: const Text('Found a bug? Let us know'),
             trailing: const Icon(Icons.open_in_new, size: 18),
-            onTap: () => _launchUrl('https://github.com/user/NovelDock/issues'),
+            onTap: () =>
+                _launchUrl('https://github.com/GrishMahat/NovelDock/issues'),
           ),
 
           const SizedBox(height: 16),
@@ -77,6 +78,16 @@ class AboutPage extends StatelessWidget {
                     'Supports reading from various novel websites via a plugin system.',
                     style: TextStyle(fontSize: 13, color: Theme.of(context).colorScheme.onSurfaceVariant),
                   ),
+                  SizedBox(height: 12),
+                  Text('QuickNovel', style: TextStyle(fontWeight: FontWeight.w600)),
+                  SizedBox(height: 4),
+                  Text(
+                    'Inspired by QuickNovel by LagradOst and contributors. '
+                    'NovelDock is an independent Flutter implementation with '
+                    'its own architecture. Credit goes to the QuickNovel team '
+                    'for the original concept.',
+                    style: TextStyle(fontSize: 13, color: Theme.of(context).colorScheme.onSurfaceVariant),
+                  ),
                 ],
               ),
             ),
@@ -88,9 +99,12 @@ class AboutPage extends StatelessWidget {
             child: Padding(
               padding: EdgeInsets.all(16),
               child: Text(
-                'This software is provided as-is, without warranty of any kind. '
-                'Use at your own risk. Content accessed through this app belongs to '
-                'the respective content providers.',
+                'Copyright (C) 2026 Grish Mahat. '
+                'This program is free software: you can redistribute it and/or '
+                'modify it under the terms of the GNU General Public License '
+                'version 3 or later. This software is provided as-is, without '
+                'warranty of any kind. Content accessed through this app belongs '
+                'to the respective content providers.',
                 style: TextStyle(fontSize: 12, color: Theme.of(context).colorScheme.onSurfaceVariant),
               ),
             ),

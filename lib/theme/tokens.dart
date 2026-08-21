@@ -33,4 +33,25 @@ abstract final class Motion {
 abstract final class Breakpoints {
   static const double compact = 600;
   static const double medium = 840;
+  static const double expanded = 1200;
+}
+
+/// Desktop layout consts.
+abstract final class Desktop {
+  /// Max width for centered content on wide screens (DESIGN.md expanded).
+  static const double maxContentWidth = 1400;
+  /// Width of the desktop navigation rail.
+  static const double railWidth = 88;
+  /// Width of the reader chapter slider panel.
+  static const double readerSidebarWidth = 300;
+  /// Hover zone width on the right edge that reveals the chapter panel.
+  static const double readerEdgeZoneWidth = 28;
+  /// Max reading measure (line length) in the reader, capped for readability.
+  static const double readerMaxWidth = 1000;
+  /// Minimum window size (window_manager).
+  static const double minWindowWidth = 960;
+  static const double minWindowHeight = 600;
+  /// Default window size on first launch.
+  static const double defaultWindowWidth = 1280;
+  static const double defaultWindowHeight = 800;
 }

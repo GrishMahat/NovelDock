@@ -3,6 +3,9 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../core/database/database.dart';
 import '../../core/providers/database_providers.dart';
+import '../../core/utils/platform.dart';
+import '../../theme/tokens.dart';
+import '../../widgets/max_width_box.dart';
 import '../../widgets/shimmer_list.dart';
 import '../settings/pages/download_settings_page.dart';
 
@@ -16,6 +19,23 @@ class DownloadsScreen extends ConsumerStatefulWidget {
 class _DownloadsScreenState extends ConsumerState<DownloadsScreen> {
   bool _showSettings = false;
 
+  Widget _clearActions() {
+    return StreamBuilder<List<DownloadsQueueData>>(
+      stream: ref.watch(downloadDaoProvider).watchAllDownloads(),
+      builder: (context, snapshot) {
+        final downloads = snapshot.data ?? [];
+        if (downloads.isEmpty) return const SizedBox.shrink();
+        return IconButton(
+          icon: const Icon(Icons.delete_sweep),
+          tooltip: 'Clear completed',
+          onPressed: () async {
+            await ref.read(downloadDaoProvider).clearCompletedDownloads();
+          },
+        );
+      },
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     final downloadDao = ref.watch(downloadDaoProvider);
@@ -23,27 +43,30 @@ class _DownloadsScreenState extends ConsumerState<DownloadsScreen> {
     final dlNotifier = ref.read(downloadSettingsProvider.notifier);
 
     return Scaffold(
-      appBar: AppBar(
-        title: const Text('Downloads'),
-        actions: [
-          StreamBuilder<List<DownloadsQueueData>>(
-            stream: downloadDao.watchAllDownloads(),
-            builder: (context, snapshot) {
-              final downloads = snapshot.data ?? [];
-              if (downloads.isEmpty) return const SizedBox.shrink();
-              return IconButton(
-                icon: const Icon(Icons.delete_sweep),
-                tooltip: 'Clear completed',
-                onPressed: () async {
-                  await downloadDao.clearCompletedDownloads();
-                },
-              );
-            },
-          ),
-        ],
-      ),
+      appBar: isDesktop
+          ? null
+          : AppBar(
+              title: const Text('Downloads'),
+              actions: [_clearActions()],
+            ),
       body: Column(
         children: [
+          if (isDesktop)
+            Padding(
+              padding: const EdgeInsets.fromLTRB(
+                  Insets.lg, Insets.md, Insets.lg, Insets.sm),
+              child: Row(
+                children: [
+                  Expanded(
+                    child: Text(
+                      'Downloads',
+                      style: Theme.of(context).textTheme.titleLarge,
+                    ),
+                  ),
+                  _clearActions(),
+                ],
+              ),
+            ),
           // ── Settings toggle ──
           ExpansionTile(
             leading: const Icon(Icons.settings, size: 20),
@@ -136,10 +159,13 @@ class _DownloadsScreenState extends ConsumerState<DownloadsScreen> {
                   );
                 }
 
-                return ListView.builder(
-                  padding: const EdgeInsets.symmetric(vertical: 8),
-                  itemCount: downloads.length,
-                  itemBuilder: (context, index) => _DownloadTile(download: downloads[index]),
+                return MaxWidthBox(
+                  child: ListView.builder(
+                    padding: const EdgeInsets.symmetric(vertical: 8),
+                    itemCount: downloads.length,
+                    itemBuilder: (context, index) =>
+                        _DownloadTile(download: downloads[index]),
+                  ),
                 );
               },
             ),
@@ -179,7 +205,7 @@ class _DownloadTile extends ConsumerWidget {
                   if (download.status == 'downloading' && download.progress != null)
                     Padding(padding: const EdgeInsets.only(top: 4), child: LinearProgressIndicator(value: download.progress, minHeight: 3)),
                   if (download.status == 'failed' && download.error != null)
-                    Text(download.error!, style: const TextStyle(fontSize: 11, color: Colors.red), maxLines: 1, overflow: TextOverflow.ellipsis),
+                    Text(download.error!, style: TextStyle(fontSize: 11, color: Theme.of(context).colorScheme.error), maxLines: 1, overflow: TextOverflow.ellipsis),
                 ],
               ),
               trailing: download.status == 'queued' || download.status == 'downloading'

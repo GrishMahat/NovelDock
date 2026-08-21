@@ -5,8 +5,12 @@ import 'package:go_router/go_router.dart';
 import '../../core/database/database.dart';
 import '../../core/providers/database_providers.dart';
 import '../../core/utils/logger.dart';
+import '../../core/utils/platform.dart';
 import '../../core/utils/text_utils.dart';
-import '../../theme/app_theme.dart';
+import '../../theme/tokens.dart';
+import '../../widgets/header_search_field.dart';
+import '../../widgets/max_width_box.dart';
+import '../../widgets/page_header.dart';
 import '../../widgets/shimmer_list.dart';
 
 const _tag = 'History';
@@ -21,11 +25,125 @@ class HistoryScreen extends ConsumerStatefulWidget {
 
 class _HistoryScreenState extends ConsumerState<HistoryScreen> {
   String _searchQuery = '';
+  late final Future<List<Novel>> _novelsFuture =
+      ref.read(novelDaoProvider).getAllNovels();
 
   @override
   Widget build(BuildContext context) {
     final historyDao = ref.watch(historyDaoProvider);
     final novelDao = ref.watch(novelDaoProvider);
+
+    final historyList = FutureBuilder<List<Novel>>(
+      future: _novelsFuture,
+      builder: (context, novelsSnap) {
+        final novelsById = {
+          for (final n in novelsSnap.data ?? const <Novel>[]) n.id: n,
+        };
+        return StreamBuilder<List<ReadingHistoryData>>(
+          stream: historyDao.watchAllHistory(),
+          builder: (context, snapshot) {
+            if (snapshot.connectionState == ConnectionState.waiting) {
+              return const ShimmerList();
+            }
+
+            var entries = snapshot.data ?? [];
+            Log.d(_tag, 'History entries: ${entries.length}');
+
+            // Ensure exactly one entry per novel (latest read)
+            final seen = <int, ReadingHistoryData>{};
+            for (final entry in entries) {
+              if (!seen.containsKey(entry.novelId) ||
+                  entry.readAt > seen[entry.novelId]!.readAt) {
+                seen[entry.novelId] = entry;
+              }
+            }
+            entries = seen.values.toList()
+              ..sort((a, b) => b.readAt.compareTo(a.readAt));
+
+            // Filter by novel title / author
+            final query = _searchQuery.trim().toLowerCase();
+            if (query.isNotEmpty) {
+              entries = entries.where((entry) {
+                final novel = novelsById[entry.novelId];
+                if (novel == null) return false;
+                final title = stripHtml(novel.title).toLowerCase();
+                final author = novel.author?.toLowerCase() ?? '';
+                return title.contains(query) || author.contains(query);
+              }).toList();
+            }
+
+            if (entries.isEmpty) {
+              final filtered = query.isNotEmpty;
+              return Center(
+                child: Column(
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  children: [
+                    Icon(Icons.history, size: 64,
+                        color: Theme.of(context).colorScheme.onSurfaceVariant.withValues(alpha: 0.5)),
+                    const SizedBox(height: Insets.lg),
+                    Text(
+                        filtered
+                            ? 'No results for "$_searchQuery"'
+                            : 'No reading history',
+                        style: Theme.of(context).textTheme.titleMedium),
+                    const SizedBox(height: Insets.sm),
+                    Text(
+                      filtered
+                          ? 'Try a different title or author.'
+                          : 'Start reading novels to build\nyour history.',
+                      textAlign: TextAlign.center,
+                      style: Theme.of(context)
+                          .textTheme
+                          .bodyMedium
+                          ?.copyWith(color: Theme.of(context).colorScheme.onSurfaceVariant),
+                    ),
+                  ],
+                ),
+              );
+            }
+
+            // Group by date
+            final grouped = _groupByDate(entries);
+
+            return MaxWidthBox(
+              child: ListView.builder(
+                padding: const EdgeInsets.only(bottom: 80),
+                itemCount: _countItems(grouped),
+                itemBuilder: (context, index) =>
+                    _buildItem(grouped, index, novelDao, historyDao),
+              ),
+            );
+          },
+        );
+      },
+    );
+
+    if (isDesktop) {
+      return Scaffold(
+        body: Column(
+          children: [
+            PageHeader(
+              title: 'History',
+              search: HeaderSearchField(
+                hint: 'Filter history',
+                onChanged: (v) => setState(() => _searchQuery = v),
+              ),
+              actions: [
+                Tooltip(
+                  message: 'Clear all history',
+                  child: OutlinedButton.icon(
+                    onPressed: () => _confirmClearAll(context, ref),
+                    icon: const Icon(Icons.delete_sweep, size: 18),
+                    label: const Text('Clear all'),
+                  ),
+                ),
+              ],
+            ),
+            Expanded(child: historyList),
+          ],
+        ),
+      );
+    }
 
     return Scaffold(
       appBar: AppBar(
@@ -44,10 +162,11 @@ class _HistoryScreenState extends ConsumerState<HistoryScreen> {
         children: [
           // Search bar
           Padding(
-            padding: const EdgeInsets.all(12),
+            padding: const EdgeInsets.fromLTRB(
+                Insets.lg, Insets.sm, Insets.lg, Insets.sm),
             child: TextField(
               decoration: InputDecoration(
-                hintText: 'Search history...',
+                hintText: 'Filter history...',
                 prefixIcon: const Icon(Icons.search),
                 suffixIcon: _searchQuery.isNotEmpty
                     ? IconButton(
@@ -55,82 +174,12 @@ class _HistoryScreenState extends ConsumerState<HistoryScreen> {
                         onPressed: () => setState(() => _searchQuery = ''),
                       )
                     : null,
-                filled: true,
-                fillColor: Theme.of(context).colorScheme.surfaceContainerHighest,
-                border: OutlineInputBorder(
-                  borderRadius: BorderRadius.circular(12),
-                  borderSide: BorderSide.none,
-                ),
-                enabledBorder: OutlineInputBorder(
-                  borderRadius: BorderRadius.circular(12),
-                  borderSide: BorderSide.none,
-                ),
-                focusedBorder: OutlineInputBorder(
-                  borderRadius: BorderRadius.circular(12),
-                  borderSide: const BorderSide(color: AppTheme.kPrimary, width: 1),
-                ),
-                contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+                isDense: true,
               ),
               onChanged: (v) => setState(() => _searchQuery = v),
             ),
           ),
-          // History list
-          Expanded(
-            child: StreamBuilder<List<ReadingHistoryData>>(
-              stream: historyDao.watchAllHistory(),
-              builder: (context, snapshot) {
-                if (snapshot.connectionState == ConnectionState.waiting) {
-                  return const ShimmerList();
-                }
-
-                var entries = snapshot.data ?? [];
-                Log.d(_tag, 'History entries: ${entries.length}');
-
-                // Ensure exactly one entry per novel (latest read)
-                final seen = <int, ReadingHistoryData>{};
-                for (final entry in entries) {
-                  if (!seen.containsKey(entry.novelId) ||
-                      entry.readAt > seen[entry.novelId]!.readAt) {
-                    seen[entry.novelId] = entry;
-                  }
-                }
-                entries = seen.values.toList()
-                  ..sort((a, b) => b.readAt.compareTo(a.readAt));
-
-                if (entries.isEmpty) {
-                  return Center(
-                    child: Column(
-                      mainAxisAlignment: MainAxisAlignment.center,
-                      children: [
-                        Icon(Icons.history, size: 64,
-                            color: Theme.of(context).colorScheme.onSurfaceVariant.withValues(alpha: 0.5)),
-                        const SizedBox(height: 16),
-                        const Text('No reading history',
-                            style: TextStyle(fontSize: 16)),
-                        const SizedBox(height: 8),
-                        Text(
-                          'Start reading novels to build\nyour history.',
-                          textAlign: TextAlign.center,
-                          style: TextStyle(
-                              color: Theme.of(context).colorScheme.onSurfaceVariant, fontSize: 13),
-                        ),
-                      ],
-                    ),
-                  );
-                }
-
-                // Group by date
-                final grouped = _groupByDate(entries);
-
-                return ListView.builder(
-                  padding: const EdgeInsets.only(bottom: 80),
-                  itemCount: _countItems(grouped),
-                  itemBuilder: (context, index) =>
-                      _buildItem(grouped, index, novelDao, historyDao),
-                );
-              },
-            ),
-          ),
+          Expanded(child: historyList),
         ],
       ),
     );
@@ -181,14 +230,12 @@ class _HistoryScreenState extends ConsumerState<HistoryScreen> {
     for (final group in grouped.entries) {
       if (current == index) {
         return Padding(
-          padding: const EdgeInsets.fromLTRB(16, 16, 16, 8),
+          padding: const EdgeInsets.fromLTRB(Insets.lg, Insets.lg, Insets.lg, Insets.sm),
           child: Text(
             group.key,
-            style: TextStyle(
-              fontSize: 14,
-              fontWeight: FontWeight.w600,
-              color: Theme.of(context).colorScheme.onSurfaceVariant,
-            ),
+            style: Theme.of(context).textTheme.titleSmall?.copyWith(
+                  color: Theme.of(context).colorScheme.onSurfaceVariant,
+                ),
           ),
         );
       }

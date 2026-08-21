@@ -10,8 +10,11 @@ import '../../core/database/database.dart';
 import '../../core/providers/database_providers.dart';
 import '../../core/providers/engine.dart';
 import '../../core/network/client.dart';
+import '../../core/utils/platform.dart';
+import '../../theme/tokens.dart';
+import '../../widgets/max_width_box.dart';
+import '../../widgets/page_header.dart';
 import '../../core/network/cloudflare.dart';
-import '../../theme/app_theme.dart';
 import '../../widgets/shimmer_list.dart';
 import '../downloads/providers/download_provider.dart';
 import 'widgets/status_picker_sheet.dart';
@@ -30,8 +33,6 @@ class NovelDetailScreen extends ConsumerStatefulWidget {
 
 class _NovelDetailScreenState extends ConsumerState<NovelDetailScreen> {
   final ItemScrollController _itemScrollController = ItemScrollController();
-  final ItemPositionsListener _itemPositionsListener =
-      ItemPositionsListener.create();
 
   StreamSubscription? _novelSubscription;
 
@@ -126,44 +127,6 @@ class _NovelDetailScreenState extends ConsumerState<NovelDetailScreen> {
     }
   }
 
-  void _jumpToChapter(int totalChapters) {
-    final controller = TextEditingController();
-    showDialog(
-      context: context,
-      builder: (ctx) => AlertDialog(
-        title: const Text('Jump to Chapter'),
-        content: TextField(
-          controller: controller,
-          keyboardType: TextInputType.number,
-          autofocus: true,
-          decoration: InputDecoration(
-            hintText: 'Enter chapter number (1-$totalChapters)',
-          ),
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(ctx),
-            child: const Text('Cancel'),
-          ),
-          FilledButton(
-            onPressed: () {
-              final input = int.tryParse(controller.text);
-              if (input != null && input >= 1 && input <= totalChapters) {
-                final index = input - 1;
-                _itemScrollController.scrollTo(
-                  index: index,
-                  duration: const Duration(milliseconds: 300),
-                );
-                Navigator.pop(ctx);
-              }
-            },
-            child: const Text('Go'),
-          ),
-        ],
-      ),
-    );
-  }
-
   void _triggerCloudflareBypass() async {
     final novelDao = ref.read(novelDaoProvider);
     final novel = await novelDao.getNovelById(widget.novelId);
@@ -248,16 +211,17 @@ class _NovelDetailScreenState extends ConsumerState<NovelDetailScreen> {
 
     if (_novelLoaded && novel == null) {
       return Scaffold(
-        appBar: AppBar(),
+        appBar: isDesktop ? null : AppBar(),
         body: Center(
           child: Column(
             mainAxisAlignment: MainAxisAlignment.center,
             children: [
               Icon(Icons.book_outlined, size: 64, color: Theme.of(context).colorScheme.onSurfaceVariant.withValues(alpha: 0.5)),
-              const SizedBox(height: 16),
-              const Text('Novel not found', style: TextStyle(fontSize: 18, fontWeight: FontWeight.w600)),
-              const SizedBox(height: 8),
-              ElevatedButton(
+              const SizedBox(height: Insets.lg),
+              Text('Novel not found',
+                  style: Theme.of(context).textTheme.titleLarge),
+              const SizedBox(height: Insets.sm),
+              FilledButton.tonal(
                 onPressed: () => context.pop(),
                 child: const Text('Go Back'),
               ),
@@ -268,61 +232,92 @@ class _NovelDetailScreenState extends ConsumerState<NovelDetailScreen> {
     }
 
     return Scaffold(
-      appBar: AppBar(
-        actions: [
-          IconButton(
-            icon: const Icon(Icons.download),
-            onPressed: () => _showDownloadDialog(context, ref),
-            tooltip: 'Download',
-          ),
-          PopupMenuButton<ChapterSort>(
-            icon: const Icon(Icons.sort),
-            initialValue: _chapterSort,
-            tooltip: 'Sort chapters',
-            onSelected: (value) => setState(() => _chapterSort = value),
-            itemBuilder: (context) => [
-              PopupMenuItem(value: ChapterSort.indexAsc, child: Row(children: [
-                Icon(_chapterSort == ChapterSort.indexAsc ? Icons.check : null, size: 18),
-                const SizedBox(width: 8),
-                const Text('Index 1\u21929'),
-              ])),
-              PopupMenuItem(value: ChapterSort.indexDesc, child: Row(children: [
-                Icon(_chapterSort == ChapterSort.indexDesc ? Icons.check : null, size: 18),
-                const SizedBox(width: 8),
-                const Text('Index 9\u21921'),
-              ])),
-              PopupMenuItem(value: ChapterSort.nameAsc, child: Row(children: [
-                Icon(_chapterSort == ChapterSort.nameAsc ? Icons.check : null, size: 18),
-                const SizedBox(width: 8),
-                const Text('Name A\u2192Z'),
-              ])),
-              PopupMenuItem(value: ChapterSort.nameDesc, child: Row(children: [
-                Icon(_chapterSort == ChapterSort.nameDesc ? Icons.check : null, size: 18),
-                const SizedBox(width: 8),
-                const Text('Name Z\u2192A'),
-              ])),
-            ],
-          ),
-          PopupMenuButton<String>(
-            onSelected: (value) {
-              if (value == 'cloudflare') _triggerCloudflareBypass();
-            },
-            itemBuilder: (context) => [
-              const PopupMenuItem(
-                value: 'cloudflare',
-                child: Row(
-                  children: [
-                    Icon(Icons.shield, size: 20),
-                    SizedBox(width: 8),
-                    Text('Cloudflare Bypass'),
-                  ],
+      appBar: isDesktop
+          ? null
+          : AppBar(actions: _buildActions(context)),
+      body: isDesktop
+          ? Column(
+              children: [
+                PageHeader(
+                  title: novel?.title ?? 'Novel',
+                  leading: IconButton(
+                    icon: const Icon(Icons.arrow_back),
+                    tooltip: 'Back',
+                    onPressed: () => context.pop(),
+                  ),
+                  actions: _buildActions(context),
                 ),
-              ),
-            ],
+                Expanded(
+                  child: _buildBody(chapterDao, libraryDao, novel, genres),
+                ),
+              ],
+            )
+          : _buildBody(chapterDao, libraryDao, novel, genres),
+    );
+  }
+
+  List<Widget> _buildActions(BuildContext context) {
+    return [
+      IconButton(
+        icon: const Icon(Icons.download),
+        onPressed: () => _showDownloadDialog(context, ref),
+        tooltip: 'Download',
+      ),
+      PopupMenuButton<ChapterSort>(
+        icon: const Icon(Icons.sort),
+        initialValue: _chapterSort,
+        tooltip: 'Sort chapters',
+        onSelected: (value) => setState(() => _chapterSort = value),
+        itemBuilder: (context) => [
+          PopupMenuItem(value: ChapterSort.indexAsc, child: Row(children: [
+            Icon(_chapterSort == ChapterSort.indexAsc ? Icons.check : null, size: 18),
+            const SizedBox(width: 8),
+            const Text('Index 1\u21929'),
+          ])),
+          PopupMenuItem(value: ChapterSort.indexDesc, child: Row(children: [
+            Icon(_chapterSort == ChapterSort.indexDesc ? Icons.check : null, size: 18),
+            const SizedBox(width: 8),
+            const Text('Index 9\u21921'),
+          ])),
+          PopupMenuItem(value: ChapterSort.nameAsc, child: Row(children: [
+            Icon(_chapterSort == ChapterSort.nameAsc ? Icons.check : null, size: 18),
+            const SizedBox(width: 8),
+            const Text('Name A\u2192Z'),
+          ])),
+          PopupMenuItem(value: ChapterSort.nameDesc, child: Row(children: [
+            Icon(_chapterSort == ChapterSort.nameDesc ? Icons.check : null, size: 18),
+            const SizedBox(width: 8),
+            const Text('Name Z\u2192A'),
+          ])),
+        ],
+      ),
+      PopupMenuButton<String>(
+        onSelected: (value) {
+          if (value == 'cloudflare') _triggerCloudflareBypass();
+        },
+        itemBuilder: (context) => [
+          const PopupMenuItem(
+            value: 'cloudflare',
+            child: Row(
+              children: [
+                Icon(Icons.shield, size: 20),
+                SizedBox(width: 8),
+                Text('Cloudflare Bypass'),
+              ],
+            ),
           ),
         ],
       ),
-      body: StreamBuilder<List<Chapter>>(
+    ];
+  }
+
+  Widget _buildBody(
+    ChapterDao chapterDao,
+    LibraryDao libraryDao,
+    Novel? novel,
+    List<String> genres,
+  ) {
+    return StreamBuilder<List<Chapter>>(
         stream: chapterDao.watchChaptersForNovel(widget.novelId),
         builder: (context, chapterSnapshot) {
           final chapters = chapterSnapshot.data ?? [];
@@ -353,15 +348,17 @@ class _NovelDetailScreenState extends ConsumerState<NovelDetailScreen> {
             children: [
               RefreshIndicator(
                 onRefresh: _refreshNovel,
-                child: ListView(
-                  padding: const EdgeInsets.symmetric(horizontal: 16),
+                child: MaxWidthBox(
+                    padding: const EdgeInsets.symmetric(horizontal: Insets.lg),
+                    child: ListView(
+                  padding: const EdgeInsets.symmetric(vertical: 8),
                 children: [
                   // Header: Cover + Info
                   Row(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
                       ClipRRect(
-                        borderRadius: BorderRadius.circular(12),
+                        borderRadius: BorderRadius.all(Radii.md),
                         child: novel?.coverUrl != null
                             ? Image.network(
                                 novel!.coverUrl!,
@@ -387,16 +384,14 @@ class _NovelDetailScreenState extends ConsumerState<NovelDetailScreen> {
                         child: Column(
                           crossAxisAlignment: CrossAxisAlignment.start,
                           children: [
-                            Text(
-                              novel?.title ?? 'Loading...',
-                              style: const TextStyle(
-                                fontSize: 18,
-                                fontWeight: FontWeight.bold,
+                            if (!isDesktop)
+                              Text(
+                                novel?.title ?? 'Loading...',
+                                style: Theme.of(context).textTheme.titleLarge,
+                                maxLines: 2,
+                                overflow: TextOverflow.ellipsis,
                               ),
-                              maxLines: 2,
-                              overflow: TextOverflow.ellipsis,
-                            ),
-                            const SizedBox(height: 6),
+                            if (!isDesktop) const SizedBox(height: 6),
                             Row(
                               children: [
                                 Icon(Icons.person_outline, size: 16, color: Theme.of(context).colorScheme.onSurfaceVariant),
@@ -404,7 +399,7 @@ class _NovelDetailScreenState extends ConsumerState<NovelDetailScreen> {
                                 Expanded(
                                   child: Text(
                                     novel?.author ?? 'Unknown author',
-                                    style: TextStyle(fontSize: 13, color: Theme.of(context).colorScheme.onSurfaceVariant),
+                                    style: Theme.of(context).textTheme.bodyMedium?.copyWith(color: Theme.of(context).colorScheme.onSurfaceVariant),
                                     maxLines: 1,
                                     overflow: TextOverflow.ellipsis,
                                   ),
@@ -418,7 +413,7 @@ class _NovelDetailScreenState extends ConsumerState<NovelDetailScreen> {
                                 const SizedBox(width: 4),
                                 Text(
                                   novel?.status ?? 'Ongoing',
-                                  style: TextStyle(fontSize: 13, color: Theme.of(context).colorScheme.onSurfaceVariant),
+                                  style: Theme.of(context).textTheme.bodyMedium?.copyWith(color: Theme.of(context).colorScheme.onSurfaceVariant),
                                 ),
                               ],
                             ),
@@ -491,8 +486,10 @@ class _NovelDetailScreenState extends ConsumerState<NovelDetailScreen> {
                                   margin: const EdgeInsets.only(right: 8),
                                   padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
                                   decoration: BoxDecoration(
-                                    borderRadius: BorderRadius.circular(12),
-                                    border: Border.all(color: Colors.white24),
+                                    borderRadius: BorderRadius.all(Radii.md),
+                                    border: Border.all(
+                                      color: Theme.of(context).colorScheme.outlineVariant,
+                                    ),
                                   ),
                                   child: Text(
                                     g.trim(),
@@ -509,9 +506,9 @@ class _NovelDetailScreenState extends ConsumerState<NovelDetailScreen> {
                   if (!showChapterShimmer) ...[
                     Text(
                       '${sortedChapters.length} chapters',
-                      style: const TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
+                      style: Theme.of(context).textTheme.titleMedium,
                     ),
-                    const SizedBox(height: 12),
+                    const SizedBox(height: Insets.md),
                   ],
 
                   // Chapters inline list or shimmer loading
@@ -540,7 +537,9 @@ class _NovelDetailScreenState extends ConsumerState<NovelDetailScreen> {
                             style: TextStyle(
                               fontSize: 14,
                               fontWeight: chapter.read ? FontWeight.normal : FontWeight.w600,
-                              color: chapter.read ? Theme.of(context).colorScheme.onSurfaceVariant : Colors.white,
+                              color: chapter.read
+                                  ? Theme.of(context).colorScheme.onSurfaceVariant
+                                  : Theme.of(context).colorScheme.onSurface,
                             ),
                           ),
                           subtitle: Text(
@@ -560,6 +559,7 @@ class _NovelDetailScreenState extends ConsumerState<NovelDetailScreen> {
                   const SizedBox(height: 80),
                 ],
               ),
+                ),
               ),
 
               // Floating Play / Resume Button
@@ -576,8 +576,7 @@ class _NovelDetailScreenState extends ConsumerState<NovelDetailScreen> {
             ],
           );
         },
-      ),
-    );
+      );
   }
 
   Widget _buildActionButton({
@@ -586,19 +585,24 @@ class _NovelDetailScreenState extends ConsumerState<NovelDetailScreen> {
     required bool isSelected,
     required VoidCallback onTap,
   }) {
-    final color = isSelected ? AppTheme.kPrimary : Theme.of(context).colorScheme.onSurfaceVariant;
+    final color = isSelected
+        ? Theme.of(context).colorScheme.primary
+        : Theme.of(context).colorScheme.onSurfaceVariant;
     return InkWell(
       onTap: onTap,
-      borderRadius: BorderRadius.circular(8),
+      borderRadius: BorderRadius.all(Radii.md),
       child: Padding(
-        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+        padding: const EdgeInsets.symmetric(horizontal: Insets.md, vertical: Insets.sm),
         child: Column(
           children: [
             Icon(icon, color: color, size: 24),
-            const SizedBox(height: 4),
+            const SizedBox(height: Insets.xs),
             Text(
               label,
-              style: TextStyle(fontSize: 11, color: color, fontWeight: isSelected ? FontWeight.w600 : FontWeight.normal),
+              style: Theme.of(context).textTheme.labelMedium?.copyWith(
+                    color: color,
+                    fontWeight: isSelected ? FontWeight.w600 : FontWeight.w400,
+                  ),
             ),
           ],
         ),
@@ -633,7 +637,7 @@ class _ExpandableDescriptionState extends State<_ExpandableDescription> {
             style: TextStyle(
               fontSize: 13,
               height: 1.4,
-              color: Colors.white.withValues(alpha: 0.85),
+              color: Theme.of(context).colorScheme.onSurface.withValues(alpha: 0.9),
             ),
           ),
           const SizedBox(height: 4),
@@ -641,7 +645,7 @@ class _ExpandableDescriptionState extends State<_ExpandableDescription> {
             child: Icon(
               _expanded ? Icons.expand_less : Icons.expand_more,
               size: 18,
-              color: Colors.white54,
+              color: Theme.of(context).colorScheme.onSurfaceVariant,
             ),
           ),
         ],

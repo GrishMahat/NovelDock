@@ -1,3 +1,4 @@
+import 'package:dio/dio.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
@@ -8,6 +9,9 @@ import '../../core/providers/filters.dart';
 import '../../core/network/client.dart';
 import '../../core/providers/novel_opener.dart';
 import '../../core/utils/logger.dart';
+import '../../core/utils/platform.dart';
+import '../../theme/tokens.dart';
+import '../../widgets/max_width_box.dart';
 import '../../widgets/novel_card.dart';
 import '../search/providers/search_providers.dart';
 import '../search/widgets/filter_sheet.dart';
@@ -102,7 +106,32 @@ class _ProviderScreenState extends ConsumerState<ProviderScreen>
       String? url;
       switch (_mode) {
         case _ListMode.latest:
-          url = await instance.getLatestUrl(pageKey);
+        case _ListMode.popular:
+          // POST-based browse (getBrowseConfig) first: providers that
+          // register `browseConfig` (e.g. WuxiaWorld's gRPC API) have no
+          // getMainPageUrl/getLatestUrl.
+          final browseConfig = await instance.getBrowseConfig(
+            _mode == _ListMode.latest ? 'latest' : 'popular',
+            filters: _filters,
+          );
+          if (browseConfig != null) {
+            final results = await postNovelList(instance, dio, browseConfig);
+            // A completed POST pipeline (even with zero results) is
+            // authoritative for browse-config providers; only fall back to
+            // the URL convention when the POST pipeline failed entirely.
+            if (results != null) {
+              if (!results.hasNextPage) _hasReachedEnd = true;
+              Log.ok(_tag, 'Got ${results.results.length} results');
+              return results.results
+                  .map((e) => _toItem(e))
+                  .toList();
+            }
+            Log.w(_tag, 'Browse POST pipeline failed, '
+                'falling back to URL browse');
+          }
+          url = _mode == _ListMode.latest
+              ? await instance.getLatestUrl(pageKey)
+              : await instance.getMainPageUrl(pageKey, filters: _filters);
         case _ListMode.search:
           Log.i(_tag, 'Search mode: hasFunction(getSearchConfig)='
               '${instance.hasFunction('getSearchConfig')}, '
@@ -131,8 +160,6 @@ class _ProviderScreenState extends ConsumerState<ProviderScreen>
             filters: _filters,
           );
           Log.i(_tag, 'GET fallback URL: $url');
-        case _ListMode.popular:
-          url = await instance.getMainPageUrl(pageKey, filters: _filters);
       }
 
       // Fallback for providers without a main page: empty search.
@@ -142,7 +169,13 @@ class _ProviderScreenState extends ConsumerState<ProviderScreen>
       if (url == null) return [];
 
       Log.i(_tag, 'Fetching: $url');
-      final response = await dio.get(url);
+      // Plain text: dio's default ResponseType.json would auto-parse
+      // application/json responses into a Dart Map, and `.toString()` of a
+      // Map is not valid JSON/HTML for the provider parsers.
+      final response = await dio.get(
+        url,
+        options: Options(responseType: ResponseType.plain),
+      );
       final html = response.data.toString();
 
       final results = await instance.parseSearchResults(html);
@@ -245,44 +278,100 @@ class _ProviderScreenState extends ConsumerState<ProviderScreen>
         widget.providerId;
 
     return Scaffold(
-      appBar: AppBar(
-        title: _isSearching
-            ? TextField(
-                controller: _searchController,
-                autofocus: true,
-                textInputAction: TextInputAction.search,
-                decoration: const InputDecoration(
-                  hintText: 'Search in this source...',
-                  border: InputBorder.none,
+      appBar: isDesktop
+          ? null
+          : AppBar(
+              title: _isSearching
+                  ? TextField(
+                      controller: _searchController,
+                      autofocus: true,
+                      textInputAction: TextInputAction.search,
+                      decoration: const InputDecoration(
+                        hintText: 'Search in this source...',
+                        border: InputBorder.none,
+                      ),
+                      onSubmitted: _submitSearch,
+                    )
+                  : Text(title),
+              actions: [
+                if (!_isSearching)
+                  IconButton(
+                    icon: const Icon(Icons.search),
+                    tooltip: 'Search in this source',
+                    onPressed: () => setState(() => _isSearching = true),
+                  )
+                else
+                  IconButton(
+                    icon: const Icon(Icons.close),
+                    tooltip: 'Close search',
+                    onPressed: () => setState(() => _isSearching = false),
+                  ),
+                IconButton(
+                  icon: Icon(_isGridView ? Icons.view_list : Icons.grid_view),
+                  tooltip: 'Display mode',
+                  iconSize: 26,
+                  padding: const EdgeInsets.all(10),
+                  constraints: const BoxConstraints(minWidth: 48, minHeight: 48),
+                  onPressed: () => setState(() => _isGridView = !_isGridView),
                 ),
-                onSubmitted: _submitSearch,
-              )
-            : Text(title),
-        actions: [
-          if (!_isSearching)
-            IconButton(
-              icon: const Icon(Icons.search),
-              tooltip: 'Search in this source',
-              onPressed: () => setState(() => _isSearching = true),
-            )
-          else
-            IconButton(
-              icon: const Icon(Icons.close),
-              tooltip: 'Close search',
-              onPressed: () => setState(() => _isSearching = false),
+              ],
             ),
-          IconButton(
-            icon: Icon(_isGridView ? Icons.view_list : Icons.grid_view),
-            tooltip: 'Display mode',
-            iconSize: 26,
-            padding: const EdgeInsets.all(10),
-            constraints: const BoxConstraints(minWidth: 48, minHeight: 48),
-            onPressed: () => setState(() => _isGridView = !_isGridView),
-          ),
-        ],
-      ),
       body: Column(
         children: [
+          if (isDesktop)
+            Padding(
+              padding: const EdgeInsets.fromLTRB(
+                  Insets.lg, Insets.md, Insets.lg, Insets.sm),
+              child: Row(
+                children: [
+                  IconButton(
+                    icon: const Icon(Icons.arrow_back),
+                    tooltip: 'Back',
+                    onPressed: () => context.pop(),
+                  ),
+                  const SizedBox(width: Insets.xs),
+                  Expanded(
+                    child: _isSearching
+                        ? TextField(
+                            controller: _searchController,
+                            autofocus: true,
+                            textInputAction: TextInputAction.search,
+                            decoration: const InputDecoration(
+                              hintText: 'Search in this source...',
+                              border: InputBorder.none,
+                            ),
+                            onSubmitted: _submitSearch,
+                          )
+                        : Text(
+                            title,
+                            style: Theme.of(context).textTheme.titleLarge,
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                          ),
+                  ),
+                  if (!_isSearching)
+                    IconButton(
+                      icon: const Icon(Icons.search),
+                      tooltip: 'Search in this source',
+                      onPressed: () => setState(() => _isSearching = true),
+                    )
+                  else
+                    IconButton(
+                      icon: const Icon(Icons.close),
+                      tooltip: 'Close search',
+                      onPressed: () => setState(() => _isSearching = false),
+                    ),
+                  IconButton(
+                    icon: Icon(_isGridView ? Icons.view_list : Icons.grid_view),
+                    tooltip: 'Display mode',
+                    iconSize: 26,
+                    padding: const EdgeInsets.all(10),
+                    constraints: const BoxConstraints(minWidth: 48, minHeight: 48),
+                    onPressed: () => setState(() => _isGridView = !_isGridView),
+                  ),
+                ],
+              ),
+            ),
           if (_canLatest || _canFilter)
             Row(
               children: [
@@ -321,7 +410,8 @@ class _ProviderScreenState extends ConsumerState<ProviderScreen>
           Expanded(
             child: _instance == null
                 ? const Center(child: CircularProgressIndicator())
-                : PagingListener<int, SearchResultItem>(
+                : MaxWidthBox(
+                    child: PagingListener<int, SearchResultItem>(
                     controller: _pagingController,
                     builder: (context, state, fetchNextPage) {
                       if (_isGridView) {
@@ -329,8 +419,8 @@ class _ProviderScreenState extends ConsumerState<ProviderScreen>
                           state: state,
                           fetchNextPage: fetchNextPage,
                           gridDelegate:
-                              const SliverGridDelegateWithFixedCrossAxisCount(
-                            crossAxisCount: 3,
+                              const SliverGridDelegateWithMaxCrossAxisExtent(
+                            maxCrossAxisExtent: 170,
                             childAspectRatio: 0.68,
                             crossAxisSpacing: 8,
                             mainAxisSpacing: 8,
@@ -383,6 +473,7 @@ class _ProviderScreenState extends ConsumerState<ProviderScreen>
                         ),
                       );
                     },
+                  ),
                   ),
           ),
         ],

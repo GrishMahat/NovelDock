@@ -27,12 +27,17 @@ import '../main.dart' show sharedFilePath;
 final GlobalKey<NavigatorState> _rootNavigatorKey = GlobalKey<NavigatorState>();
 final GlobalKey<NavigatorState> _shellNavigatorKey = GlobalKey<NavigatorState>();
 
+/// Routes nested under the shell (rail/top bar visible on desktop) are listed
+/// first; routes that must stay full-screen (e.g. the immersive reader) sit at
+/// the root navigator level.
 final routerProvider = Provider<GoRouter>((ref) {
   return GoRouter(
     navigatorKey: _rootNavigatorKey,
     initialLocation: '/library',
     routes: [
-      // Shell route wraps the 4 bottom nav tabs
+      // Shell route wraps the 4 tabs AND every sub-page so the desktop rail +
+      // top bar stay visible while navigating. On mobile, MainShell hides the
+      // bottom nav for sub-pages, preserving the previous full-screen feel.
       ShellRoute(
         navigatorKey: _shellNavigatorKey,
         builder: (context, state, child) {
@@ -65,34 +70,88 @@ final routerProvider = Provider<GoRouter>((ref) {
               child: SettingsScreen(),
             ),
           ),
+          GoRoute(
+            path: '/search/results',
+            name: 'searchResults',
+            builder: (context, state) => SearchResultsScreen(
+              query: state.uri.queryParameters['q'] ?? '',
+            ),
+          ),
+          GoRoute(
+            path: '/provider/:id',
+            name: 'provider',
+            builder: (context, state) => ProviderScreen(
+              providerId: state.pathParameters['id'] ?? '',
+            ),
+          ),
+          GoRoute(
+            path: '/novel/:id',
+            name: 'novelDetail',
+            builder: (context, state) => NovelDetailScreen(
+              novelId: int.parse(state.pathParameters['id'] ?? '0'),
+            ),
+          ),
+          GoRoute(
+            path: '/downloads',
+            name: 'downloads',
+            builder: (context, state) => const DownloadsScreen(),
+          ),
+          GoRoute(
+            path: '/settings/providers',
+            name: 'providerManagement',
+            builder: (context, state) => const ProviderManagementPage(),
+          ),
+          GoRoute(
+            path: '/settings/reader',
+            name: 'readerSettings',
+            builder: (context, state) => const ReaderSettingsPage(),
+          ),
+          GoRoute(
+            path: '/settings/translation',
+            name: 'translationSettings',
+            builder: (context, state) => const TranslationSettingsPage(),
+          ),
+          GoRoute(
+            path: '/settings/downloads',
+            name: 'downloadSettings',
+            builder: (context, state) => const DownloadSettingsPage(),
+          ),
+          GoRoute(
+            path: '/settings/about',
+            name: 'about',
+            builder: (context, state) => const AboutPage(),
+          ),
+          GoRoute(
+            path: '/settings/theme',
+            name: 'themeSettings',
+            builder: (context, state) => const ThemeSettingsPage(),
+          ),
+          GoRoute(
+            path: '/settings/backup',
+            name: 'backupRestore',
+            builder: (context, state) => const BackupRestorePage(),
+          ),
+          GoRoute(
+            path: '/settings/logs',
+            name: 'logViewer',
+            builder: (context, state) => const LogViewerPage(),
+          ),
+          GoRoute(
+            path: '/settings/general',
+            name: 'generalSettings',
+            builder: (context, state) => const GeneralSettingsPage(),
+          ),
+          GoRoute(
+            path: '/import',
+            name: 'import',
+            builder: (context, state) => ImportScreen(
+              initialFilePath: state.uri.queryParameters['file'] ?? sharedFilePath,
+            ),
+          ),
         ],
       ),
 
-      // Non-tab routes (no bottom nav)
-      GoRoute(
-        path: '/search/results',
-        name: 'searchResults',
-        parentNavigatorKey: _rootNavigatorKey,
-        builder: (context, state) => SearchResultsScreen(
-          query: state.uri.queryParameters['q'] ?? '',
-        ),
-      ),
-      GoRoute(
-        path: '/provider/:id',
-        name: 'provider',
-        parentNavigatorKey: _rootNavigatorKey,
-        builder: (context, state) => ProviderScreen(
-          providerId: state.pathParameters['id'] ?? '',
-        ),
-      ),
-      GoRoute(
-        path: '/novel/:id',
-        name: 'novelDetail',
-        parentNavigatorKey: _rootNavigatorKey,
-        builder: (context, state) => NovelDetailScreen(
-          novelId: int.parse(state.pathParameters['id'] ?? '0'),
-        ),
-      ),
+      // Full-screen immersive routes (no shell chrome)
       GoRoute(
         path: '/reader/:novelId/:chapterId',
         name: 'reader',
@@ -100,74 +159,6 @@ final routerProvider = Provider<GoRouter>((ref) {
         builder: (context, state) => ReaderScreen(
           novelId: int.parse(state.pathParameters['novelId'] ?? '0'),
           chapterId: int.parse(state.pathParameters['chapterId'] ?? '0'),
-        ),
-      ),
-      GoRoute(
-        path: '/downloads',
-        name: 'downloads',
-        parentNavigatorKey: _rootNavigatorKey,
-        builder: (context, state) => const DownloadsScreen(),
-      ),
-      GoRoute(
-        path: '/settings/providers',
-        name: 'providerManagement',
-        parentNavigatorKey: _rootNavigatorKey,
-        builder: (context, state) => const ProviderManagementPage(),
-      ),
-      GoRoute(
-        path: '/settings/reader',
-        name: 'readerSettings',
-        parentNavigatorKey: _rootNavigatorKey,
-        builder: (context, state) => const ReaderSettingsPage(),
-      ),
-      GoRoute(
-        path: '/settings/translation',
-        name: 'translationSettings',
-        parentNavigatorKey: _rootNavigatorKey,
-        builder: (context, state) => const TranslationSettingsPage(),
-      ),
-      GoRoute(
-        path: '/settings/downloads',
-        name: 'downloadSettings',
-        parentNavigatorKey: _rootNavigatorKey,
-        builder: (context, state) => const DownloadSettingsPage(),
-      ),
-      GoRoute(
-        path: '/settings/about',
-        name: 'about',
-        parentNavigatorKey: _rootNavigatorKey,
-        builder: (context, state) => const AboutPage(),
-      ),
-      GoRoute(
-        path: '/settings/theme',
-        name: 'themeSettings',
-        parentNavigatorKey: _rootNavigatorKey,
-        builder: (context, state) => const ThemeSettingsPage(),
-      ),
-      GoRoute(
-        path: '/settings/backup',
-        name: 'backupRestore',
-        parentNavigatorKey: _rootNavigatorKey,
-        builder: (context, state) => const BackupRestorePage(),
-      ),
-      GoRoute(
-        path: '/settings/logs',
-        name: 'logViewer',
-        parentNavigatorKey: _rootNavigatorKey,
-        builder: (context, state) => const LogViewerPage(),
-      ),
-      GoRoute(
-        path: '/settings/general',
-        name: 'generalSettings',
-        parentNavigatorKey: _rootNavigatorKey,
-        builder: (context, state) => const GeneralSettingsPage(),
-      ),
-      GoRoute(
-        path: '/import',
-        name: 'import',
-        parentNavigatorKey: _rootNavigatorKey,
-        builder: (context, state) => ImportScreen(
-          initialFilePath: state.uri.queryParameters['file'] ?? sharedFilePath,
         ),
       ),
     ],

@@ -672,7 +672,12 @@ Future<SearchResults?> searchProviderOnce(
 
   Log.i(_tag, 'Fetching: $searchUrl');
 
-  final response = await dio.get(searchUrl);
+  // Plain text: dio's default ResponseType.json auto-parses JSON responses
+  // into a Dart Map whose toString() is not valid JSON for the provider.
+  final response = await dio.get(
+    searchUrl,
+    options: Options(responseType: ResponseType.plain),
+  );
   final html = response.data.toString();
 
   Log.i(
@@ -853,7 +858,10 @@ Future<SearchResults?> postNovelList(
 
     Log.i(_tag, 'postNovelList: fetching results: $resultUrl');
 
-    final resultResponse = await dio.get(resultUrl);
+    final resultResponse = await dio.get(
+      resultUrl,
+      options: Options(responseType: ResponseType.plain),
+    );
     final html = resultResponse.data.toString();
 
     Log.i(

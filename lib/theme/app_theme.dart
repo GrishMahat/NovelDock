@@ -142,21 +142,34 @@ class AppTheme {
           visualDensity: FlexColorScheme.comfortablePlatformDensity,
         ),
         surfaceOverride: Colors.black,
+        surfaceLayers: const {
+          'lowest': Color(0xFF08080A),
+          'low': Color(0xFF0E0E10),
+          'default': Color(0xFF121214),
+          'high': Color(0xFF17171A),
+          'highest': Color(0xFF1D1D21),
+        },
       );
 
   static ThemeData _build(
     FlexColorScheme scheme, {
     Color? surfaceOverride,
+    Map<String, Color>? surfaceLayers,
     Color primary = kAccentSeed,
   }) {
     final base = scheme.toScheme;
     final schemeColors = base.copyWith(
       surface: surfaceOverride ?? base.surface,
-      surfaceContainerLowest: surfaceOverride ?? base.surfaceContainerLowest,
-      surfaceContainerLow: surfaceOverride ?? base.surfaceContainerLow,
-      surfaceContainer: surfaceOverride ?? base.surfaceContainer,
-      surfaceContainerHigh: surfaceOverride ?? base.surfaceContainerHigh,
-      surfaceContainerHighest: surfaceOverride ?? base.surfaceContainerHighest,
+      surfaceContainerLowest:
+          surfaceLayers?['lowest'] ?? surfaceOverride ?? base.surfaceContainerLowest,
+      surfaceContainerLow:
+          surfaceLayers?['low'] ?? surfaceOverride ?? base.surfaceContainerLow,
+      surfaceContainer:
+          surfaceLayers?['default'] ?? surfaceOverride ?? base.surfaceContainer,
+      surfaceContainerHigh:
+          surfaceLayers?['high'] ?? surfaceOverride ?? base.surfaceContainerHigh,
+      surfaceContainerHighest:
+          surfaceLayers?['highest'] ?? surfaceOverride ?? base.surfaceContainerHighest,
       surfaceTint: primary,
     );
     final text = _textTheme(schemeColors);

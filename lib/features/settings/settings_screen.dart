@@ -1,8 +1,21 @@
+import 'dart:io';
+
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 import 'package:package_info_plus/package_info_plus.dart';
 
 import '../../theme/app_theme.dart';
+import '../../theme/tokens.dart';
+import '../../widgets/max_width_box.dart';
+import 'pages/about_page.dart';
+import 'pages/backup_restore_page.dart';
+import 'pages/download_settings_page.dart';
+import 'pages/general_settings_page.dart';
+import 'pages/log_viewer_page.dart';
+import 'pages/provider_management_page.dart';
+import 'pages/reader_settings_page.dart';
+import 'pages/theme_settings_page.dart';
+import 'pages/translation_settings_page.dart';
 
 class SettingsScreen extends StatefulWidget {
   const SettingsScreen({super.key});
@@ -13,6 +26,7 @@ class SettingsScreen extends StatefulWidget {
 
 class _SettingsScreenState extends State<SettingsScreen> {
   String _version = '';
+  int _selectedIndex = 0;
 
   @override
   void initState() {
@@ -31,6 +45,143 @@ class _SettingsScreenState extends State<SettingsScreen> {
 
   @override
   Widget build(BuildContext context) {
+    final isDesktop = Platform.isLinux || Platform.isWindows || Platform.isMacOS;
+    if (!isDesktop) return _buildMobile(context);
+    return _buildDesktop(context);
+  }
+
+  // ═══════════════════════════════════════════════════════════
+  // Desktop: two-pane (category list + page)
+  // ═══════════════════════════════════════════════════════════
+
+  static const _pages = <Widget>[
+    GeneralSettingsPage(),
+    ProviderManagementPage(),
+    ReaderSettingsPage(),
+    TranslationSettingsPage(),
+    DownloadSettingsPage(),
+    ThemeSettingsPage(),
+    BackupRestorePage(),
+    LogViewerPage(),
+    AboutPage(),
+  ];
+
+  static const _tiles = <({IconData icon, String title, String subtitle})>[
+    (icon: Icons.tune, title: 'General', subtitle: 'Startup tab, display defaults'),
+    (icon: Icons.language, title: 'Providers', subtitle: 'Registries and providers'),
+    (icon: Icons.text_fields, title: 'Reader & TTS', subtitle: 'Font, scroll mode, voices'),
+    (icon: Icons.translate, title: 'Translation', subtitle: 'Language and cache'),
+    (icon: Icons.download, title: 'Downloads', subtitle: 'Download queue settings'),
+    (icon: Icons.palette, title: 'Theme', subtitle: 'Colors and appearance'),
+    (icon: Icons.backup, title: 'Backup & Restore', subtitle: 'Export or import data'),
+    (icon: Icons.bug_report, title: 'Log Viewer', subtitle: 'In-app debug logs'),
+    (icon: Icons.info_outline, title: 'About', subtitle: 'Version and licenses'),
+  ];
+
+  Widget _buildDesktop(BuildContext context) {
+    final scheme = Theme.of(context).colorScheme;
+    return Scaffold(
+      body: Row(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          Material(
+            color: scheme.surfaceContainerLow,
+            child: Container(
+              width: 240,
+              decoration: BoxDecoration(
+                border: Border(
+                  right: BorderSide(color: scheme.outlineVariant, width: 1),
+                ),
+              ),
+            child: ListView(
+              padding: const EdgeInsets.symmetric(vertical: Insets.sm),
+              children: [
+                Padding(
+                  padding: const EdgeInsets.fromLTRB(Insets.lg, Insets.md, Insets.lg, Insets.sm),
+                  child: Text(
+                    'Settings',
+                    style: TextStyle(
+                      fontSize: 18,
+                      fontWeight: FontWeight.w600,
+                      color: scheme.onSurface,
+                    ),
+                  ),
+                ),
+                for (var i = 0; i < _tiles.length; i++)
+                  ListTile(
+                    dense: true,
+                    selected: i == _selectedIndex,
+                    selectedTileColor: scheme.primaryContainer.withValues(alpha: 0.35),
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(Radii.sm.x),
+                    ),
+                    leading: Icon(
+                      _tiles[i].icon,
+                      size: 20,
+                      color: i == _selectedIndex
+                          ? scheme.primary
+                          : scheme.onSurfaceVariant,
+                    ),
+                    title: Text(
+                      _tiles[i].title,
+                      style: TextStyle(
+                        fontSize: 14,
+                        fontWeight:
+                            i == _selectedIndex ? FontWeight.w600 : FontWeight.w400,
+                        color: i == _selectedIndex
+                            ? scheme.onSurface
+                            : scheme.onSurfaceVariant,
+                      ),
+                    ),
+                    subtitle: Text(
+                      _tiles[i].subtitle,
+                      style: TextStyle(
+                        fontSize: 11,
+                        color: scheme.onSurfaceVariant.withValues(alpha: 0.8),
+                      ),
+                    ),
+                    onTap: () => setState(() => _selectedIndex = i),
+                  ),
+                const Divider(height: 24, indent: Insets.lg, endIndent: Insets.lg),
+                ListTile(
+                  dense: true,
+                  leading: Icon(Icons.downloading, size: 20, color: scheme.onSurfaceVariant),
+                  title: const Text(
+                    'Download queue',
+                    style: TextStyle(fontSize: 14, color: AppTheme.kPrimary),
+                  ),
+                  subtitle: Text(
+                    'Active downloads',
+                    style: TextStyle(
+                      fontSize: 11,
+                      color: scheme.onSurfaceVariant.withValues(alpha: 0.8),
+                    ),
+                  ),
+                  onTap: () => context.push('/downloads'),
+                ),
+              ],
+            ),
+            ),
+          ),
+          Expanded(
+            child: MaxWidthBox(
+              padding: EdgeInsets.zero,
+              child: IndexedStack(
+                index: _selectedIndex,
+                children: _pages,
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  // ═══════════════════════════════════════════════════════════
+  // Mobile: section list that pushes pages
+  // ═══════════════════════════════════════════════════════════
+
+  Widget _buildMobile(BuildContext context) {
     return Scaffold(
       appBar: AppBar(title: const Text('Settings')),
       body: ListView(

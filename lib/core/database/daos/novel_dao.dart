@@ -12,8 +12,11 @@ class NovelDao extends DatabaseAccessor<AppDatabase> with _$NovelDaoMixin {
     return into(novels).insert(novel, mode: InsertMode.insertOrReplace);
   }
 
-  Future<bool> updateNovel(NovelsCompanion novel) {
-    return update(novels).replace(novel);
+  Future<int> updateNovel(NovelsCompanion novel) {
+    // Constrain to the companion's primary key: drift's write() alone
+    // updates every row, which collides on the id column.
+    return (update(novels)..where((t) => t.id.equals(novel.id.value)))
+        .write(novel);
   }
 
   Future<int> deleteNovel(int id) {

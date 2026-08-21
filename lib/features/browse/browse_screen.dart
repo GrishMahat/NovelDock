@@ -3,7 +3,12 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
 import '../../core/providers/models.dart';
+import '../../core/utils/platform.dart';
+import '../../theme/tokens.dart';
 import '../../widgets/error_view.dart';
+import '../../widgets/header_search_field.dart';
+import '../../widgets/max_width_box.dart';
+import '../../widgets/page_header.dart';
 import '../../widgets/provider_avatar.dart';
 import '../../widgets/shimmer_list.dart';
 import '../settings/providers/provider_management_providers.dart';
@@ -22,12 +27,16 @@ class _BrowseScreenState extends ConsumerState<BrowseScreen>
     with SingleTickerProviderStateMixin {
   late final TabController _tabController;
   bool _isSearching = false;
+  bool _updating = false;
   final _searchController = TextEditingController();
 
   @override
   void initState() {
     super.initState();
     _tabController = TabController(length: 2, vsync: this);
+    _tabController.addListener(() {
+      if (mounted) setState(() {});
+    });
   }
 
   @override
@@ -37,8 +46,80 @@ class _BrowseScreenState extends ConsumerState<BrowseScreen>
     super.dispose();
   }
 
+  Future<void> _updateAll() async {
+    setState(() => _updating = true);
+    try {
+      final count = await updateAllRegistries(ref);
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        count > 0
+            ? SnackBar(content: Text('Updated $count registry(ies)'))
+            : const SnackBar(content: Text('All extensions are up to date')),
+      );
+    } finally {
+      if (mounted) setState(() => _updating = false);
+    }
+  }
+
+  void _submitGlobalSearch(String q) {
+    final query = q.trim();
+    if (query.isEmpty) return;
+    context.push('/search/results?q=${Uri.encodeComponent(query)}');
+    _searchController.clear();
+    FocusScope.of(context).unfocus();
+  }
+
   @override
   Widget build(BuildContext context) {
+    if (isDesktop) {
+      return Scaffold(
+        body: Column(
+          children: [
+            PageHeader(
+              title: 'Browse',
+              search: HeaderSearchField(
+                hint: 'Search all sources',
+                controller: _searchController,
+                onChanged: (_) {},
+                onSubmitted: _submitGlobalSearch,
+              ),
+              actions: [
+                if (_tabController.index == 1)
+                  OutlinedButton.icon(
+                    onPressed: _updating ? null : _updateAll,
+                    icon: _updating
+                        ? const SizedBox(
+                            width: 16,
+                            height: 16,
+                            child: CircularProgressIndicator(strokeWidth: 2),
+                          )
+                        : const Icon(Icons.update, size: 18),
+                    label: Text(_updating ? 'Updating' : 'Update all'),
+                  ),
+              ],
+              tabController: _tabController,
+              tabs: [
+                const Tab(text: 'Installed'),
+                _catalogTab(),
+              ],
+            ),
+            Expanded(
+              child: TabBarView(
+                controller: _tabController,
+                children: [
+                  const InstalledTab(),
+                  CatalogTab(
+                    showUpdateAll: false,
+                    updating: _updating,
+                    onUpdateAll: _updateAll,
+                  ),
+                ],
+              ),
+            ),
+          ],
+        ),
+      );
+    }
     return Scaffold(
       appBar: AppBar(
         title: _isSearching
@@ -81,7 +162,7 @@ class _BrowseScreenState extends ConsumerState<BrowseScreen>
         controller: _tabController,
         children: [
           const InstalledTab(),
-          const CatalogTab(),
+          CatalogTab(updating: _updating, onUpdateAll: _updateAll),
         ],
       ),
     );
@@ -112,7 +193,10 @@ class _BrowseScreenState extends ConsumerState<BrowseScreen>
                       ),
                       child: Text(
                         '$installed',
-                        style: const TextStyle(fontSize: 11, color: Colors.white),
+                        style: TextStyle(
+                          fontSize: 11,
+                          color: Theme.of(context).colorScheme.onPrimary,
+                        ),
                       ),
                     ),
                   ],
@@ -168,50 +252,112 @@ class InstalledTab extends ConsumerWidget {
           );
         }
 
-        return ListView(
-          children: [
-            _sectionHeader(context, 'Installed (${enabledProviders.length})'),
-            ...enabledProviders.map((p) => _SourceTile(provider: p)),
-          ],
+        return MaxWidthBox(
+          padding: const EdgeInsets.fromLTRB(Insets.lg, Insets.lg, Insets.lg, Insets.xl),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              _sectionHeader(context, 'Installed (${enabledProviders.length})'),
+              const SizedBox(height: Insets.sm),
+              LayoutBuilder(
+                builder: (context, constraints) {
+                  final columns = constraints.maxWidth >= 900
+                      ? 3
+                      : constraints.maxWidth >= 560
+                          ? 2
+                          : 1;
+                  return GridView.builder(
+                    shrinkWrap: true,
+                    physics: const NeverScrollableScrollPhysics(),
+                    gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
+                      crossAxisCount: columns,
+                      crossAxisSpacing: Insets.md,
+                      mainAxisSpacing: Insets.md,
+                      mainAxisExtent: 76,
+                    ),
+                    itemCount: enabledProviders.length,
+                    itemBuilder: (context, index) => _SourceCard(
+                      provider: enabledProviders[index],
+                    ),
+                  );
+                },
+              ),
+            ],
+          ),
         );
       },
     );
   }
 
   Widget _sectionHeader(BuildContext context, String title) {
-    return Padding(
-      padding: const EdgeInsets.fromLTRB(16, 20, 16, 8),
-      child: Text(
-        title,
-        style: TextStyle(
-          fontSize: 13,
-          fontWeight: FontWeight.w600,
-          color: Theme.of(context).colorScheme.primary,
-        ),
+    return Text(
+      title,
+      style: TextStyle(
+        fontSize: 13,
+        fontWeight: FontWeight.w600,
+        color: Theme.of(context).colorScheme.primary,
       ),
     );
   }
 }
 
-class _SourceTile extends StatelessWidget {
+/// Compact source card: logo, name, language, and a browse action.
+class _SourceCard extends StatelessWidget {
   final ProviderMeta provider;
-  const _SourceTile({required this.provider});
+  const _SourceCard({required this.provider});
 
   @override
   Widget build(BuildContext context) {
-    return ListTile(
-      leading: ProviderAvatar(provider: provider),
-      title: Text(provider.name),
-      subtitle: Text(
-        provider.lang.toUpperCase(),
-        style: const TextStyle(fontSize: 12),
+    final scheme = Theme.of(context).colorScheme;
+    return Material(
+      color: scheme.surfaceContainerLow,
+      shape: RoundedRectangleBorder(
+        borderRadius: Radii.card,
+        side: BorderSide(color: scheme.outlineVariant),
       ),
-      trailing: IconButton(
-        icon: const Icon(Icons.push_pin, size: 18),
-        tooltip: 'Browse source',
-        onPressed: () => context.push('/provider/${provider.id}'),
+      clipBehavior: Clip.antiAlias,
+      child: InkWell(
+        onTap: () => context.push('/provider/${provider.id}'),
+        child: Padding(
+          padding: const EdgeInsets.symmetric(horizontal: Insets.md, vertical: Insets.sm),
+          child: Row(
+            children: [
+              ProviderAvatar(provider: provider, radius: 20),
+              const SizedBox(width: Insets.md),
+              Expanded(
+                child: Column(
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      provider.name,
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: const TextStyle(
+                        fontSize: 14,
+                        fontWeight: FontWeight.w600,
+                      ),
+                    ),
+                    const SizedBox(height: 2),
+                    Text(
+                      provider.lang.toUpperCase(),
+                      style: TextStyle(
+                        fontSize: 12,
+                        color: scheme.onSurfaceVariant,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+              IconButton(
+                icon: const Icon(Icons.push_pin, size: 18),
+                tooltip: 'Browse source',
+                onPressed: () => context.push('/provider/${provider.id}'),
+              ),
+            ],
+          ),
+        ),
       ),
-      onTap: () => context.push('/provider/${provider.id}'),
     );
   }
 }
@@ -220,33 +366,20 @@ class _SourceTile extends StatelessWidget {
 // Catalog Tab
 // ═══════════════════════════════════════════════════════════
 
-class CatalogTab extends ConsumerStatefulWidget {
-  const CatalogTab({super.key});
+class CatalogTab extends ConsumerWidget {
+  final bool showUpdateAll;
+  final bool updating;
+  final VoidCallback? onUpdateAll;
+
+  const CatalogTab({
+    super.key,
+    this.showUpdateAll = true,
+    this.updating = false,
+    this.onUpdateAll,
+  });
 
   @override
-  ConsumerState<CatalogTab> createState() => _CatalogTabState();
-}
-
-class _CatalogTabState extends ConsumerState<CatalogTab> {
-  bool _updating = false;
-
-  Future<void> _updateAll() async {
-    setState(() => _updating = true);
-    try {
-      final count = await updateAllRegistries(ref);
-      if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
-        count > 0
-            ? SnackBar(content: Text('Updated $count registry(ies)'))
-            : const SnackBar(content: Text('All extensions are up to date')),
-      );
-    } finally {
-      if (mounted) setState(() => _updating = false);
-    }
-  }
-
-  @override
-  Widget build(BuildContext context) {
+  Widget build(BuildContext context, WidgetRef ref) {
     final providersAsync = ref.watch(availableProvidersProvider);
     final enabled = ref.watch(enabledProvidersProvider);
 
@@ -273,39 +406,49 @@ class _CatalogTabState extends ConsumerState<CatalogTab> {
           grouped.putIfAbsent(lang, () => []).add(p);
         }
 
-        return ListView(
+        return MaxWidthBox(
+          padding: const EdgeInsets.fromLTRB(Insets.lg, Insets.md, Insets.lg, Insets.xl),
+          child: ListView(
           children: [
-            Padding(
-              padding: const EdgeInsets.fromLTRB(16, 12, 16, 0),
-              child: OutlinedButton.icon(
-                onPressed: _updating ? null : _updateAll,
-                icon: _updating
-                    ? const SizedBox(
-                        width: 16,
-                        height: 16,
-                        child: CircularProgressIndicator(strokeWidth: 2),
-                      )
-                    : const Icon(Icons.update, size: 18),
-                label: Text(_updating ? 'Updating...' : 'Update all'),
+            if (showUpdateAll)
+              Padding(
+                padding: const EdgeInsets.only(bottom: Insets.sm),
+                child: OutlinedButton.icon(
+                  onPressed: updating ? null : onUpdateAll,
+                  icon: updating
+                      ? const SizedBox(
+                          width: 16,
+                          height: 16,
+                          child: CircularProgressIndicator(strokeWidth: 2),
+                        )
+                      : const Icon(Icons.update, size: 18),
+                  label: Text(updating ? 'Updating...' : 'Update all'),
+                ),
               ),
-            ),
             if (installed.isNotEmpty) ...[
               _sectionHeader(context, 'Installed'),
-              ...installed.map((p) => _ExtensionTile(
-                    provider: p,
-                    isInstalled: true,
-                    onToggle: () => toggleProvider(p.id, ref),
+              ...installed.map((p) => Padding(
+                    padding: const EdgeInsets.only(bottom: Insets.sm),
+                    child: _ExtensionTile(
+                      provider: p,
+                      isInstalled: true,
+                      onToggle: () => toggleProvider(p.id, ref),
+                    ),
                   )),
             ],
             for (final entry in grouped.entries) ...[
               _sectionHeader(context, entry.key),
-              ...entry.value.map((p) => _ExtensionTile(
-                    provider: p,
-                    isInstalled: false,
-                    onToggle: () => toggleProvider(p.id, ref),
+              ...entry.value.map((p) => Padding(
+                    padding: const EdgeInsets.only(bottom: Insets.sm),
+                    child: _ExtensionTile(
+                      provider: p,
+                      isInstalled: false,
+                      onToggle: () => toggleProvider(p.id, ref),
+                    ),
                   )),
             ],
           ],
+        ),
         );
       },
     );
@@ -313,7 +456,7 @@ class _CatalogTabState extends ConsumerState<CatalogTab> {
 
   Widget _sectionHeader(BuildContext context, String title) {
     return Padding(
-      padding: const EdgeInsets.fromLTRB(16, 20, 16, 8),
+      padding: const EdgeInsets.fromLTRB(0, Insets.lg, 0, Insets.sm),
       child: Text(
         title,
         style: TextStyle(
@@ -339,7 +482,15 @@ class _ExtensionTile extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return ListTile(
+    final scheme = Theme.of(context).colorScheme;
+    return Material(
+      color: scheme.surfaceContainerLow,
+      shape: RoundedRectangleBorder(
+        borderRadius: Radii.card,
+        side: BorderSide(color: scheme.outlineVariant),
+      ),
+      clipBehavior: Clip.antiAlias,
+      child: ListTile(
       leading: ProviderAvatar(provider: provider),
       title: Text(provider.name),
       subtitle: Row(
@@ -386,6 +537,7 @@ class _ExtensionTile extends StatelessWidget {
         ],
       ),
       onTap: () => _showProviderInfo(context, provider, isInstalled, onToggle),
+    ),
     );
   }
 }

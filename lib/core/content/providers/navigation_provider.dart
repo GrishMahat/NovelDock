@@ -15,7 +15,10 @@ class ReaderNavigationState {
   final bool isLoading;
   final String? error;
   final int novelId;
-  final double? restoredScrollPosition;
+
+  /// Block index within the current chapter to scroll to once content is
+  /// built (cold-start resume). Consumed by the reader screen, then cleared.
+  final int? restoredBlockIndex;
 
   const ReaderNavigationState({
     this.chapters = const <Chapter>[],
@@ -23,7 +26,7 @@ class ReaderNavigationState {
     this.isLoading = true,
     this.error,
     required this.novelId,
-    this.restoredScrollPosition,
+    this.restoredBlockIndex,
   });
 
   ReaderNavigationState copyWith({
@@ -31,7 +34,6 @@ class ReaderNavigationState {
     int? currentIndex,
     bool? isLoading,
     String? error,
-    double? restoredScrollPosition,
   }) {
     return ReaderNavigationState(
       chapters: chapters ?? this.chapters,
@@ -39,8 +41,7 @@ class ReaderNavigationState {
       isLoading: isLoading ?? this.isLoading,
       error: error,
       novelId: novelId,
-      restoredScrollPosition:
-          restoredScrollPosition ?? this.restoredScrollPosition,
+      restoredBlockIndex: restoredBlockIndex,
     );
   }
 
@@ -74,12 +75,12 @@ class ReaderNavigationNotifier extends StateNotifier<ReaderNavigationState> {
 
       final chapter = state.currentChapter;
       if (chapter != null) {
-        final position = await restoreReadingPosition(chapter.id);
-        if (position != null) {
+        final blockIndex = await restoreReadingAnchor(chapter.id);
+        if (blockIndex != null) {
           ref.read(contentProvider.notifier).loadChapter(chapter.id).then((_) {
             ref
                 .read(readerNavigationProvider(state.novelId).notifier)
-                .setRestoredScrollPosition(position);
+                .setRestoredBlockIndex(blockIndex);
           });
         }
       }
@@ -106,19 +107,11 @@ class ReaderNavigationNotifier extends StateNotifier<ReaderNavigationState> {
         readAt: Value(DateTime.now().millisecondsSinceEpoch),
       ),
     );
-
-    // Mark chapter as read
-    await _markChapterAsRead(chapter.id);
   }
 
   Future<void> _markChapterAsRead(int chapterId) async {
     final chapterDao = ref.read(chapterDaoProvider);
     await chapterDao.markChapterAsRead(chapterId);
-  }
-
-  Future<void> _markChapterAsTtsRead(int chapterId) async {
-    final chapterDao = ref.read(chapterDaoProvider);
-    await chapterDao.markChapterAsTtsRead(chapterId);
   }
 
   Future<void> _syncProgress() async {
@@ -130,26 +123,34 @@ class ReaderNavigationNotifier extends StateNotifier<ReaderNavigationState> {
     }
   }
 
-  Future<void> saveReadingPosition(double scrollProgress) async {
-    final chapter = state.currentChapter;
-    if (chapter == null) return;
+  /// Saves the reader anchor for the current chapter: the index of the
+  /// content block currently at the top of the viewport. Stored in the
+  /// history's scrollPosition column as blockIndex (>= 1). Block anchors
+  /// survive lazy loading; raw scroll fractions do not.
+  Future<void> saveReadingAnchor(int chapterId, int blockIndex) async {
+    if (blockIndex < 0) return;
     final historyDao = ref.read(historyDaoProvider);
     await historyDao.addHistoryEntry(
       ReadingHistoryCompanion(
         novelId: Value(state.novelId),
-        chapterId: Value(chapter.id),
+        chapterId: Value(chapterId),
         readAt: Value(DateTime.now().millisecondsSinceEpoch),
-        scrollPosition: Value(scrollProgress),
+        scrollPosition: Value(blockIndex.toDouble()),
       ),
     );
   }
 
-  Future<double?> restoreReadingPosition(int chapterId) async {
+  /// Returns the saved block anchor for [chapterId], or null when the latest
+  /// history entry is for another chapter, has no anchor, or predates the
+  /// block-anchor format (legacy values are fractions < 1).
+  Future<int?> restoreReadingAnchor(int chapterId) async {
     final historyDao = ref.read(historyDaoProvider);
     final latest = await historyDao.getLatestHistoryForNovel(state.novelId);
-    if (latest == null || latest.scrollPosition == null) return null;
+    final pos = latest?.scrollPosition;
+    if (latest == null || pos == null) return null;
     if (latest.chapterId != chapterId) return null;
-    return latest.scrollPosition;
+    if (pos < 1) return null;
+    return pos.floor();
   }
 
   bool get isFirstChapter => state.currentIndex <= 0;
@@ -164,6 +165,8 @@ class ReaderNavigationNotifier extends StateNotifier<ReaderNavigationState> {
 
   void goToNextChapter() {
     if (state.currentIndex >= state.chapters.length - 1) return;
+    // Advancing past a chapter means it was read to the end.
+    _markChapterAsRead(state.chapters[state.currentIndex].id);
     state = state.copyWith(currentIndex: state.currentIndex + 1);
     _saveHistory();
     _loadCurrent();
@@ -176,6 +179,19 @@ class ReaderNavigationNotifier extends StateNotifier<ReaderNavigationState> {
     _loadCurrent();
   }
 
+  /// Called by the reader's scroll-spy in continuous mode when the viewport
+  /// moves into another chapter. Updates tracking only; never scrolls.
+  void syncCurrentIndexFromScroll(int index) {
+    if (index < 0 || index >= state.chapters.length) return;
+    if (index == state.currentIndex) return;
+    if (index > state.currentIndex) {
+      // Chapters scrolled past count as read.
+      _markChapterAsRead(state.chapters[state.currentIndex].id);
+    }
+    state = state.copyWith(currentIndex: index);
+    _saveHistory();
+  }
+
   void _loadCurrent() {
     final chapter = state.currentChapter;
     if (chapter == null) return;
@@ -185,12 +201,25 @@ class ReaderNavigationNotifier extends StateNotifier<ReaderNavigationState> {
         .preloadSurrounding(chapter.id, state.chapters);
   }
 
-  void setRestoredScrollPosition(double position) {
-    state = state.copyWith(restoredScrollPosition: position);
+  void setRestoredBlockIndex(int blockIndex) {
+    state = ReaderNavigationState(
+      chapters: state.chapters,
+      currentIndex: state.currentIndex,
+      isLoading: state.isLoading,
+      error: state.error,
+      novelId: state.novelId,
+      restoredBlockIndex: blockIndex,
+    );
   }
 
-  void clearRestoredScrollPosition() {
-    state = state.copyWith(restoredScrollPosition: null);
+  void clearRestoredBlockIndex() {
+    state = ReaderNavigationState(
+      chapters: state.chapters,
+      currentIndex: state.currentIndex,
+      isLoading: state.isLoading,
+      error: state.error,
+      novelId: state.novelId,
+    );
   }
 }
 

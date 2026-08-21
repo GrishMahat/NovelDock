@@ -8,6 +8,7 @@ import 'package:just_audio_media_kit/just_audio_media_kit.dart';
 import 'app.dart';
 import 'core/utils/log_buffer.dart';
 import 'core/tts/background_audio_handler.dart';
+import 'core/utils/window_state.dart';
 import 'features/downloads/background_service.dart';
 
 final FlutterLocalNotificationsPlugin flutterLocalNotificationsPlugin =
@@ -79,6 +80,9 @@ void main() async {
 
   // Initialize background download service (Android foreground service)
   BackgroundDownloadService.init();
+
+  // Desktop: min window size + remember last window bounds
+  await WindowStateManager.init();
 
   // Initialize log buffer (captures all Log calls in-memory)
   initLogBuffer();

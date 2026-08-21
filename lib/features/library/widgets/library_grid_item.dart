@@ -3,8 +3,11 @@ import 'package:flutter/material.dart';
 
 import '../../../core/database/database.dart';
 import '../../../theme/app_theme.dart';
+import '../../../theme/tokens.dart';
 
-/// Grid item for library screen. Book cover + title + play button overlay.
+/// Grid item for library screen. Book cover + status chip + title + play
+/// button overlay. Colors come from the theme; the play button uses
+/// `primary` so it survives both brightness modes.
 class LibraryGridItem extends StatelessWidget {
   final Novel novel;
   final VoidCallback onTap;
@@ -21,6 +24,10 @@ class LibraryGridItem extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final scheme = Theme.of(context).colorScheme;
+    final text = Theme.of(context).textTheme;
+    final status = novel.status;
+
     return Card(
       clipBehavior: Clip.antiAlias,
       child: InkWell(
@@ -34,20 +41,30 @@ class LibraryGridItem extends StatelessWidget {
                 fit: StackFit.expand,
                 children: [
                   _buildCover(context),
+                  if (status != null && status.isNotEmpty)
+                    Positioned(
+                      left: Insets.xs,
+                      top: Insets.xs,
+                      child: _StatusChip(label: status),
+                    ),
                   Positioned(
-                    right: 4,
-                    bottom: 4,
-                    child: GestureDetector(
-                      onTap: onPlay,
-                      child: Container(
-                        width: 32,
-                        height: 32,
-                        decoration: BoxDecoration(
-                          color: AppTheme.kPrimary,
-                          shape: BoxShape.circle,
-                          boxShadow: [BoxShadow(color: Colors.black.withValues(alpha: 0.4), blurRadius: 4)],
+                    right: Insets.xs,
+                    bottom: Insets.xs,
+                    child: Material(
+                      color: scheme.primary,
+                      shape: const CircleBorder(),
+                      elevation: 2,
+                      child: InkWell(
+                        onTap: onPlay,
+                        customBorder: const CircleBorder(),
+                        child: Padding(
+                          padding: const EdgeInsets.all(6),
+                          child: Icon(
+                            Icons.play_arrow,
+                            size: 20,
+                            color: scheme.onPrimary,
+                          ),
                         ),
-                        child: const Icon(Icons.play_arrow, color: Colors.white, size: 20),
                       ),
                     ),
                   ),
@@ -55,8 +72,13 @@ class LibraryGridItem extends StatelessWidget {
               ),
             ),
             Padding(
-              padding: const EdgeInsets.all(6),
-              child: Text(novel.title, style: const TextStyle(fontSize: 11, fontWeight: FontWeight.w500), maxLines: 2, overflow: TextOverflow.ellipsis),
+              padding: const EdgeInsets.all(Insets.sm),
+              child: Text(
+                novel.title,
+                style: text.titleSmall,
+                maxLines: 2,
+                overflow: TextOverflow.ellipsis,
+              ),
             ),
           ],
         ),
@@ -65,14 +87,63 @@ class LibraryGridItem extends StatelessWidget {
   }
 
   Widget _buildCover(BuildContext context) {
-    if (novel.coverUrl != null && novel.coverUrl!.isNotEmpty) {
-      return CachedNetworkImage(
-        imageUrl: novel.coverUrl!,
-        fit: BoxFit.cover,
-        placeholder: (_, __) => Container(color: Theme.of(context).colorScheme.surfaceContainerHighest, child: const Icon(Icons.book, size: 32)),
-        errorWidget: (_, __, ___) => Container(color: Theme.of(context).colorScheme.surfaceContainerHighest, child: const Icon(Icons.book, size: 32)),
-      );
+    final fallback = Container(
+      color: Theme.of(context).colorScheme.surfaceContainerHighest,
+      child: const Icon(Icons.book, size: 32),
+    );
+    if (novel.coverUrl == null || novel.coverUrl!.isEmpty) return fallback;
+    return CachedNetworkImage(
+      imageUrl: novel.coverUrl!,
+      fit: BoxFit.cover,
+      placeholder: (_, __) => fallback,
+      errorWidget: (_, __, ___) => fallback,
+    );
+  }
+}
+
+/// Small status pill drawn on the cover corner. Color comes from the
+/// semantic AppColors extension (library status colors).
+class _StatusChip extends StatelessWidget {
+  final String label;
+  const _StatusChip({required this.label});
+
+  @override
+  Widget build(BuildContext context) {
+    final appColors = Theme.of(context).extension<AppColors>();
+    final scheme = Theme.of(context).colorScheme;
+
+    final Color color;
+    switch (label) {
+      case 'Reading':
+        color = appColors?.ongoing ?? scheme.primary;
+        break;
+      case 'Completed':
+        color = appColors?.completed ?? scheme.primary;
+        break;
+      case 'Dropped':
+        color = appColors?.dropped ?? scheme.primary;
+        break;
+      case 'On Hold':
+        color = appColors?.onHold ?? scheme.primary;
+        break;
+      default:
+        color = scheme.primary;
     }
-    return Container(color: Theme.of(context).colorScheme.surfaceContainerHighest, child: const Icon(Icons.book, size: 32));
+
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: Insets.sm, vertical: 2),
+      decoration: BoxDecoration(
+        color: color.withValues(alpha: 0.18),
+        borderRadius: BorderRadius.all(Radii.sm),
+      ),
+      child: Text(
+        label,
+        style: TextStyle(
+          fontSize: 10,
+          fontWeight: FontWeight.w600,
+          color: color,
+        ),
+      ),
+    );
   }
 }

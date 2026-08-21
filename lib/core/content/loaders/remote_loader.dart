@@ -1,3 +1,4 @@
+import 'package:dio/dio.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../../core/database/database.dart';
@@ -33,7 +34,13 @@ class RemoteLoader extends ContentLoader {
       throw Exception('Could not determine chapter URL');
     }
 
-    final response = await dio.get(contentUrl);
+    // Plain text: dio's default ResponseType.json auto-parses JSON responses
+    // (e.g. novelarrow's api-web chapter API) into a Dart Map whose
+    // toString() is not valid JSON/HTML for the provider parsers.
+    final response = await dio.get(
+      contentUrl,
+      options: Options(responseType: ResponseType.plain),
+    );
     final html = response.data.toString();
     final result = await instance.parseChapterContent(html);
 

@@ -5,7 +5,10 @@ import 'package:go_router/go_router.dart';
 import '../../core/providers/engine.dart';
 import '../../core/providers/models.dart';
 import '../../core/providers/novel_opener.dart';
+import '../../core/utils/platform.dart';
+import '../../theme/tokens.dart';
 import '../../widgets/cover_image.dart';
+import '../../widgets/max_width_box.dart';
 import '../../widgets/novel_card.dart';
 import '../../widgets/provider_avatar.dart';
 import '../settings/providers/provider_management_providers.dart';
@@ -132,63 +135,110 @@ class _SearchResultsScreenState extends ConsumerState<SearchResultsScreen> {
         .toList(growable: false);
 
     return Scaffold(
-      appBar: AppBar(
-        titleSpacing: 0,
-        title: _isSearching
-            ? TextField(
-                controller: _searchController,
-                autofocus: true,
-                textInputAction: TextInputAction.search,
-                textCapitalization: TextCapitalization.none,
-                autocorrect: false,
-                decoration: const InputDecoration(
-                  hintText: 'Search novels...',
-                  border: InputBorder.none,
+      appBar: isDesktop
+          ? null
+          : AppBar(
+              titleSpacing: 0,
+              title: _isSearching
+                  ? TextField(
+                      controller: _searchController,
+                      autofocus: true,
+                      textInputAction: TextInputAction.search,
+                      textCapitalization: TextCapitalization.none,
+                      autocorrect: false,
+                      decoration: const InputDecoration(
+                        hintText: 'Search novels...',
+                        border: InputBorder.none,
+                      ),
+                      onSubmitted: _onSearch,
+                    )
+                  : Text(
+                      widget.query,
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                    ),
+              actions: [
+                if (searchState.isLoading)
+                  const Padding(
+                    padding: EdgeInsets.only(right: 16),
+                    child: Center(
+                      child: SizedBox(
+                        width: 20,
+                        height: 20,
+                        child: CircularProgressIndicator(strokeWidth: 2),
+                      ),
+                    ),
+                  )
+                else if (!_isSearching)
+                  IconButton(
+                    icon: const Icon(Icons.search),
+                    tooltip: 'Search',
+                    onPressed: () => setState(() => _isSearching = true),
+                  )
+                else
+                  IconButton(
+                    icon: const Icon(Icons.close),
+                    tooltip: 'Close search',
+                    onPressed: () => setState(() => _isSearching = false),
+                  ),
+                IconButton(
+                  icon: const Icon(Icons.tune),
+                  tooltip: 'Search sources',
+                  onPressed: providersAsync.isLoading
+                      ? null
+                      : () => _openSourceSheet(providers, selected),
                 ),
-                onSubmitted: _onSearch,
-              )
-            : Text(
-                widget.query,
-                maxLines: 1,
-                overflow: TextOverflow.ellipsis,
-              ),
-        actions: [
-          if (searchState.isLoading)
-            const Padding(
-              padding: EdgeInsets.only(right: 16),
-              child: Center(
-                child: SizedBox(
-                  width: 20,
-                  height: 20,
-                  child: CircularProgressIndicator(strokeWidth: 2),
-                ),
-              ),
-            )
-          else if (!_isSearching)
-            IconButton(
-              icon: const Icon(Icons.search),
-              tooltip: 'Search',
-              onPressed: () => setState(() => _isSearching = true),
-            )
-          else
-            IconButton(
-              icon: const Icon(Icons.close),
-              tooltip: 'Close search',
-              onPressed: () => setState(() => _isSearching = false),
+              ],
             ),
-          IconButton(
-            icon: const Icon(Icons.tune),
-            tooltip: 'Search sources',
-            onPressed: providersAsync.isLoading
-                ? null
-                : () => _openSourceSheet(providers, selected),
+      body: Column(
+        children: [
+          if (isDesktop)
+            Padding(
+              padding: const EdgeInsets.fromLTRB(
+                  Insets.lg, Insets.md, Insets.lg, Insets.sm),
+              child: Row(
+                children: [
+                  IconButton(
+                    icon: const Icon(Icons.arrow_back),
+                    tooltip: 'Back',
+                    onPressed: () => context.pop(),
+                  ),
+                  const SizedBox(width: Insets.xs),
+                  Expanded(
+                    child: Text(
+                      widget.query,
+                      style: Theme.of(context).textTheme.titleLarge,
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                    ),
+                  ),
+                  if (searchState.isLoading)
+                    const Padding(
+                      padding: EdgeInsets.symmetric(horizontal: Insets.md),
+                      child: SizedBox(
+                        width: 20,
+                        height: 20,
+                        child: CircularProgressIndicator(strokeWidth: 2),
+                      ),
+                    ),
+                  IconButton(
+                    icon: const Icon(Icons.tune),
+                    tooltip: 'Search sources',
+                    onPressed: providersAsync.isLoading
+                        ? null
+                        : () => _openSourceSheet(providers, selected),
+                  ),
+                ],
+              ),
+            ),
+          Expanded(
+            child: _SearchRows(
+              providers: rowProviders,
+              allEnabledProviders: providers,
+              onOpen: _openNovel,
+            ),
           ),
         ],
-      ),
-      body: _SearchRows(
-        providers: rowProviders,
-        allEnabledProviders: providers,
-        onOpen: _openNovel,
       ),
     );
   }
@@ -353,17 +403,19 @@ class _SearchRows extends ConsumerWidget {
       );
     }
 
-    return ListView(
-      padding: const EdgeInsets.symmetric(vertical: 8),
-      children: [
-        for (final provider in [...resultRows, ...emptyRows])
-          _ProviderRow(
-            provider: provider,
-            state: searchState.stateFor(provider.id),
-            onOpen: onOpen,
-          ),
-        const SizedBox(height: 24),
-      ],
+    return MaxWidthBox(
+      child: ListView(
+        padding: const EdgeInsets.symmetric(vertical: 8),
+        children: [
+          for (final provider in [...resultRows, ...emptyRows])
+            _ProviderRow(
+              provider: provider,
+              state: searchState.stateFor(provider.id),
+              onOpen: onOpen,
+            ),
+          const SizedBox(height: 24),
+        ],
+      ),
     );
   }
 }
