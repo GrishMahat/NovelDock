@@ -9,11 +9,25 @@ class HistoryDao extends DatabaseAccessor<AppDatabase> with _$HistoryDaoMixin {
   HistoryDao(super.db);
 
   Future<int> addHistoryEntry(ReadingHistoryCompanion entry) async {
-    // Keep only ONE entry per novel in history (standard novel reader behavior)
+    // Keep only ONE row per novel. Update instead of delete+insert so
+    // columns absent from [entry] (e.g. scrollPosition on a plain chapter
+    // open) keep their previous values instead of wiping the resume anchor.
     final novelId = entry.novelId.value;
-    await (delete(
-      readingHistory,
-    )..where((t) => t.novelId.equals(novelId))).go();
+    final existing =
+        await (select(readingHistory)
+              ..where((t) => t.novelId.equals(novelId))
+              ..orderBy([(t) => OrderingTerm.desc(t.readAt)])
+              ..limit(1))
+            .get();
+
+    if (existing.isNotEmpty) {
+      await (update(
+        readingHistory,
+      )..where((t) => t.id.equals(existing.first.id))).write(entry);
+
+      return existing.first.id;
+    }
+
     return into(readingHistory).insert(entry);
   }
 

@@ -70,19 +70,22 @@ class ReaderNavigationNotifier extends StateNotifier<ReaderNavigationState> {
         isLoading: false,
       );
 
+      // Read the previous session's anchor BEFORE writing a fresh history
+      // entry, otherwise the new row shadows the saved position.
+      final chapter = state.currentChapter;
+      final blockIndex = chapter != null
+          ? await restoreReadingAnchor(chapter.id)
+          : null;
+
       _saveHistory();
       _loadCurrent();
 
-      final chapter = state.currentChapter;
-      if (chapter != null) {
-        final blockIndex = await restoreReadingAnchor(chapter.id);
-        if (blockIndex != null) {
-          ref.read(contentProvider.notifier).loadChapter(chapter.id).then((_) {
-            ref
-                .read(readerNavigationProvider(state.novelId).notifier)
-                .setRestoredBlockIndex(blockIndex);
-          });
-        }
+      if (chapter != null && blockIndex != null) {
+        ref.read(contentProvider.notifier).loadChapter(chapter.id).then((_) {
+          // Direct call: reading our own provider here would be a
+          // self-dependency.
+          setRestoredBlockIndex(blockIndex);
+        });
       }
 
       // Sync novel progress

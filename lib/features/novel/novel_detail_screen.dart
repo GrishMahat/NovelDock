@@ -37,6 +37,11 @@ class _NovelDetailScreenState extends ConsumerState<NovelDetailScreen> {
   bool _novelLoaded = false;
   bool _isRefreshing = false;
   bool _initialLoading = true;
+
+  /// Memoized so StreamBuilder keeps its subscription across rebuilds;
+  /// recreating the stream each build resets connectionState to waiting
+  /// and flashes the chapter skeleton.
+  Stream<List<Chapter>>? _chaptersStream;
   ChapterSort _chapterSort = ChapterSort.indexAsc;
 
   @override
@@ -134,6 +139,46 @@ class _NovelDetailScreenState extends ConsumerState<NovelDetailScreen> {
     if (mounted) {
       context.push('/reader/${widget.novelId}/${chapters.first.id}');
     }
+  }
+
+  /// Fullscreen, pinch-zoomable cover viewer. Tap anywhere or the close
+  /// button to dismiss.
+  void _showCoverViewer(String url) {
+    showDialog(
+      context: context,
+      barrierColor: Colors.black87,
+      builder: (context) => Dialog.fullscreen(
+        backgroundColor: Colors.transparent,
+        child: Stack(
+          children: [
+            Positioned.fill(
+              child: GestureDetector(
+                onTap: () => Navigator.pop(context),
+                child: InteractiveViewer(
+                  maxScale: 5,
+                  child: Center(
+                    child: Image.network(url, fit: BoxFit.contain),
+                  ),
+                ),
+              ),
+            ),
+            SafeArea(
+              child: Align(
+                alignment: Alignment.topRight,
+                child: Padding(
+                  padding: const EdgeInsets.all(Insets.sm),
+                  child: IconButton.filledTonal(
+                    icon: const Icon(Icons.close),
+                    tooltip: 'Close',
+                    onPressed: () => Navigator.pop(context),
+                  ),
+                ),
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
   }
 
   void _triggerCloudflareBypass() async {
@@ -380,7 +425,9 @@ class _NovelDetailScreenState extends ConsumerState<NovelDetailScreen> {
     List<String> genres,
   ) {
     return StreamBuilder<List<Chapter>>(
-      stream: chapterDao.watchChaptersForNovel(widget.novelId),
+      stream: _chaptersStream ??= ref
+          .watch(chapterDaoProvider)
+          .watchChaptersForNovel(widget.novelId),
       builder: (context, chapterSnapshot) {
         final chapters = chapterSnapshot.data ?? [];
         final sortedChapters = List<Chapter>.from(chapters)
@@ -396,8 +443,11 @@ class _NovelDetailScreenState extends ConsumerState<NovelDetailScreen> {
                 return b.name.compareTo(a.name);
             }
           });
+        // Only show the skeleton when there is nothing to show yet;
+        // re-emissions and rebuilds must never blank an existing list.
         final isLoadingChapters =
-            chapterSnapshot.connectionState == ConnectionState.waiting;
+            chapterSnapshot.connectionState == ConnectionState.waiting &&
+            sortedChapters.isEmpty;
         final hasDescription =
             novel?.description != null && novel!.description!.isNotEmpty;
         final showChapterShimmer =
@@ -425,31 +475,39 @@ class _NovelDetailScreenState extends ConsumerState<NovelDetailScreen> {
                     Row(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
-                        ClipRRect(
-                          borderRadius: BorderRadius.all(Radii.md),
-                          child: novel?.coverUrl != null
-                              ? Image.network(
-                                  novel!.coverUrl!,
-                                  width: 105,
-                                  height: 145,
-                                  fit: BoxFit.cover,
-                                  errorBuilder: (_, _, _) => Container(
-                                    width: 105,
-                                    height: 145,
-                                    color: Theme.of(
-                                      context,
-                                    ).colorScheme.surfaceContainerHighest,
-                                    child: const Icon(Icons.book, size: 40),
-                                  ),
-                                )
-                              : Container(
-                                  width: 105,
-                                  height: 145,
-                                  color: Theme.of(
-                                    context,
-                                  ).colorScheme.surfaceContainerHighest,
-                                  child: const Icon(Icons.book, size: 40),
-                                ),
+                        GestureDetector(
+                          onTap: novel?.coverUrl == null
+                              ? null
+                              : () => _showCoverViewer(novel!.coverUrl!),
+                          child: Tooltip(
+                            message: 'View cover',
+                            child: ClipRRect(
+                              borderRadius: BorderRadius.all(Radii.md),
+                              child: novel?.coverUrl != null
+                                  ? Image.network(
+                                      novel!.coverUrl!,
+                                      width: 105,
+                                      height: 145,
+                                      fit: BoxFit.cover,
+                                      errorBuilder: (_, _, _) => Container(
+                                        width: 105,
+                                        height: 145,
+                                        color: Theme.of(
+                                          context,
+                                        ).colorScheme.surfaceContainerHighest,
+                                        child: const Icon(Icons.book, size: 40),
+                                      ),
+                                    )
+                                  : Container(
+                                      width: 105,
+                                      height: 145,
+                                      color: Theme.of(
+                                        context,
+                                      ).colorScheme.surfaceContainerHighest,
+                                      child: const Icon(Icons.book, size: 40),
+                                    ),
+                            ),
+                          ),
                         ),
                         const SizedBox(width: 16),
                         Expanded(
@@ -556,12 +614,6 @@ class _NovelDetailScreenState extends ConsumerState<NovelDetailScreen> {
                         _buildActionButton(
                           icon: Icons.hourglass_empty,
                           label: 'Soon',
-                          isSelected: false,
-                          onTap: () {},
-                        ),
-                        _buildActionButton(
-                          icon: Icons.sync,
-                          label: 'Tracking',
                           isSelected: false,
                           onTap: () {},
                         ),

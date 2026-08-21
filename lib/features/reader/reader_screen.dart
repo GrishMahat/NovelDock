@@ -236,15 +236,62 @@ class _ReaderScreenState extends ConsumerState<ReaderScreen> {
   }
 
   /// Scrolls the saved content block into view once it exists in the tree.
-  /// Retries across frames because chapter content builds asynchronously.
+  ///
+  /// ListView.builder only materializes visible items, so the target chunk
+  /// does not exist while we sit at the top. We probe downward in viewport
+  /// steps, letting batches build, until the target appears and we snap to
+  /// it. If the target never appears (stale anchor, changed parsing), we
+  /// land on the nearest already-built chunk of the same chapter instead of
+  /// stranding the viewport in blank space.
   void _restoreAnchor(int block) {
     final nav = ref.read(readerNavigationProvider(widget.novelId));
     final chapter = nav.currentChapter;
     if (chapter == null) return;
-    final key = '${chapter.id}-$block';
 
-    void tryEnsure(int attempt) {
+    final prefix = '${chapter.id}-';
+    final key = '$prefix$block';
+
+    var probe = 0.0;
+    var stagnantFrames = 0;
+    var lastMaxExtent = -1.0;
+
+    /// Largest already-built block index of this chapter.
+    int builtUpTo() {
+      var maxBuilt = -1;
+      for (final k in _chunkKeys.keys) {
+        if (!k.startsWith(prefix)) continue;
+        final i = int.tryParse(k.substring(prefix.length));
+        if (i != null && i > maxBuilt) maxBuilt = i;
+      }
+      return maxBuilt;
+    }
+
+    void landOnNearest() {
+      final maxBuilt = builtUpTo();
+      if (maxBuilt < 0) return;
+
+      // Prefer the closest built chunk at or below the target.
+      for (var i = block.clamp(0, maxBuilt); i >= 0; i--) {
+        final context = _chunkKeys['$prefix$i']?.currentContext;
+        if (context != null) {
+          Scrollable.ensureVisible(
+            context,
+            alignment: 0.08,
+            duration: Duration.zero,
+          );
+          return;
+        }
+      }
+    }
+
+    void step(int attempt) {
       if (!mounted) return;
+
+      if (!_scrollController.hasClients) {
+        _retryFrame(step, attempt);
+        return;
+      }
+
       final context = _chunkKeys[key]?.currentContext;
       if (context != null) {
         Scrollable.ensureVisible(
@@ -252,14 +299,38 @@ class _ReaderScreenState extends ConsumerState<ReaderScreen> {
           alignment: 0.08,
           duration: Duration.zero,
         );
-      } else if (attempt < 60) {
-        WidgetsBinding.instance.addPostFrameCallback(
-          (_) => tryEnsure(attempt + 1),
-        );
+        return;
       }
+
+      // Target unreachable (never built): settle nearby instead of
+      // wandering into blank space.
+      if (attempt > 300 || stagnantFrames > 10) {
+        landOnNearest();
+        return;
+      }
+
+      final maxExtent = _scrollController.position.maxScrollExtent;
+      if (maxExtent <= lastMaxExtent) {
+        stagnantFrames++;
+      } else {
+        stagnantFrames = 0;
+        lastMaxExtent = maxExtent;
+      }
+
+      // Advance the probe by two viewport heights per frame.
+      final viewport = _scrollController.position.viewportDimension;
+      probe = (probe + viewport * 2).clamp(0.0, maxExtent);
+
+      if (maxExtent > 0) _scrollController.jumpTo(probe);
+
+      _retryFrame(step, attempt + 1);
     }
 
-    WidgetsBinding.instance.addPostFrameCallback((_) => tryEnsure(0));
+    WidgetsBinding.instance.addPostFrameCallback((_) => step(0));
+  }
+
+  void _retryFrame(void Function(int attempt) step, int attempt) {
+    WidgetsBinding.instance.addPostFrameCallback((_) => step(attempt));
   }
 
   void _goToPreviousChapter() {

@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/rendering.dart' show ScrollCacheExtent;
 import 'package:url_launcher/url_launcher.dart';
 
 import '../../../core/content/content_model.dart';
@@ -114,6 +115,9 @@ Widget buildContinuousContent({
 }) {
   return ListView.builder(
     controller: scrollController,
+    // Render well ahead of the viewport so anchor restore and TTS seeks
+    // find their target chunks quickly on long chapters.
+    scrollCacheExtent: ScrollCacheExtent.pixels(4000),
     padding: EdgeInsets.symmetric(
       horizontal: settings.paddingH,
       vertical: settings.paddingV,
