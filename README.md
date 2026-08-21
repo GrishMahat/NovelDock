@@ -65,6 +65,17 @@ Some Dart packages are maintained as forks and pulled as git dependencies:
 - [just_audio_media_kit](https://github.com/GrishMahat/just_audio_media_kit), fork of [Pato05/just_audio_media_kit](https://github.com/Pato05/just_audio_media_kit). Adds a static `mpvProperties` map so any mpv property (network timeout, HTTP headers) applies to every player; upstream had no such hook.
 - [flutter_js](https://github.com/GrishMahat/flutter_js), fork of [abner/flutter_js](https://github.com/abner/flutter_js). Runs provider scripts on quickjs-ng. Forked early on; the exact reason is lost to time, but it works and stays pinned.
 
+## Releases
+
+Releases are built automatically. Bump `version` in `pubspec.yaml`, commit, then:
+
+```bash
+git tag -a vX.Y.Z-beta -m "..."
+git push origin vX.Y.Z-beta
+```
+
+The release workflow signs the APK with a keystore stored in GitHub secrets and publishes it under Releases with generated notes. To build locally you need `android/key.properties` pointing at your own keystore; without it, local release builds fall back to debug signing.
+
 ## Credits
 
 I built NovelDock because I wanted to read my novels on the desktop. [QuickNovel](https://github.com/LagradOst/QuickNovel) by LagradOst and contributors was the inspiration, and credit goes to that team for the idea. The app itself is an independent Flutter codebase with a different architecture, not a port.
