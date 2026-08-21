@@ -33,10 +33,13 @@ class _LogViewerPageState extends ConsumerState<LogViewerPage> {
     }
     if (_filterText.isNotEmpty) {
       final lower = _filterText.toLowerCase();
-      result = result.where((e) =>
-        e.tag.toLowerCase().contains(lower) ||
-        e.message.toLowerCase().contains(lower)
-      ).toList();
+      result = result
+          .where(
+            (e) =>
+                e.tag.toLowerCase().contains(lower) ||
+                e.message.toLowerCase().contains(lower),
+          )
+          .toList();
     }
     return result;
   }
@@ -84,7 +87,11 @@ class _LogViewerPageState extends ConsumerState<LogViewerPage> {
         title: const Text('Log Viewer'),
         actions: [
           IconButton(
-            icon: Icon(_autoScroll ? Icons.vertical_align_bottom : Icons.vertical_align_center),
+            icon: Icon(
+              _autoScroll
+                  ? Icons.vertical_align_bottom
+                  : Icons.vertical_align_center,
+            ),
             tooltip: 'Auto-scroll',
             onPressed: () => setState(() => _autoScroll = !_autoScroll),
           ),
@@ -122,7 +129,10 @@ class _LogViewerPageState extends ConsumerState<LogViewerPage> {
                   return Padding(
                     padding: const EdgeInsets.only(right: 4),
                     child: FilterChip(
-                      label: Text(level.name, style: const TextStyle(fontSize: 11)),
+                      label: Text(
+                        level.name,
+                        style: const TextStyle(fontSize: 11),
+                      ),
                       selected: selected,
                       onSelected: (_) => setState(() {
                         _levelFilter = selected ? null : level;
@@ -153,8 +163,13 @@ class _LogViewerPageState extends ConsumerState<LogViewerPage> {
                       )
                     : null,
                 isDense: true,
-                contentPadding: const EdgeInsets.symmetric(vertical: 8, horizontal: 12),
-                border: OutlineInputBorder(borderRadius: BorderRadius.circular(8)),
+                contentPadding: const EdgeInsets.symmetric(
+                  vertical: 8,
+                  horizontal: 12,
+                ),
+                border: OutlineInputBorder(
+                  borderRadius: BorderRadius.circular(8),
+                ),
               ),
               style: const TextStyle(fontSize: 12),
               onChanged: (v) => setState(() => _filterText = v),
@@ -167,13 +182,19 @@ class _LogViewerPageState extends ConsumerState<LogViewerPage> {
               children: [
                 Text(
                   '${filtered.length} / ${entries.length} entries',
-                  style: TextStyle(fontSize: 11, color: Theme.of(context).colorScheme.onSurfaceVariant),
+                  style: TextStyle(
+                    fontSize: 11,
+                    color: Theme.of(context).colorScheme.onSurfaceVariant,
+                  ),
                 ),
                 const Spacer(),
                 if (entries.isNotEmpty)
                   Text(
                     entries.last.formatted.split(' ').first,
-                    style: TextStyle(fontSize: 10, color: Theme.of(context).colorScheme.onSurfaceVariant),
+                    style: TextStyle(
+                      fontSize: 10,
+                      color: Theme.of(context).colorScheme.onSurfaceVariant,
+                    ),
                   ),
               ],
             ),
@@ -182,8 +203,12 @@ class _LogViewerPageState extends ConsumerState<LogViewerPage> {
             child: filtered.isEmpty
                 ? Center(
                     child: Text(
-                      entries.isEmpty ? 'No log entries yet' : 'No matching entries',
-                      style: TextStyle(color: Theme.of(context).colorScheme.onSurfaceVariant),
+                      entries.isEmpty
+                          ? 'No log entries yet'
+                          : 'No matching entries',
+                      style: TextStyle(
+                        color: Theme.of(context).colorScheme.onSurfaceVariant,
+                      ),
                     ),
                   )
                 : ListView.builder(
@@ -198,7 +223,10 @@ class _LogViewerPageState extends ConsumerState<LogViewerPage> {
                         LogLevel.error => Colors.red.shade300,
                       };
                       return Padding(
-                        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 1),
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: 12,
+                          vertical: 1,
+                        ),
                         child: Text(
                           entry.formatted,
                           style: TextStyle(

@@ -263,8 +263,9 @@ Widget buildPagedContent({
             onPageChanged(index);
             loadChapter(chapters[index].id);
             if (index > 0) loadChapter(chapters[index - 1].id);
-            if (index < chapters.length - 1)
+            if (index < chapters.length - 1) {
               loadChapter(chapters[index + 1].id);
+            }
           },
           itemBuilder: (context, index) {
             final chapterId = chapters[index].id;

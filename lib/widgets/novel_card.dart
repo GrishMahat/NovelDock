@@ -93,11 +93,7 @@ class NovelListTile extends StatelessWidget {
           imageHeaders: item.coverHeaders,
         ),
       ),
-      title: Text(
-        item.title,
-        maxLines: 2,
-        overflow: TextOverflow.ellipsis,
-      ),
+      title: Text(item.title, maxLines: 2, overflow: TextOverflow.ellipsis),
       subtitle: Text(
         subtitleOverride ??
             [
@@ -128,11 +124,7 @@ class NovelCompactTile extends StatelessWidget {
   final SearchResultItem item;
   final VoidCallback onTap;
 
-  const NovelCompactTile({
-    super.key,
-    required this.item,
-    required this.onTap,
-  });
+  const NovelCompactTile({super.key, required this.item, required this.onTap});
 
   @override
   Widget build(BuildContext context) {

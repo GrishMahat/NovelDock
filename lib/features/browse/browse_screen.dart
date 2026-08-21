@@ -177,7 +177,9 @@ class _BrowseScreenState extends ConsumerState<BrowseScreen>
           loading: () => const Tab(text: 'Catalog'),
           error: (_, _) => const Tab(text: 'Catalog'),
           data: (providers) {
-            final installed = providers.where((p) => enabled.contains(p.id)).length;
+            final installed = providers
+                .where((p) => enabled.contains(p.id))
+                .length;
             return Tab(
               child: Row(
                 mainAxisSize: MainAxisSize.min,
@@ -186,7 +188,10 @@ class _BrowseScreenState extends ConsumerState<BrowseScreen>
                   if (installed > 0) ...[
                     const SizedBox(width: 6),
                     Container(
-                      padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 1),
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 6,
+                        vertical: 1,
+                      ),
                       decoration: BoxDecoration(
                         color: Theme.of(context).colorScheme.primary,
                         borderRadius: BorderRadius.circular(10),
@@ -229,23 +234,33 @@ class InstalledTab extends ConsumerWidget {
         onRetry: () => ref.invalidate(availableProvidersProvider),
       ),
       data: (providers) {
-        final enabledProviders =
-            providers.where((p) => enabled.contains(p.id)).toList();
+        final enabledProviders = providers
+            .where((p) => enabled.contains(p.id))
+            .toList();
 
         if (enabledProviders.isEmpty) {
           return Center(
             child: Column(
               mainAxisAlignment: MainAxisAlignment.center,
               children: [
-                Icon(Icons.explore_off,
-                    size: 64, color: Theme.of(context).colorScheme.onSurfaceVariant.withValues(alpha: 0.5)),
+                Icon(
+                  Icons.explore_off,
+                  size: 64,
+                  color: Theme.of(
+                    context,
+                  ).colorScheme.onSurfaceVariant.withValues(alpha: 0.5),
+                ),
                 const SizedBox(height: 16),
-                const Text('No sources installed',
-                    style: TextStyle(fontSize: 18, fontWeight: FontWeight.w600)),
+                const Text(
+                  'No sources installed',
+                  style: TextStyle(fontSize: 18, fontWeight: FontWeight.w600),
+                ),
                 const SizedBox(height: 8),
                 Text(
                   'Go to the Catalog tab to add sources.',
-                  style: TextStyle(color: Theme.of(context).colorScheme.onSurfaceVariant),
+                  style: TextStyle(
+                    color: Theme.of(context).colorScheme.onSurfaceVariant,
+                  ),
                 ),
               ],
             ),
@@ -253,7 +268,12 @@ class InstalledTab extends ConsumerWidget {
         }
 
         return MaxWidthBox(
-          padding: const EdgeInsets.fromLTRB(Insets.lg, Insets.lg, Insets.lg, Insets.xl),
+          padding: const EdgeInsets.fromLTRB(
+            Insets.lg,
+            Insets.lg,
+            Insets.lg,
+            Insets.xl,
+          ),
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
@@ -264,8 +284,8 @@ class InstalledTab extends ConsumerWidget {
                   final columns = constraints.maxWidth >= 900
                       ? 3
                       : constraints.maxWidth >= 560
-                          ? 2
-                          : 1;
+                      ? 2
+                      : 1;
                   return GridView.builder(
                     shrinkWrap: true,
                     physics: const NeverScrollableScrollPhysics(),
@@ -276,9 +296,8 @@ class InstalledTab extends ConsumerWidget {
                       mainAxisExtent: 76,
                     ),
                     itemCount: enabledProviders.length,
-                    itemBuilder: (context, index) => _SourceCard(
-                      provider: enabledProviders[index],
-                    ),
+                    itemBuilder: (context, index) =>
+                        _SourceCard(provider: enabledProviders[index]),
                   );
                 },
               ),
@@ -319,7 +338,10 @@ class _SourceCard extends StatelessWidget {
       child: InkWell(
         onTap: () => context.push('/provider/${provider.id}'),
         child: Padding(
-          padding: const EdgeInsets.symmetric(horizontal: Insets.md, vertical: Insets.sm),
+          padding: const EdgeInsets.symmetric(
+            horizontal: Insets.md,
+            vertical: Insets.sm,
+          ),
           child: Row(
             children: [
               ProviderAvatar(provider: provider, radius: 20),
@@ -396,8 +418,12 @@ class CatalogTab extends ConsumerWidget {
           );
         }
 
-        final installed = providers.where((p) => enabled.contains(p.id)).toList();
-        final available = providers.where((p) => !enabled.contains(p.id)).toList();
+        final installed = providers
+            .where((p) => enabled.contains(p.id))
+            .toList();
+        final available = providers
+            .where((p) => !enabled.contains(p.id))
+            .toList();
 
         // Group available by language
         final grouped = <String, List<ProviderMeta>>{};
@@ -407,48 +433,57 @@ class CatalogTab extends ConsumerWidget {
         }
 
         return MaxWidthBox(
-          padding: const EdgeInsets.fromLTRB(Insets.lg, Insets.md, Insets.lg, Insets.xl),
+          padding: const EdgeInsets.fromLTRB(
+            Insets.lg,
+            Insets.md,
+            Insets.lg,
+            Insets.xl,
+          ),
           child: ListView(
-          children: [
-            if (showUpdateAll)
-              Padding(
-                padding: const EdgeInsets.only(bottom: Insets.sm),
-                child: OutlinedButton.icon(
-                  onPressed: updating ? null : onUpdateAll,
-                  icon: updating
-                      ? const SizedBox(
-                          width: 16,
-                          height: 16,
-                          child: CircularProgressIndicator(strokeWidth: 2),
-                        )
-                      : const Icon(Icons.update, size: 18),
-                  label: Text(updating ? 'Updating...' : 'Update all'),
+            children: [
+              if (showUpdateAll)
+                Padding(
+                  padding: const EdgeInsets.only(bottom: Insets.sm),
+                  child: OutlinedButton.icon(
+                    onPressed: updating ? null : onUpdateAll,
+                    icon: updating
+                        ? const SizedBox(
+                            width: 16,
+                            height: 16,
+                            child: CircularProgressIndicator(strokeWidth: 2),
+                          )
+                        : const Icon(Icons.update, size: 18),
+                    label: Text(updating ? 'Updating...' : 'Update all'),
+                  ),
                 ),
-              ),
-            if (installed.isNotEmpty) ...[
-              _sectionHeader(context, 'Installed'),
-              ...installed.map((p) => Padding(
+              if (installed.isNotEmpty) ...[
+                _sectionHeader(context, 'Installed'),
+                ...installed.map(
+                  (p) => Padding(
                     padding: const EdgeInsets.only(bottom: Insets.sm),
                     child: _ExtensionTile(
                       provider: p,
                       isInstalled: true,
                       onToggle: () => toggleProvider(p.id, ref),
                     ),
-                  )),
-            ],
-            for (final entry in grouped.entries) ...[
-              _sectionHeader(context, entry.key),
-              ...entry.value.map((p) => Padding(
+                  ),
+                ),
+              ],
+              for (final entry in grouped.entries) ...[
+                _sectionHeader(context, entry.key),
+                ...entry.value.map(
+                  (p) => Padding(
                     padding: const EdgeInsets.only(bottom: Insets.sm),
                     child: _ExtensionTile(
                       provider: p,
                       isInstalled: false,
                       onToggle: () => toggleProvider(p.id, ref),
                     ),
-                  )),
+                  ),
+                ),
+              ],
             ],
-          ],
-        ),
+          ),
         );
       },
     );
@@ -491,53 +526,55 @@ class _ExtensionTile extends StatelessWidget {
       ),
       clipBehavior: Clip.antiAlias,
       child: ListTile(
-      leading: ProviderAvatar(provider: provider),
-      title: Text(provider.name),
-      subtitle: Row(
-        children: [
-          Text(
-            '${provider.lang.toUpperCase()} · v${provider.version}',
-            style: const TextStyle(fontSize: 12),
-          ),
-          if (provider.nsfw) ...[
-            const SizedBox(width: 6),
-            Container(
-              padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 1),
-              decoration: BoxDecoration(
-                color: Colors.red.withValues(alpha: 0.2),
-                borderRadius: BorderRadius.circular(3),
-              ),
-              child: const Text(
-                '18+',
-                style: TextStyle(fontSize: 10, fontWeight: FontWeight.bold, color: Colors.red),
-              ),
+        leading: ProviderAvatar(provider: provider),
+        title: Text(provider.name),
+        subtitle: Row(
+          children: [
+            Text(
+              '${provider.lang.toUpperCase()} · v${provider.version}',
+              style: const TextStyle(fontSize: 12),
             ),
+            if (provider.nsfw) ...[
+              const SizedBox(width: 6),
+              Container(
+                padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 1),
+                decoration: BoxDecoration(
+                  color: Colors.red.withValues(alpha: 0.2),
+                  borderRadius: BorderRadius.circular(3),
+                ),
+                child: const Text(
+                  '18+',
+                  style: TextStyle(
+                    fontSize: 10,
+                    fontWeight: FontWeight.bold,
+                    color: Colors.red,
+                  ),
+                ),
+              ),
+            ],
           ],
-        ],
-      ),
-      trailing: Row(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          IconButton(
-            icon: Icon(
-              Icons.info_outline,
-              size: 20,
-              color: isInstalled
-                  ? null
-                  : Theme.of(context).colorScheme.onSurfaceVariant,
+        ),
+        trailing: Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            IconButton(
+              icon: Icon(
+                Icons.info_outline,
+                size: 20,
+                color: isInstalled
+                    ? null
+                    : Theme.of(context).colorScheme.onSurfaceVariant,
+              ),
+              tooltip: 'Info',
+              onPressed: () =>
+                  _showProviderInfo(context, provider, isInstalled, onToggle),
             ),
-            tooltip: 'Info',
-            onPressed: () =>
-                _showProviderInfo(context, provider, isInstalled, onToggle),
-          ),
-          Switch(
-            value: isInstalled,
-            onChanged: (_) => onToggle(),
-          ),
-        ],
+            Switch(value: isInstalled, onChanged: (_) => onToggle()),
+          ],
+        ),
+        onTap: () =>
+            _showProviderInfo(context, provider, isInstalled, onToggle),
       ),
-      onTap: () => _showProviderInfo(context, provider, isInstalled, onToggle),
-    ),
     );
   }
 }
@@ -576,11 +613,17 @@ void _showProviderInfo(
                     children: [
                       Text(
                         provider.name,
-                        style: const TextStyle(fontSize: 18, fontWeight: FontWeight.w600),
+                        style: const TextStyle(
+                          fontSize: 18,
+                          fontWeight: FontWeight.w600,
+                        ),
                       ),
                       Text(
                         provider.baseUrl,
-                        style: TextStyle(fontSize: 12, color: Theme.of(context).colorScheme.onSurfaceVariant),
+                        style: TextStyle(
+                          fontSize: 12,
+                          color: Theme.of(context).colorScheme.onSurfaceVariant,
+                        ),
                       ),
                     ],
                   ),
@@ -591,14 +634,29 @@ void _showProviderInfo(
           const Divider(height: 1),
 
           // Info section
-          _infoTile(context, Icons.language, 'Language', provider.lang.toUpperCase()),
+          _infoTile(
+            context,
+            Icons.language,
+            'Language',
+            provider.lang.toUpperCase(),
+          ),
           _infoTile(context, Icons.code, 'Version', provider.version),
           if (provider.author != null)
-            _infoTile(context, Icons.person_outline, 'Author', provider.author!),
+            _infoTile(
+              context,
+              Icons.person_outline,
+              'Author',
+              provider.author!,
+            ),
           if (provider.nsfw)
             _infoTile(context, Icons.warning_amber, 'Content', 'NSFW (18+)'),
           if (provider.registryId != null)
-            _infoTile(context, Icons.folder_open, 'Registry', provider.registryId!),
+            _infoTile(
+              context,
+              Icons.folder_open,
+              'Registry',
+              provider.registryId!,
+            ),
 
           const Divider(height: 1),
 
@@ -634,12 +692,20 @@ void _showProviderInfo(
   );
 }
 
-Widget _infoTile(BuildContext context, IconData icon, String label, String value) {
-    return ListTile(
-      leading: Icon(icon, size: 20, color: Theme.of(context).colorScheme.onSurfaceVariant),
-      title: Text(label, style: const TextStyle(fontSize: 12)),
-      subtitle: Text(value),
-      dense: true,
-    );
-  }
-
+Widget _infoTile(
+  BuildContext context,
+  IconData icon,
+  String label,
+  String value,
+) {
+  return ListTile(
+    leading: Icon(
+      icon,
+      size: 20,
+      color: Theme.of(context).colorScheme.onSurfaceVariant,
+    ),
+    title: Text(label, style: const TextStyle(fontSize: 12)),
+    subtitle: Text(value),
+    dense: true,
+  );
+}

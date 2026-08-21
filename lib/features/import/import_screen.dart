@@ -42,10 +42,15 @@ class _ImportScreenState extends ConsumerState<ImportScreen> {
   Future<void> _importFromPath(String path) async {
     final file = File(path);
     if (!await file.exists()) {
-      setState(() { _error = 'File not found: $path'; });
+      setState(() {
+        _error = 'File not found: $path';
+      });
       return;
     }
-    setState(() { _isImporting = true; _error = null; });
+    setState(() {
+      _isImporting = true;
+      _error = null;
+    });
 
     try {
       final fileName = p.basename(path);
@@ -61,12 +66,14 @@ class _ImportScreenState extends ConsumerState<ImportScreen> {
       Log.ok(_tag, 'Copied to: $destPath');
 
       final novelDao = ref.read(novelDaoProvider);
-      final novelId = await novelDao.insertNovel(NovelsCompanion(
-        providerId: const Value('local'),
-        url: Value(destPath),
-        title: Value(p.basenameWithoutExtension(fileName)),
-        addedAt: Value(DateTime.now().millisecondsSinceEpoch),
-      ));
+      final novelId = await novelDao.insertNovel(
+        NovelsCompanion(
+          providerId: const Value('local'),
+          url: Value(destPath),
+          title: Value(p.basenameWithoutExtension(fileName)),
+          addedAt: Value(DateTime.now().millisecondsSinceEpoch),
+        ),
+      );
 
       final libraryDao = ref.read(libraryDaoProvider);
       await libraryDao.addToLibrary(novelId);
@@ -78,16 +85,22 @@ class _ImportScreenState extends ConsumerState<ImportScreen> {
         await _parsePdf(destPath, novelId);
       }
 
-      setState(() { _isImporting = false; _importedFile = fileName; });
+      setState(() {
+        _isImporting = false;
+        _importedFile = fileName;
+      });
 
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Imported: $fileName')),
-        );
+        ScaffoldMessenger.of(
+          context,
+        ).showSnackBar(SnackBar(content: Text('Imported: $fileName')));
       }
     } catch (e) {
       Log.e(_tag, 'Import failed', e);
-      setState(() { _isImporting = false; _error = e.toString(); });
+      setState(() {
+        _isImporting = false;
+        _error = e.toString();
+      });
     }
   }
 
@@ -108,29 +121,47 @@ class _ImportScreenState extends ConsumerState<ImportScreen> {
             : Column(
                 mainAxisAlignment: MainAxisAlignment.center,
                 children: [
-                  Icon(Icons.file_upload, size: 64,
-                      color: Theme.of(context).colorScheme.onSurfaceVariant.withValues(alpha: 0.5)),
+                  Icon(
+                    Icons.file_upload,
+                    size: 64,
+                    color: Theme.of(
+                      context,
+                    ).colorScheme.onSurfaceVariant.withValues(alpha: 0.5),
+                  ),
                   const SizedBox(height: 16),
-                  const Text('Import EPUB or PDF',
-                      style: TextStyle(fontSize: 18, fontWeight: FontWeight.w600)),
+                  const Text(
+                    'Import EPUB or PDF',
+                    style: TextStyle(fontSize: 18, fontWeight: FontWeight.w600),
+                  ),
                   const SizedBox(height: 8),
-                  Text('Select a file from your device\nto add to your library.',
-                      textAlign: TextAlign.center,
-                      style: TextStyle(color: Theme.of(context).colorScheme.onSurfaceVariant)),
+                  Text(
+                    'Select a file from your device\nto add to your library.',
+                    textAlign: TextAlign.center,
+                    style: TextStyle(
+                      color: Theme.of(context).colorScheme.onSurfaceVariant,
+                    ),
+                  ),
                   if (_importedFile != null) ...[
                     const SizedBox(height: 16),
-                    Card(child: ListTile(
-                      leading: const Icon(Icons.check_circle, color: Colors.green),
-                      title: Text('Imported: $_importedFile'),
-                      subtitle: const Text('Added to library'),
-                    )),
+                    Card(
+                      child: ListTile(
+                        leading: const Icon(
+                          Icons.check_circle,
+                          color: Colors.green,
+                        ),
+                        title: Text('Imported: $_importedFile'),
+                        subtitle: const Text('Added to library'),
+                      ),
+                    ),
                   ],
                   if (_error != null) ...[
                     const SizedBox(height: 16),
-                    Card(child: ListTile(
-                      leading: const Icon(Icons.error, color: Colors.red),
-                      title: Text('Error: $_error'),
-                    )),
+                    Card(
+                      child: ListTile(
+                        leading: const Icon(Icons.error, color: Colors.red),
+                        title: Text('Error: $_error'),
+                      ),
+                    ),
                   ],
                   const SizedBox(height: 24),
                   FilledButton.icon(
@@ -154,7 +185,10 @@ class _ImportScreenState extends ConsumerState<ImportScreen> {
     final file = result.first;
     if (file.path == null) return;
 
-    setState(() { _isImporting = true; _error = null; });
+    setState(() {
+      _isImporting = true;
+      _error = null;
+    });
 
     try {
       final sourceFile = File(file.path!);
@@ -173,12 +207,14 @@ class _ImportScreenState extends ConsumerState<ImportScreen> {
 
       // Add to database
       final novelDao = ref.read(novelDaoProvider);
-      final novelId = await novelDao.insertNovel(NovelsCompanion(
-        providerId: const Value('local'),
-        url: Value(destPath),
-        title: Value(p.basenameWithoutExtension(fileName)),
-        addedAt: Value(DateTime.now().millisecondsSinceEpoch),
-      ));
+      final novelId = await novelDao.insertNovel(
+        NovelsCompanion(
+          providerId: const Value('local'),
+          url: Value(destPath),
+          title: Value(p.basenameWithoutExtension(fileName)),
+          addedAt: Value(DateTime.now().millisecondsSinceEpoch),
+        ),
+      );
 
       // Also add to library so it appears in Library tab
       final libraryDao = ref.read(libraryDaoProvider);
@@ -193,16 +229,22 @@ class _ImportScreenState extends ConsumerState<ImportScreen> {
         await _parsePdf(destPath, novelId);
       }
 
-      setState(() { _isImporting = false; _importedFile = fileName; });
+      setState(() {
+        _isImporting = false;
+        _importedFile = fileName;
+      });
 
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Imported: $fileName')),
-        );
+        ScaffoldMessenger.of(
+          context,
+        ).showSnackBar(SnackBar(content: Text('Imported: $fileName')));
       }
     } catch (e) {
       Log.e(_tag, 'Import failed', e);
-      setState(() { _isImporting = false; _error = e.toString(); });
+      setState(() {
+        _isImporting = false;
+        _error = e.toString();
+      });
     }
   }
 
@@ -211,7 +253,10 @@ class _ImportScreenState extends ConsumerState<ImportScreen> {
       final bytes = await File(filePath).readAsBytes();
       final book = await EpubReader.readBook(bytes);
 
-      Log.i(_tag, 'EPUB: ${book.Title}, ${book.Chapters?.length ?? 0} chapters');
+      Log.i(
+        _tag,
+        'EPUB: ${book.Title}, ${book.Chapters?.length ?? 0} chapters',
+      );
 
       // Extract cover image
       String? coverUrl;
@@ -221,7 +266,9 @@ class _ImportScreenState extends ConsumerState<ImportScreen> {
           final coversDir = Directory(p.join(config.dataDir.path, 'covers'));
           await coversDir.create(recursive: true);
           final coverPath = p.join(coversDir.path, '$novelId.jpg');
-          final jpegBytes = img.encodeJpg(img.copyResize(book.CoverImage!, width: 300));
+          final jpegBytes = img.encodeJpg(
+            img.copyResize(book.CoverImage!, width: 300),
+          );
           await File(coverPath).writeAsBytes(jpegBytes);
           coverUrl = coverPath;
           Log.ok(_tag, 'Saved EPUB cover: $coverPath');
@@ -247,12 +294,14 @@ class _ImportScreenState extends ConsumerState<ImportScreen> {
       if (book.Chapters != null) {
         for (var i = 0; i < book.Chapters!.length; i++) {
           final ch = book.Chapters![i];
-          await chapterDao.insertChapter(ChaptersCompanion(
-            novelId: Value(novelId),
-            name: Value(ch.Title ?? 'Chapter ${i + 1}'),
-            url: Value('epub://$filePath#${ch.Title ?? '$i'}'),
-            index: Value(i.toDouble()),
-          ));
+          await chapterDao.insertChapter(
+            ChaptersCompanion(
+              novelId: Value(novelId),
+              name: Value(ch.Title ?? 'Chapter ${i + 1}'),
+              url: Value('epub://$filePath#${ch.Title ?? '$i'}'),
+              index: Value(i.toDouble()),
+            ),
+          );
         }
         Log.ok(_tag, 'Added ${book.Chapters!.length} chapters from EPUB');
       }
@@ -265,12 +314,14 @@ class _ImportScreenState extends ConsumerState<ImportScreen> {
     try {
       // Store PDF as single chapter, rendered by pdfrx in reader.
       final chapterDao = ref.read(chapterDaoProvider);
-      await chapterDao.insertChapter(ChaptersCompanion(
-        novelId: Value(novelId),
-        name: Value('PDF Document'),
-        url: Value('pdf://$filePath#page=1'),
-        index: Value(0),
-      ));
+      await chapterDao.insertChapter(
+        ChaptersCompanion(
+          novelId: Value(novelId),
+          name: Value('PDF Document'),
+          url: Value('pdf://$filePath#page=1'),
+          index: Value(0),
+        ),
+      );
       Log.ok(_tag, 'Added PDF as single chapter');
     } catch (e) {
       Log.e(_tag, 'PDF parse failed', e);

@@ -13,13 +13,13 @@ const _tag = 'Config';
 ///   Linux:   ~/.config/noveldock/
 ///   macOS:   ~/Library/Application Support/noveldock/
 ///   Windows: %APPDATA%/noveldock/
-///   Android/iOS: <app documents>/noveldock/config/
+///   Android/iOS: `<app documents>`/noveldock/config/
 ///
 /// Data directory (providers, database, cookies — large, machine-managed):
 ///   Linux:   ~/.local/share/noveldock/
 ///   macOS:   ~/Library/Application Support/noveldock/
 ///   Windows: %LOCALAPPDATA%/noveldock/
-///   Android/iOS: <app documents>/noveldock/data/
+///   Android/iOS: `<app documents>`/noveldock/data/
 class AppConfig {
   static AppConfig? _instance;
 

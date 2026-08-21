@@ -25,7 +25,8 @@ import '../features/import/import_screen.dart';
 import '../main.dart' show sharedFilePath;
 
 final GlobalKey<NavigatorState> _rootNavigatorKey = GlobalKey<NavigatorState>();
-final GlobalKey<NavigatorState> _shellNavigatorKey = GlobalKey<NavigatorState>();
+final GlobalKey<NavigatorState> _shellNavigatorKey =
+    GlobalKey<NavigatorState>();
 
 /// Routes nested under the shell (rail/top bar visible on desktop) are listed
 /// first; routes that must stay full-screen (e.g. the immersive reader) sit at
@@ -52,23 +53,20 @@ final routerProvider = Provider<GoRouter>((ref) {
           GoRoute(
             path: '/browse',
             name: 'browse',
-            pageBuilder: (context, state) => const NoTransitionPage(
-              child: BrowseScreen(),
-            ),
+            pageBuilder: (context, state) =>
+                const NoTransitionPage(child: BrowseScreen()),
           ),
           GoRoute(
             path: '/history',
             name: 'history',
-            pageBuilder: (context, state) => const NoTransitionPage(
-              child: HistoryScreen(),
-            ),
+            pageBuilder: (context, state) =>
+                const NoTransitionPage(child: HistoryScreen()),
           ),
           GoRoute(
             path: '/settings',
             name: 'settings',
-            pageBuilder: (context, state) => const NoTransitionPage(
-              child: SettingsScreen(),
-            ),
+            pageBuilder: (context, state) =>
+                const NoTransitionPage(child: SettingsScreen()),
           ),
           GoRoute(
             path: '/search/results',
@@ -80,9 +78,8 @@ final routerProvider = Provider<GoRouter>((ref) {
           GoRoute(
             path: '/provider/:id',
             name: 'provider',
-            builder: (context, state) => ProviderScreen(
-              providerId: state.pathParameters['id'] ?? '',
-            ),
+            builder: (context, state) =>
+                ProviderScreen(providerId: state.pathParameters['id'] ?? ''),
           ),
           GoRoute(
             path: '/novel/:id',
@@ -145,7 +142,8 @@ final routerProvider = Provider<GoRouter>((ref) {
             path: '/import',
             name: 'import',
             builder: (context, state) => ImportScreen(
-              initialFilePath: state.uri.queryParameters['file'] ?? sharedFilePath,
+              initialFilePath:
+                  state.uri.queryParameters['file'] ?? sharedFilePath,
             ),
           ),
         ],

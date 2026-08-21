@@ -65,7 +65,7 @@ class ReadingProgressNotifier extends StateNotifier<ReadingProgressState> {
   Timer? _syncTimer;
 
   ReadingProgressNotifier(this.ref, this.novelId)
-      : super(ReadingProgressState(novelId: novelId)) {
+    : super(ReadingProgressState(novelId: novelId)) {
     _loadProgress();
     _startBackgroundSync();
   }
@@ -82,7 +82,9 @@ class ReadingProgressNotifier extends StateNotifier<ReadingProgressState> {
 
       int currentIndex = 0;
       if (lastHistory != null) {
-        currentIndex = chapters.indexWhere((c) => c.id == lastHistory.chapterId);
+        currentIndex = chapters.indexWhere(
+          (c) => c.id == lastHistory.chapterId,
+        );
         if (currentIndex < 0) currentIndex = 0;
       }
 
@@ -126,7 +128,10 @@ class ReadingProgressNotifier extends StateNotifier<ReadingProgressState> {
       final engine = ref.read(providerEngineProvider);
       final jsSource = await registry.loadCachedProviderJs(novel.providerId);
       if (jsSource == null) {
-        state = state.copyWith(isSyncing: false, syncError: 'Provider not found');
+        state = state.copyWith(
+          isSyncing: false,
+          syncError: 'Provider not found',
+        );
         return;
       }
       final provider = await engine.loadProvider(jsSource);
@@ -134,7 +139,10 @@ class ReadingProgressNotifier extends StateNotifier<ReadingProgressState> {
       final result = await provider.call('getChapterList', [novel.url]);
       final chapterUrls = result as List<dynamic>?;
       if (chapterUrls == null) {
-        state = state.copyWith(isSyncing: false, syncError: 'Failed to fetch chapter list');
+        state = state.copyWith(
+          isSyncing: false,
+          syncError: 'Failed to fetch chapter list',
+        );
         return;
       }
 
@@ -189,42 +197,53 @@ class ReadingProgressNotifier extends StateNotifier<ReadingProgressState> {
   }
 }
 
-final readingProgressProvider = StateNotifierProvider.family<
-    ReadingProgressNotifier, ReadingProgressState, int>((ref, novelId) {
-  return ReadingProgressNotifier(ref, novelId);
-});
+final readingProgressProvider =
+    StateNotifierProvider.family<
+      ReadingProgressNotifier,
+      ReadingProgressState,
+      int
+    >((ref, novelId) {
+      return ReadingProgressNotifier(ref, novelId);
+    });
 
 /// Provider to get all novels with their reading progress
-final allReadingProgressProvider = FutureProvider.autoDispose<List<NovelProgress>>((ref) async {
-  final novelDao = ref.read(novelDaoProvider);
-  final novels = await novelDao.getAllNovels();
+final allReadingProgressProvider =
+    FutureProvider.autoDispose<List<NovelProgress>>((ref) async {
+      final novelDao = ref.read(novelDaoProvider);
+      final novels = await novelDao.getAllNovels();
 
-  final results = <NovelProgress>[];
-  for (final novel in novels) {
-    final chapterDao = ref.read(chapterDaoProvider);
-    final chapters = await chapterDao.getChaptersForNovel(novel.id);
-    final total = chapters.length;
-    final read = chapters.where((c) => c.read).length;
-    final lastHistory = await ref.read(historyDaoProvider).getLatestHistoryForNovel(novel.id);
+      final results = <NovelProgress>[];
+      for (final novel in novels) {
+        final chapterDao = ref.read(chapterDaoProvider);
+        final chapters = await chapterDao.getChaptersForNovel(novel.id);
+        final total = chapters.length;
+        final read = chapters.where((c) => c.read).length;
+        final lastHistory = await ref
+            .read(historyDaoProvider)
+            .getLatestHistoryForNovel(novel.id);
 
-    int currentIndex = 0;
-    if (lastHistory != null) {
-      currentIndex = chapters.indexWhere((c) => c.id == lastHistory.chapterId);
-      if (currentIndex < 0) currentIndex = 0;
-    }
+        int currentIndex = 0;
+        if (lastHistory != null) {
+          currentIndex = chapters.indexWhere(
+            (c) => c.id == lastHistory.chapterId,
+          );
+          if (currentIndex < 0) currentIndex = 0;
+        }
 
-    results.add(NovelProgress(
-      novelId: novel.id,
-      title: novel.title,
-      totalChapters: total,
-      readChapters: read,
-      currentChapterIndex: currentIndex,
-      overallProgress: total > 0 ? read / total : 0.0,
-      isCompleted: total > 0 && read >= total,
-    ));
-  }
-  return results;
-});
+        results.add(
+          NovelProgress(
+            novelId: novel.id,
+            title: novel.title,
+            totalChapters: total,
+            readChapters: read,
+            currentChapterIndex: currentIndex,
+            overallProgress: total > 0 ? read / total : 0.0,
+            isCompleted: total > 0 && read >= total,
+          ),
+        );
+      }
+      return results;
+    });
 
 class NovelProgress {
   final int novelId;

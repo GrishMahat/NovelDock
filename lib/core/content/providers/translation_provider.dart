@@ -6,8 +6,10 @@ import '../markdown/md_ast.dart';
 import '../markdown/md_parser.dart';
 import 'content_provider.dart';
 
-final chapterTranslationProvider =
-    FutureProvider.family<String?, int>((ref, chapterId) async {
+final chapterTranslationProvider = FutureProvider.family<String?, int>((
+  ref,
+  chapterId,
+) async {
   final content = ref.watch(contentProvider.notifier).getContentMd(chapterId);
   if (content == null) return null;
 
@@ -18,7 +20,10 @@ final chapterTranslationProvider =
   final paragraphs = <String>[];
   for (final block in doc.blocks) {
     if (block is ParagraphNode) {
-      final text = block.children.whereType<TextNode>().map((n) => n.text).join();
+      final text = block.children
+          .whereType<TextNode>()
+          .map((n) => n.text)
+          .join();
       if (text.trim().isNotEmpty) paragraphs.add(text.trim());
     }
   }

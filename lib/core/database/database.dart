@@ -28,27 +28,30 @@ export 'daos/novel_progress_dao.dart';
 
 part 'database.g.dart';
 
-@DriftDatabase(tables: [
-  Novels,
-  Chapters,
-  Library,
-  ReadingHistory,
-  DownloadsQueue,
-  Bookmarks,
-  Settings,
-  ProviderCache,
-  NovelProgress,
-], daos: [
-  NovelDao,
-  ChapterDao,
-  LibraryDao,
-  HistoryDao,
-  DownloadDao,
-  BookmarkDao,
-  SettingsDao,
-  ProviderCacheDao,
-  NovelProgressDao,
-])
+@DriftDatabase(
+  tables: [
+    Novels,
+    Chapters,
+    Library,
+    ReadingHistory,
+    DownloadsQueue,
+    Bookmarks,
+    Settings,
+    ProviderCache,
+    NovelProgress,
+  ],
+  daos: [
+    NovelDao,
+    ChapterDao,
+    LibraryDao,
+    HistoryDao,
+    DownloadDao,
+    BookmarkDao,
+    SettingsDao,
+    ProviderCacheDao,
+    NovelProgressDao,
+  ],
+)
 class AppDatabase extends _$AppDatabase {
   AppDatabase() : super(_openConnection());
 
@@ -57,25 +60,25 @@ class AppDatabase extends _$AppDatabase {
 
   @override
   MigrationStrategy get migration => MigrationStrategy(
-        onCreate: (m) async {
-          await m.createAll();
-        },
-        onUpgrade: (m, from, to) async {
-          if (from < 2) {
-            // Add new columns to Chapters table if they don't exist
-            try {
-              await m.addColumn(chapters, chapters.ttsRead);
-            } catch (_) {}
-            try {
-              await m.addColumn(chapters, chapters.bookmarked);
-            } catch (_) {}
-            // Create NovelProgress table
-            try {
-              await m.createTable(novelProgress);
-            } catch (_) {}
-          }
-        },
-      );
+    onCreate: (m) async {
+      await m.createAll();
+    },
+    onUpgrade: (m, from, to) async {
+      if (from < 2) {
+        // Add new columns to Chapters table if they don't exist
+        try {
+          await m.addColumn(chapters, chapters.ttsRead);
+        } catch (_) {}
+        try {
+          await m.addColumn(chapters, chapters.bookmarked);
+        } catch (_) {}
+        // Create NovelProgress table
+        try {
+          await m.createTable(novelProgress);
+        } catch (_) {}
+      }
+    },
+  );
 }
 
 LazyDatabase _openConnection() {

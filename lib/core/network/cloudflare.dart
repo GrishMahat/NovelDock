@@ -47,7 +47,7 @@ class CloudflareHandler {
   }
 
   /// Converts Dio response data to a string regardless of responseType.
-  /// `.toString()` on raw bytes (e.g. List<int>/Uint8List) does NOT give
+  /// `.toString()` on raw bytes (e.g. `List<int>`/`Uint8List`) does NOT give
   /// page content — it gives something like "Instance of '_Uint8List'" —
   /// so bytes need to be explicitly utf8-decoded first.
   static String _bodyAsString(dynamic data) {

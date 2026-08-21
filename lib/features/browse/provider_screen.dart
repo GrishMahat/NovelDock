@@ -55,7 +55,9 @@ class _ProviderScreenState extends ConsumerState<ProviderScreen>
     _tabController.addListener(() {
       if (!_tabController.indexIsChanging) return;
       if (_mode == _ListMode.search) return;
-      _setMode(_tabController.index == 1 ? _ListMode.latest : _ListMode.popular);
+      _setMode(
+        _tabController.index == 1 ? _ListMode.latest : _ListMode.popular,
+      );
     });
     _pagingController = PagingController(
       getNextPageKey: (state) {
@@ -94,8 +96,11 @@ class _ProviderScreenState extends ConsumerState<ProviderScreen>
   }
 
   Future<List<SearchResultItem>> _fetchPage(int pageKey) async {
-    Log.i(_tag, 'Fetching page $pageKey for provider: ${widget.providerId} '
-        '(mode: $_mode, query: "$_query")');
+    Log.i(
+      _tag,
+      'Fetching page $pageKey for provider: ${widget.providerId} '
+      '(mode: $_mode, query: "$_query")',
+    );
 
     try {
       final instance = await _ensureLoaded();
@@ -122,20 +127,24 @@ class _ProviderScreenState extends ConsumerState<ProviderScreen>
             if (results != null) {
               if (!results.hasNextPage) _hasReachedEnd = true;
               Log.ok(_tag, 'Got ${results.results.length} results');
-              return results.results
-                  .map((e) => _toItem(e))
-                  .toList();
+              return results.results.map((e) => _toItem(e)).toList();
             }
-            Log.w(_tag, 'Browse POST pipeline failed, '
-                'falling back to URL browse');
+            Log.w(
+              _tag,
+              'Browse POST pipeline failed, '
+              'falling back to URL browse',
+            );
           }
           url = _mode == _ListMode.latest
               ? await instance.getLatestUrl(pageKey)
               : await instance.getMainPageUrl(pageKey, filters: _filters);
         case _ListMode.search:
-          Log.i(_tag, 'Search mode: hasFunction(getSearchConfig)='
-              '${instance.hasFunction('getSearchConfig')}, '
-              'exported=${instance.exportedFunctions.length} fns');
+          Log.i(
+            _tag,
+            'Search mode: hasFunction(getSearchConfig)='
+            '${instance.hasFunction('getSearchConfig')}, '
+            'exported=${instance.exportedFunctions.length} fns',
+          );
           if (instance.hasFunction('getSearchConfig')) {
             final results = await searchProviderOnce(
               instance,
@@ -147,18 +156,15 @@ class _ProviderScreenState extends ConsumerState<ProviderScreen>
             if (results != null) {
               if (!results.hasNextPage) _hasReachedEnd = true;
               Log.ok(_tag, 'Got ${results.results.length} results');
-              return results.results
-                  .map((e) => _toItem(e))
-                  .toList();
+              return results.results.map((e) => _toItem(e)).toList();
             }
-            Log.w(_tag, 'searchProviderOnce returned null/empty, '
-                'falling back to GET search URL');
+            Log.w(
+              _tag,
+              'searchProviderOnce returned null/empty, '
+              'falling back to GET search URL',
+            );
           }
-          url = await instance.getSearchUrl(
-            _query,
-            pageKey,
-            filters: _filters,
-          );
+          url = await instance.getSearchUrl(_query, pageKey, filters: _filters);
           Log.i(_tag, 'GET fallback URL: $url');
       }
 
@@ -182,9 +188,7 @@ class _ProviderScreenState extends ConsumerState<ProviderScreen>
       if (results != null) {
         if (!results.hasNextPage) _hasReachedEnd = true;
         Log.ok(_tag, 'Got ${results.results.length} results');
-        return results.results
-            .map((e) => _toItem(e))
-            .toList();
+        return results.results.map((e) => _toItem(e)).toList();
       }
 
       Log.w(_tag, 'No results found');
@@ -271,7 +275,8 @@ class _ProviderScreenState extends ConsumerState<ProviderScreen>
   @override
   Widget build(BuildContext context) {
     final providersAsync = ref.watch(availableProvidersProvider);
-    final title = providersAsync.value
+    final title =
+        providersAsync.value
             ?.where((p) => p.id == widget.providerId)
             .firstOrNull
             ?.name ??
@@ -311,7 +316,10 @@ class _ProviderScreenState extends ConsumerState<ProviderScreen>
                   tooltip: 'Display mode',
                   iconSize: 26,
                   padding: const EdgeInsets.all(10),
-                  constraints: const BoxConstraints(minWidth: 48, minHeight: 48),
+                  constraints: const BoxConstraints(
+                    minWidth: 48,
+                    minHeight: 48,
+                  ),
                   onPressed: () => setState(() => _isGridView = !_isGridView),
                 ),
               ],
@@ -321,7 +329,11 @@ class _ProviderScreenState extends ConsumerState<ProviderScreen>
           if (isDesktop)
             Padding(
               padding: const EdgeInsets.fromLTRB(
-                  Insets.lg, Insets.md, Insets.lg, Insets.sm),
+                Insets.lg,
+                Insets.md,
+                Insets.lg,
+                Insets.sm,
+              ),
               child: Row(
                 children: [
                   IconButton(
@@ -366,7 +378,10 @@ class _ProviderScreenState extends ConsumerState<ProviderScreen>
                     tooltip: 'Display mode',
                     iconSize: 26,
                     padding: const EdgeInsets.all(10),
-                    constraints: const BoxConstraints(minWidth: 48, minHeight: 48),
+                    constraints: const BoxConstraints(
+                      minWidth: 48,
+                      minHeight: 48,
+                    ),
                     onPressed: () => setState(() => _isGridView = !_isGridView),
                   ),
                 ],
@@ -412,68 +427,76 @@ class _ProviderScreenState extends ConsumerState<ProviderScreen>
                 ? const Center(child: CircularProgressIndicator())
                 : MaxWidthBox(
                     child: PagingListener<int, SearchResultItem>(
-                    controller: _pagingController,
-                    builder: (context, state, fetchNextPage) {
-                      if (_isGridView) {
-                        return PagedGridView<int, SearchResultItem>(
+                      controller: _pagingController,
+                      builder: (context, state, fetchNextPage) {
+                        if (_isGridView) {
+                          return PagedGridView<int, SearchResultItem>(
+                            state: state,
+                            fetchNextPage: fetchNextPage,
+                            gridDelegate:
+                                const SliverGridDelegateWithMaxCrossAxisExtent(
+                                  maxCrossAxisExtent: 170,
+                                  childAspectRatio: 0.68,
+                                  crossAxisSpacing: 8,
+                                  mainAxisSpacing: 8,
+                                ),
+                            padding: const EdgeInsets.all(8),
+                            builderDelegate:
+                                PagedChildBuilderDelegate<SearchResultItem>(
+                                  itemBuilder: (context, item, index) =>
+                                      _buildGridItem(item),
+                                  noItemsFoundIndicatorBuilder: (context) =>
+                                      Center(
+                                        child: Text(
+                                          _mode == _ListMode.search
+                                              ? 'No results for "$_query"'
+                                              : 'No items found',
+                                        ),
+                                      ),
+                                  firstPageProgressIndicatorBuilder:
+                                      (context) => const Center(
+                                        child: CircularProgressIndicator(),
+                                      ),
+                                  newPageProgressIndicatorBuilder: (context) =>
+                                      const Padding(
+                                        padding: EdgeInsets.all(16),
+                                        child: Center(
+                                          child: CircularProgressIndicator(),
+                                        ),
+                                      ),
+                                ),
+                          );
+                        }
+                        return PagedListView<int, SearchResultItem>(
                           state: state,
                           fetchNextPage: fetchNextPage,
-                          gridDelegate:
-                              const SliverGridDelegateWithMaxCrossAxisExtent(
-                            maxCrossAxisExtent: 170,
-                            childAspectRatio: 0.68,
-                            crossAxisSpacing: 8,
-                            mainAxisSpacing: 8,
-                          ),
-                          padding: const EdgeInsets.all(8),
-                          builderDelegate: PagedChildBuilderDelegate<
-                              SearchResultItem>(
-                            itemBuilder: (context, item, index) =>
-                                _buildGridItem(item),
-                            noItemsFoundIndicatorBuilder: (context) => Center(
-                              child: Text(
-                                _mode == _ListMode.search
-                                    ? 'No results for "$_query"'
-                                    : 'No items found',
+                          builderDelegate:
+                              PagedChildBuilderDelegate<SearchResultItem>(
+                                itemBuilder: (context, item, index) =>
+                                    _buildListItem(item),
+                                noItemsFoundIndicatorBuilder: (context) =>
+                                    Center(
+                                      child: Text(
+                                        _mode == _ListMode.search
+                                            ? 'No results for "$_query"'
+                                            : 'No items found',
+                                      ),
+                                    ),
+                                firstPageProgressIndicatorBuilder: (context) =>
+                                    const Center(
+                                      child: CircularProgressIndicator(),
+                                    ),
+                                newPageProgressIndicatorBuilder: (context) =>
+                                    const Padding(
+                                      padding: EdgeInsets.all(16),
+                                      child: Center(
+                                        child: CircularProgressIndicator(),
+                                      ),
+                                    ),
                               ),
-                            ),
-                            firstPageProgressIndicatorBuilder: (context) =>
-                                const Center(
-                              child: CircularProgressIndicator(),
-                            ),
-                            newPageProgressIndicatorBuilder: (context) =>
-                                const Padding(
-                              padding: EdgeInsets.all(16),
-                              child: Center(child: CircularProgressIndicator()),
-                            ),
-                          ),
                         );
-                      }
-                      return PagedListView<int, SearchResultItem>(
-                        state: state,
-                        fetchNextPage: fetchNextPage,
-                        builderDelegate: PagedChildBuilderDelegate<
-                            SearchResultItem>(
-                          itemBuilder: (context, item, index) =>
-                              _buildListItem(item),
-                          noItemsFoundIndicatorBuilder: (context) => Center(
-                            child: Text(
-                              _mode == _ListMode.search
-                                  ? 'No results for "$_query"'
-                                  : 'No items found',
-                            ),
-                          ),
-                          firstPageProgressIndicatorBuilder: (context) =>
-                              const Center(child: CircularProgressIndicator()),
-                          newPageProgressIndicatorBuilder: (context) =>
-                              const Padding(
-                            padding: EdgeInsets.all(16),
-                            child: Center(child: CircularProgressIndicator()),
-                          ),
-                        ),
-                      );
-                    },
-                  ),
+                      },
+                    ),
                   ),
           ),
         ],

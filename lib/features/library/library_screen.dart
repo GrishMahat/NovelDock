@@ -77,7 +77,8 @@ class _LibraryScreenState extends ConsumerState<LibraryScreen>
                 ),
                 IconButton(
                   icon: Icon(_displayMode.icon),
-                  onPressed: () => setState(() => _displayMode = _displayMode.next),
+                  onPressed: () =>
+                      setState(() => _displayMode = _displayMode.next),
                   tooltip: 'Display mode',
                 ),
               ],
@@ -87,7 +88,11 @@ class _LibraryScreenState extends ConsumerState<LibraryScreen>
             Expanded(
               child: TabBarView(
                 controller: _tabController,
-                children: _tabs.asMap().entries.map((e) => _buildTabContent(e.key)).toList(),
+                children: _tabs
+                    .asMap()
+                    .entries
+                    .map((e) => _buildTabContent(e.key))
+                    .toList(),
               ),
             ),
           ],
@@ -117,7 +122,11 @@ class _LibraryScreenState extends ConsumerState<LibraryScreen>
       ),
       body: TabBarView(
         controller: _tabController,
-        children: _tabs.asMap().entries.map((e) => _buildTabContent(e.key)).toList(),
+        children: _tabs
+            .asMap()
+            .entries
+            .map((e) => _buildTabContent(e.key))
+            .toList(),
       ),
     );
   }
@@ -147,31 +156,37 @@ class _LibraryScreenState extends ConsumerState<LibraryScreen>
         final filtered = query.isEmpty
             ? novels
             : novels
-                .where((n) =>
-                    n.title.toLowerCase().contains(query) ||
-                    (n.author?.toLowerCase().contains(query) ?? false))
-                .toList();
+                  .where(
+                    (n) =>
+                        n.title.toLowerCase().contains(query) ||
+                        (n.author?.toLowerCase().contains(query) ?? false),
+                  )
+                  .toList();
 
         if (filtered.isEmpty) {
           if (query.isNotEmpty && novels.isNotEmpty) {
             return Center(
               child: Text(
                 'No results for "$_filterQuery"',
-                style: Theme.of(context)
-                    .textTheme
-                    .bodyMedium
-                    ?.copyWith(color: Theme.of(context).colorScheme.onSurfaceVariant),
+                style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                  color: Theme.of(context).colorScheme.onSurfaceVariant,
+                ),
               ),
             );
           }
           return Center(
             child: MaxWidthBox(
-              padding: const EdgeInsets.symmetric(horizontal: Insets.xl, vertical: Insets.xxl),
+              padding: const EdgeInsets.symmetric(
+                horizontal: Insets.xl,
+                vertical: Insets.xxl,
+              ),
               child: Container(
                 width: double.infinity,
                 constraints: const BoxConstraints(maxWidth: 480),
                 padding: const EdgeInsets.symmetric(
-                    horizontal: Insets.xxl, vertical: Insets.xxxl),
+                  horizontal: Insets.xxl,
+                  vertical: Insets.xxxl,
+                ),
                 decoration: BoxDecoration(
                   color: Theme.of(context).colorScheme.surfaceContainerLow,
                   borderRadius: Radii.card,
@@ -185,10 +200,9 @@ class _LibraryScreenState extends ConsumerState<LibraryScreen>
                     Icon(
                       Icons.library_books,
                       size: 56,
-                      color: Theme.of(context)
-                          .colorScheme
-                          .onSurfaceVariant
-                          .withValues(alpha: 0.5),
+                      color: Theme.of(
+                        context,
+                      ).colorScheme.onSurfaceVariant.withValues(alpha: 0.5),
                     ),
                     const SizedBox(height: Insets.lg),
                     Text(
@@ -201,10 +215,9 @@ class _LibraryScreenState extends ConsumerState<LibraryScreen>
                     Text(
                       'Search for novels and add them\nto your library.',
                       textAlign: TextAlign.center,
-                      style: Theme.of(context)
-                          .textTheme
-                          .bodyMedium
-                          ?.copyWith(color: Theme.of(context).colorScheme.onSurfaceVariant),
+                      style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                        color: Theme.of(context).colorScheme.onSurfaceVariant,
+                      ),
                     ),
                     const SizedBox(height: Insets.lg),
                     FilledButton.tonalIcon(
@@ -225,7 +238,11 @@ class _LibraryScreenState extends ConsumerState<LibraryScreen>
             // wide windows get more columns instead of centering gutters.
             return GridView.builder(
               padding: const EdgeInsets.fromLTRB(
-                  Insets.lg, Insets.lg, Insets.lg, Insets.xl),
+                Insets.lg,
+                Insets.lg,
+                Insets.lg,
+                Insets.xl,
+              ),
               gridDelegate: const SliverGridDelegateWithMaxCrossAxisExtent(
                 maxCrossAxisExtent: 180,
                 childAspectRatio: 0.68,
@@ -248,7 +265,8 @@ class _LibraryScreenState extends ConsumerState<LibraryScreen>
           case DisplayMode.compact:
             return ListView.builder(
               itemCount: filtered.length,
-              itemBuilder: (context, index) => _buildCompactItem(filtered[index]),
+              itemBuilder: (context, index) =>
+                  _buildCompactItem(filtered[index]),
             );
         }
       },
@@ -262,11 +280,11 @@ class _LibraryScreenState extends ConsumerState<LibraryScreen>
         width: width,
         height: height,
         fit: BoxFit.cover,
-        placeholder: (_, __) => Container(
+        placeholder: (_, _) => Container(
           color: Theme.of(context).colorScheme.surfaceContainerHighest,
           child: const Icon(Icons.book, size: 32),
         ),
-        errorWidget: (_, __, ___) => Container(
+        errorWidget: (_, _, _) => Container(
           color: Theme.of(context).colorScheme.surfaceContainerHighest,
           child: const Icon(Icons.book, size: 32),
         ),
@@ -288,7 +306,10 @@ class _LibraryScreenState extends ConsumerState<LibraryScreen>
       ),
       title: Text(novel.title, maxLines: 1, overflow: TextOverflow.ellipsis),
       subtitle: Text(
-        [novel.author, novel.status].where((s) => s != null && s.isNotEmpty).join(' · '),
+        [
+          novel.author,
+          novel.status,
+        ].where((s) => s != null && s.isNotEmpty).join(' · '),
         style: text.bodySmall,
         maxLines: 1,
         overflow: TextOverflow.ellipsis,
@@ -310,7 +331,10 @@ class _LibraryScreenState extends ConsumerState<LibraryScreen>
       onTap: () => context.push('/novel/${novel.id}'),
       onLongPress: () => _showStatusMenu(novel),
       child: Padding(
-        padding: const EdgeInsets.symmetric(horizontal: Insets.md, vertical: Insets.sm),
+        padding: const EdgeInsets.symmetric(
+          horizontal: Insets.md,
+          vertical: Insets.sm,
+        ),
         child: Row(
           children: [
             ClipRRect(
@@ -333,21 +357,28 @@ class _LibraryScreenState extends ConsumerState<LibraryScreen>
                       novel.author!,
                       maxLines: 1,
                       overflow: TextOverflow.ellipsis,
-                      style: text.bodySmall?.copyWith(color: scheme.onSurfaceVariant),
+                      style: text.bodySmall?.copyWith(
+                        color: scheme.onSurfaceVariant,
+                      ),
                     ),
                 ],
               ),
             ),
             if (novel.status != null && novel.status!.isNotEmpty)
               Container(
-                padding: const EdgeInsets.symmetric(horizontal: Insets.sm, vertical: 2),
+                padding: const EdgeInsets.symmetric(
+                  horizontal: Insets.sm,
+                  vertical: 2,
+                ),
                 decoration: BoxDecoration(
                   color: scheme.surfaceContainerHighest,
                   borderRadius: BorderRadius.all(Radii.sm),
                 ),
                 child: Text(
                   novel.status!,
-                  style: text.labelSmall?.copyWith(color: scheme.onSurfaceVariant),
+                  style: text.labelSmall?.copyWith(
+                    color: scheme.onSurfaceVariant,
+                  ),
                 ),
               ),
           ],
@@ -371,9 +402,9 @@ class _LibraryScreenState extends ConsumerState<LibraryScreen>
     final chapters = await chapterDao.getChaptersForNovel(novelId);
     if (chapters.isEmpty) {
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('No chapters available')),
-        );
+        ScaffoldMessenger.of(
+          context,
+        ).showSnackBar(const SnackBar(content: Text('No chapters available')));
       }
       return;
     }
@@ -391,11 +422,19 @@ class _LibraryScreenState extends ConsumerState<LibraryScreen>
         children: [
           Padding(
             padding: const EdgeInsets.all(16),
-            child: Text(novel.title,
-                style: const TextStyle(fontWeight: FontWeight.bold)),
+            child: Text(
+              novel.title,
+              style: const TextStyle(fontWeight: FontWeight.bold),
+            ),
           ),
           const Divider(height: 1),
-          for (final s in ['Reading', 'On Hold', 'Plan to Read', 'Completed', 'Dropped'])
+          for (final s in [
+            'Reading',
+            'On Hold',
+            'Plan to Read',
+            'Completed',
+            'Dropped',
+          ])
             ListTile(
               leading: const Icon(Icons.library_books),
               title: Text(s),
@@ -406,8 +445,14 @@ class _LibraryScreenState extends ConsumerState<LibraryScreen>
             ),
           const Divider(),
           ListTile(
-            leading: Icon(Icons.remove_circle, color: Theme.of(context).colorScheme.error),
-            title: Text('None', style: TextStyle(color: Theme.of(context).colorScheme.error)),
+            leading: Icon(
+              Icons.remove_circle,
+              color: Theme.of(context).colorScheme.error,
+            ),
+            title: Text(
+              'None',
+              style: TextStyle(color: Theme.of(context).colorScheme.error),
+            ),
             onTap: () {
               libraryDao.removeFromLibrary(novel.id);
               Navigator.pop(ctx);

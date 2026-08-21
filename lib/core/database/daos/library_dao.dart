@@ -1,14 +1,12 @@
 import 'package:drift/drift.dart';
 
 import '../database.dart';
-import '../tables.dart';
 
 part 'library_dao.g.dart';
 
 @DriftAccessor(tables: [Library, Novels, Chapters, ReadingHistory])
-class LibraryDao extends DatabaseAccessor<AppDatabase>
-    with _$LibraryDaoMixin {
-  LibraryDao(AppDatabase db) : super(db);
+class LibraryDao extends DatabaseAccessor<AppDatabase> with _$LibraryDaoMixin {
+  LibraryDao(super.db);
 
   Future<int> addToLibrary(int novelId, {String? status}) async {
     final existing = await isInLibrary(novelId);
@@ -31,30 +29,37 @@ class LibraryDao extends DatabaseAccessor<AppDatabase>
   }
 
   Future<void> updateStatus(int novelId, String? status) {
-    return (update(library)..where((t) => t.novelId.equals(novelId)))
-        .write(LibraryCompanion(status: Value(status)));
+    return (update(library)..where((t) => t.novelId.equals(novelId))).write(
+      LibraryCompanion(status: Value(status)),
+    );
   }
 
   Future<void> updateLastRead(int novelId) {
-    return (update(library)..where((t) => t.novelId.equals(novelId)))
-        .write(LibraryCompanion(lastReadAt: Value(DateTime.now().millisecondsSinceEpoch)));
+    return (update(library)..where((t) => t.novelId.equals(novelId))).write(
+      LibraryCompanion(
+        lastReadAt: Value(DateTime.now().millisecondsSinceEpoch),
+      ),
+    );
   }
 
   Future<bool> removeFromLibrary(int novelId) async {
-    final count = await (delete(library)..where((t) => t.novelId.equals(novelId))).go();
+    final count = await (delete(
+      library,
+    )..where((t) => t.novelId.equals(novelId))).go();
     return count > 0;
   }
 
   Future<bool> isInLibrary(int novelId) async {
-    final result = await (select(library)
-          ..where((t) => t.novelId.equals(novelId)))
-        .getSingleOrNull();
+    final result = await (select(
+      library,
+    )..where((t) => t.novelId.equals(novelId))).getSingleOrNull();
     return result != null;
   }
 
   Future<void> updateOrder(int novelId, int order) {
-    return (update(library)..where((t) => t.novelId.equals(novelId)))
-        .write(LibraryCompanion(order: Value(order)));
+    return (update(library)..where((t) => t.novelId.equals(novelId))).write(
+      LibraryCompanion(order: Value(order)),
+    );
   }
 
   Future<List<LibraryData>> getAllLibraryEntries() {
@@ -66,15 +71,15 @@ class LibraryDao extends DatabaseAccessor<AppDatabase>
   }
 
   Future<List<Novel>> getLibraryNovels() async {
-    final entries = await (select(library)
-          ..orderBy([(t) => OrderingTerm.desc(t.lastReadAt)]))
-        .get();
+    final entries = await (select(
+      library,
+    )..orderBy([(t) => OrderingTerm.desc(t.lastReadAt)])).get();
 
     final novels = <Novel>[];
     for (final entry in entries) {
-      final novel = await (select(db.novels)
-            ..where((t) => t.id.equals(entry.novelId)))
-          .getSingleOrNull();
+      final novel = await (select(
+        db.novels,
+      )..where((t) => t.id.equals(entry.novelId))).getSingleOrNull();
       if (novel != null) {
         novels.add(novel);
       }
@@ -83,21 +88,20 @@ class LibraryDao extends DatabaseAccessor<AppDatabase>
   }
 
   Stream<List<Novel>> watchLibraryNovels() {
-    return (select(library)
-          ..orderBy([(t) => OrderingTerm.desc(t.lastReadAt)]))
+    return (select(library)..orderBy([(t) => OrderingTerm.desc(t.lastReadAt)]))
         .watch()
         .asyncMap((entries) async {
-      final novels = <Novel>[];
-      for (final entry in entries) {
-        final novel = await (select(db.novels)
-              ..where((t) => t.id.equals(entry.novelId)))
-            .getSingleOrNull();
-        if (novel != null) {
-          novels.add(novel);
-        }
-      }
-      return novels;
-    });
+          final novels = <Novel>[];
+          for (final entry in entries) {
+            final novel = await (select(
+              db.novels,
+            )..where((t) => t.id.equals(entry.novelId))).getSingleOrNull();
+            if (novel != null) {
+              novels.add(novel);
+            }
+          }
+          return novels;
+        });
   }
 
   Stream<List<Novel>> watchLibraryNovelsByStatus(String status) {
@@ -106,41 +110,44 @@ class LibraryDao extends DatabaseAccessor<AppDatabase>
           ..orderBy([(t) => OrderingTerm.desc(t.lastReadAt)]))
         .watch()
         .asyncMap((entries) async {
-      final novels = <Novel>[];
-      for (final entry in entries) {
-        final novel = await (select(db.novels)
-              ..where((t) => t.id.equals(entry.novelId)))
-            .getSingleOrNull();
-        if (novel != null) novels.add(novel);
-      }
-      return novels;
-    });
+          final novels = <Novel>[];
+          for (final entry in entries) {
+            final novel = await (select(
+              db.novels,
+            )..where((t) => t.id.equals(entry.novelId))).getSingleOrNull();
+            if (novel != null) novels.add(novel);
+          }
+          return novels;
+        });
   }
 
   Future<List<Novel>> getContinueReadingNovels() async {
-    final entries = await (select(library)
-          ..where((t) => t.lastChapterId.isNotNull())
-          ..orderBy([(t) => OrderingTerm.desc(t.lastReadAt)]))
-        .get();
+    final entries =
+        await (select(library)
+              ..where((t) => t.lastChapterId.isNotNull())
+              ..orderBy([(t) => OrderingTerm.desc(t.lastReadAt)]))
+            .get();
 
     final novels = <Novel>[];
     for (final entry in entries) {
-      final lastChapter = await (select(db.chapters)
-            ..where((t) => t.id.equals(entry.lastChapterId!)))
-          .getSingleOrNull();
+      final lastChapter = await (select(
+        db.chapters,
+      )..where((t) => t.id.equals(entry.lastChapterId!))).getSingleOrNull();
       if (lastChapter == null) continue;
 
-      final unreadCount = await (select(db.chapters)
-            ..where((t) =>
-                t.novelId.equals(entry.novelId) &
-                t.index.isBiggerThanValue(lastChapter.index) &
-                t.read.equals(false)))
-        .get();
+      final unreadCount =
+          await (select(db.chapters)..where(
+                (t) =>
+                    t.novelId.equals(entry.novelId) &
+                    t.index.isBiggerThanValue(lastChapter.index) &
+                    t.read.equals(false),
+              ))
+              .get();
 
       if (unreadCount.isNotEmpty) {
-        final novel = await (select(db.novels)
-              ..where((t) => t.id.equals(entry.novelId)))
-            .getSingleOrNull();
+        final novel = await (select(
+          db.novels,
+        )..where((t) => t.id.equals(entry.novelId))).getSingleOrNull();
         if (novel != null) {
           novels.add(novel);
         }

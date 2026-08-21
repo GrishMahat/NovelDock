@@ -23,10 +23,10 @@ class WindowStateManager with WindowListener {
     final saved = _readBounds(prefs);
 
     final options = WindowOptions(
-      size: saved?.size ??
+      size:
+          saved?.size ??
           const Size(Desktop.defaultWindowWidth, Desktop.defaultWindowHeight),
-      minimumSize:
-          const Size(Desktop.minWindowWidth, Desktop.minWindowHeight),
+      minimumSize: const Size(Desktop.minWindowWidth, Desktop.minWindowHeight),
       center: saved == null,
     );
 

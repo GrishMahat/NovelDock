@@ -103,7 +103,7 @@ class SortFilterDef extends FilterDef {
 /// Values are what the provider JS receives:
 /// - text: String (empty = unset)
 /// - select: int (option index)
-/// - multiselect: List<int> (option indices)
+/// - multiselect: `List<int>` (option indices)
 /// - sort: [int index, bool ascending]
 class FilterValues {
   final Map<String, dynamic> values;

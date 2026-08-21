@@ -33,21 +33,32 @@ class _DownloadRangeSheetState extends State<DownloadRangeSheet> {
   @override
   Widget build(BuildContext context) {
     return Padding(
-      padding: EdgeInsets.only(bottom: MediaQuery.of(context).viewInsets.bottom),
+      padding: EdgeInsets.only(
+        bottom: MediaQuery.of(context).viewInsets.bottom,
+      ),
       child: Column(
         mainAxisSize: MainAxisSize.min,
         children: [
           const SizedBox(height: 12),
           Container(
-            width: 32, height: 4,
-            decoration: BoxDecoration(color: Colors.grey[400], borderRadius: BorderRadius.circular(2)),
+            width: 32,
+            height: 4,
+            decoration: BoxDecoration(
+              color: Colors.grey[400],
+              borderRadius: BorderRadius.circular(2),
+            ),
           ),
           const SizedBox(height: 16),
-          const Text('Download Chapters', style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
+          const Text(
+            'Download Chapters',
+            style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
+          ),
           const SizedBox(height: 16),
           SwitchListTile(
             title: const Text('Download range'),
-            subtitle: Text('Select chapter range (${widget.totalChapters} total)'),
+            subtitle: Text(
+              'Select chapter range (${widget.totalChapters} total)',
+            ),
             value: _useRange,
             onChanged: (v) => setState(() => _useRange = v),
           ),
@@ -56,13 +67,20 @@ class _DownloadRangeSheetState extends State<DownloadRangeSheet> {
               padding: const EdgeInsets.symmetric(horizontal: 16),
               child: Column(
                 children: [
-                  Text('Chapters ${_range.start.round()} - ${_range.end.round()}'),
+                  Text(
+                    'Chapters ${_range.start.round()} - ${_range.end.round()}',
+                  ),
                   RangeSlider(
                     values: _range,
                     min: widget.minChapter,
                     max: widget.maxChapter,
-                    divisions: (widget.maxChapter - widget.minChapter).toInt().clamp(1, 100),
-                    labels: RangeLabels('${_range.start.round()}', '${_range.end.round()}'),
+                    divisions: (widget.maxChapter - widget.minChapter)
+                        .toInt()
+                        .clamp(1, 100),
+                    labels: RangeLabels(
+                      '${_range.start.round()}',
+                      '${_range.end.round()}',
+                    ),
                     onChanged: (v) => setState(() => _range = v),
                   ),
                 ],
@@ -74,7 +92,11 @@ class _DownloadRangeSheetState extends State<DownloadRangeSheet> {
             children: [
               Expanded(
                 child: Padding(
-                  padding: const EdgeInsets.only(left: 16, right: 4, bottom: 16),
+                  padding: const EdgeInsets.only(
+                    left: 16,
+                    right: 4,
+                    bottom: 16,
+                  ),
                   child: OutlinedButton(
                     onPressed: () => Navigator.pop(context),
                     child: const Text('Cancel'),
@@ -83,7 +105,11 @@ class _DownloadRangeSheetState extends State<DownloadRangeSheet> {
               ),
               Expanded(
                 child: Padding(
-                  padding: const EdgeInsets.only(left: 4, right: 16, bottom: 16),
+                  padding: const EdgeInsets.only(
+                    left: 4,
+                    right: 16,
+                    bottom: 16,
+                  ),
                   child: FilledButton(
                     onPressed: _useRange
                         ? () => widget.onDownloadRange(_range.start, _range.end)

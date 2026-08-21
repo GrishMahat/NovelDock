@@ -28,16 +28,20 @@ class Chapters extends Table {
   TextColumn get downloadedPath => text().nullable()();
 
   @override
-  List<Set<Column>> get uniqueKeys => [{novelId, url}];
+  List<Set<Column>> get uniqueKeys => [
+    {novelId, url},
+  ];
 }
 
 // ─── library ──────────────────────────────────────────────
 class Library extends Table {
   IntColumn get novelId => integer().references(Novels, #id)();
-  IntColumn get lastChapterId => integer().references(Chapters, #id).nullable()();
+  IntColumn get lastChapterId =>
+      integer().references(Chapters, #id).nullable()();
   IntColumn get lastReadAt => integer().nullable()();
   IntColumn get order => integer().nullable()();
-  TextColumn get status => text().nullable()(); // Reading | On Hold | Plan to Read | Completed | Dropped
+  TextColumn get status => text()
+      .nullable()(); // Reading | On Hold | Plan to Read | Completed | Dropped
 
   @override
   Set<Column> get primaryKey => {novelId};
@@ -85,7 +89,8 @@ class NovelProgress extends Table {
   IntColumn get totalChapters => integer()();
   IntColumn get readChapters => integer().withDefault(const Constant(0))();
   IntColumn get ttsReadChapters => integer().withDefault(const Constant(0))();
-  IntColumn get currentChapterIndex => integer().withDefault(const Constant(0))();
+  IntColumn get currentChapterIndex =>
+      integer().withDefault(const Constant(0))();
   IntColumn get lastReadChapterId => integer().nullable()();
   IntColumn get lastTtsChapterId => integer().nullable()();
   IntColumn get lastReadAt => integer().nullable()();

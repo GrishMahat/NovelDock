@@ -27,7 +27,11 @@ import 'widgets/reader_settings_sheet.dart';
 class ReaderScreen extends ConsumerStatefulWidget {
   final int novelId;
   final int chapterId;
-  const ReaderScreen({super.key, required this.novelId, required this.chapterId});
+  const ReaderScreen({
+    super.key,
+    required this.novelId,
+    required this.chapterId,
+  });
 
   @override
   ConsumerState<ReaderScreen> createState() => _ReaderScreenState();
@@ -35,8 +39,10 @@ class ReaderScreen extends ConsumerStatefulWidget {
 
 class _ReaderScreenState extends ConsumerState<ReaderScreen> {
   bool _showControls = false;
+
   /// Chapter slider panel visibility (hover-driven on desktop).
   bool _sliderVisible = false;
+
   /// When pinned (Ctrl+L) the panel stays open regardless of mouse leave.
   bool _sliderPinned = false;
   final ScrollController _scrollController = ScrollController();
@@ -71,8 +77,9 @@ class _ReaderScreenState extends ConsumerState<ReaderScreen> {
     SystemChrome.setPreferredOrientations([DeviceOrientation.portraitUp]);
     _scrollController.addListener(_onScroll);
 
-    _navigationNotifier =
-        ref.read(readerNavigationProvider(widget.novelId).notifier);
+    _navigationNotifier = ref.read(
+      readerNavigationProvider(widget.novelId).notifier,
+    );
     _navigationNotifier!.loadChapters(widget.chapterId);
   }
 
@@ -193,9 +200,11 @@ class _ReaderScreenState extends ConsumerState<ReaderScreen> {
 
     int detected = nav.currentIndex;
     // Forward: chapter starts at/above the viewport top have been passed.
-    for (var i = nav.currentIndex;
-        i < nav.chapters.length && i <= nav.currentIndex + 3;
-        i++) {
+    for (
+      var i = nav.currentIndex;
+      i < nav.chapters.length && i <= nav.currentIndex + 3;
+      i++
+    ) {
       final context = _chunkKeys['${nav.chapters[i].id}-0']?.currentContext;
       if (context == null) break;
       final box = context.findRenderObject() as RenderBox?;
@@ -208,7 +217,8 @@ class _ReaderScreenState extends ConsumerState<ReaderScreen> {
     }
     // Backward: current chapter's start has dropped below the viewport.
     while (detected > 0) {
-      final context = _chunkKeys['${nav.chapters[detected].id}-0']?.currentContext;
+      final context =
+          _chunkKeys['${nav.chapters[detected].id}-0']?.currentContext;
       if (context == null) break;
       final box = context.findRenderObject() as RenderBox?;
       if (box == null) break;
@@ -243,24 +253,33 @@ class _ReaderScreenState extends ConsumerState<ReaderScreen> {
           duration: Duration.zero,
         );
       } else if (attempt < 60) {
-        WidgetsBinding.instance.addPostFrameCallback((_) => tryEnsure(attempt + 1));
+        WidgetsBinding.instance.addPostFrameCallback(
+          (_) => tryEnsure(attempt + 1),
+        );
       }
     }
+
     WidgetsBinding.instance.addPostFrameCallback((_) => tryEnsure(0));
   }
 
   void _goToPreviousChapter() {
-    ref.read(readerNavigationProvider(widget.novelId).notifier).goToPreviousChapter();
+    ref
+        .read(readerNavigationProvider(widget.novelId).notifier)
+        .goToPreviousChapter();
     if (_scrollController.hasClients) _scrollController.jumpTo(0);
   }
 
   void _goToNextChapter() {
-    ref.read(readerNavigationProvider(widget.novelId).notifier).goToNextChapter();
+    ref
+        .read(readerNavigationProvider(widget.novelId).notifier)
+        .goToNextChapter();
     if (_scrollController.hasClients) _scrollController.jumpTo(0);
   }
 
   void _jumpToChapter(int index) {
-    ref.read(readerNavigationProvider(widget.novelId).notifier).jumpToChapter(index);
+    ref
+        .read(readerNavigationProvider(widget.novelId).notifier)
+        .jumpToChapter(index);
     if (_scrollController.hasClients) _scrollController.jumpTo(0);
     // Reading intent: slide the panel away unless the user pinned it open.
     if (!_sliderPinned) setState(() => _sliderVisible = false);
@@ -328,11 +347,13 @@ class _ReaderScreenState extends ConsumerState<ReaderScreen> {
     final chapter = nav.currentChapter;
     if (chapter == null) return;
 
-    final chapterContent = ref.read(contentProvider.notifier).getChapter(chapter.id);
+    final chapterContent = ref
+        .read(contentProvider.notifier)
+        .getChapter(chapter.id);
     if (chapterContent == null) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Chapter not loaded yet')),
-      );
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(const SnackBar(content: Text('Chapter not loaded yet')));
       return;
     }
 
@@ -372,13 +393,15 @@ class _ReaderScreenState extends ConsumerState<ReaderScreen> {
 
     final novelDao = ref.read(novelDaoProvider);
     final novel = await novelDao.getNovelById(widget.novelId);
-    ref.read(ttsManagerProvider.notifier).startFromParagraphs(
-      paragraphs,
-      startParagraph: startParagraph,
-      coverUrl: novel?.coverUrl,
-      novelTitle: novel?.title,
-      novelAuthor: novel?.author,
-    );
+    ref
+        .read(ttsManagerProvider.notifier)
+        .startFromParagraphs(
+          paragraphs,
+          startParagraph: startParagraph,
+          coverUrl: novel?.coverUrl,
+          novelTitle: novel?.title,
+          novelAuthor: novel?.author,
+        );
   }
 
   /// Returns the TTS paragraph index whose text is the first visible text in
@@ -418,16 +441,22 @@ class _ReaderScreenState extends ConsumerState<ReaderScreen> {
     final currentChapter = nav.currentChapter;
     if (currentChapter != null) {
       // Mark current chapter as TTS-read
-      await ref.read(chapterDaoProvider).markChapterAsTtsRead(currentChapter.id);
+      await ref
+          .read(chapterDaoProvider)
+          .markChapterAsTtsRead(currentChapter.id);
     }
 
     _goToNextChapter();
-    final nextChapter = ref.read(readerNavigationProvider(widget.novelId)).currentChapter;
+    final nextChapter = ref
+        .read(readerNavigationProvider(widget.novelId))
+        .currentChapter;
     if (nextChapter == null) return;
 
     // Wait for chapter content to load
     await ref.read(contentProvider.notifier).loadChapter(nextChapter.id);
-    final chapterContent = ref.read(contentProvider.notifier).getChapter(nextChapter.id);
+    final chapterContent = ref
+        .read(contentProvider.notifier)
+        .getChapter(nextChapter.id);
     if (chapterContent == null || chapterContent.isPdf) return;
 
     final doc = MDParser.parse(chapterContent.data);
@@ -453,12 +482,14 @@ class _ReaderScreenState extends ConsumerState<ReaderScreen> {
 
     final novelDao = ref.read(novelDaoProvider);
     final novel = await novelDao.getNovelById(widget.novelId);
-    ref.read(ttsManagerProvider.notifier).startFromParagraphs(
-      paragraphs,
-      coverUrl: novel?.coverUrl,
-      novelTitle: novel?.title,
-      novelAuthor: novel?.author,
-    );
+    ref
+        .read(ttsManagerProvider.notifier)
+        .startFromParagraphs(
+          paragraphs,
+          coverUrl: novel?.coverUrl,
+          novelTitle: novel?.title,
+          novelAuthor: novel?.author,
+        );
   }
 
   void _addBookmark() async {
@@ -467,21 +498,29 @@ class _ReaderScreenState extends ConsumerState<ReaderScreen> {
     if (chapter == null) return;
 
     if (!context.mounted) return;
-    final note = await showAddBookmarkDialog(context, chapterName: chapter.name);
+    final note = await showAddBookmarkDialog(
+      context,
+      chapterName: chapter.name,
+    );
     if (note == null) return;
 
     final bookmarkDao = ref.read(bookmarkDaoProvider);
-    await bookmarkDao.addBookmark(BookmarksCompanion(
-      novelId: Value(widget.novelId),
-      chapterId: Value(chapter.id),
-      position: Value(_scrollProgress.toStringAsFixed(4)),
-      note: note.isNotEmpty ? Value(note) : const Value.absent(),
-      createdAt: Value(DateTime.now().millisecondsSinceEpoch),
-    ));
+    await bookmarkDao.addBookmark(
+      BookmarksCompanion(
+        novelId: Value(widget.novelId),
+        chapterId: Value(chapter.id),
+        position: Value(_scrollProgress.toStringAsFixed(4)),
+        note: note.isNotEmpty ? Value(note) : const Value.absent(),
+        createdAt: Value(DateTime.now().millisecondsSinceEpoch),
+      ),
+    );
 
     if (mounted) {
       ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('Bookmarked: ${chapter.name}'), duration: const Duration(seconds: 1)),
+        SnackBar(
+          content: Text('Bookmarked: ${chapter.name}'),
+          duration: const Duration(seconds: 1),
+        ),
       );
     }
   }
@@ -506,8 +545,11 @@ class _ReaderScreenState extends ConsumerState<ReaderScreen> {
       onTapBookmark: (chapterIndex, pos) {
         _jumpToChapter(chapterIndex);
         WidgetsBinding.instance.addPostFrameCallback((_) {
-          if (_scrollController.hasClients && _scrollController.position.hasContentDimensions) {
-            _scrollController.jumpTo(pos * _scrollController.position.maxScrollExtent);
+          if (_scrollController.hasClients &&
+              _scrollController.position.hasContentDimensions) {
+            _scrollController.jumpTo(
+              pos * _scrollController.position.maxScrollExtent,
+            );
           }
         });
       },
@@ -549,7 +591,8 @@ class _ReaderScreenState extends ConsumerState<ReaderScreen> {
         maxChildSize: 0.9,
         minChildSize: 0.3,
         expand: false,
-        builder: (context, scrollController) => ReaderSettingsSheet(scrollController: scrollController),
+        builder: (context, scrollController) =>
+            ReaderSettingsSheet(scrollController: scrollController),
       ),
     );
   }
@@ -558,7 +601,10 @@ class _ReaderScreenState extends ConsumerState<ReaderScreen> {
     return Map.fromEntries(
       state.chapters.entries
           .where((e) => e.value is AsyncData<ChapterContent>)
-          .map((e) => MapEntry(e.key, (e.value as AsyncData<ChapterContent>).value)),
+          .map(
+            (e) =>
+                MapEntry(e.key, (e.value as AsyncData<ChapterContent>).value),
+          ),
     );
   }
 
@@ -566,7 +612,12 @@ class _ReaderScreenState extends ConsumerState<ReaderScreen> {
     return Map.fromEntries(
       state.chapters.entries
           .where((e) => e.value is AsyncError<ChapterContent>)
-          .map((e) => MapEntry(e.key, (e.value as AsyncError<ChapterContent>).error.toString())),
+          .map(
+            (e) => MapEntry(
+              e.key,
+              (e.value as AsyncError<ChapterContent>).error.toString(),
+            ),
+          ),
     );
   }
 
@@ -599,7 +650,9 @@ class _ReaderScreenState extends ConsumerState<ReaderScreen> {
 
     // Restore the reading anchor once the chapter content is built
     ref.listen<int?>(
-      readerNavigationProvider(widget.novelId).select((s) => s.restoredBlockIndex),
+      readerNavigationProvider(
+        widget.novelId,
+      ).select((s) => s.restoredBlockIndex),
       (prev, block) {
         if (block == null) return;
         _restoreAnchor(block);
@@ -611,7 +664,8 @@ class _ReaderScreenState extends ConsumerState<ReaderScreen> {
 
     _settingsVersion++;
 
-    final isDesktop = Platform.isLinux || Platform.isWindows || Platform.isMacOS;
+    final isDesktop =
+        Platform.isLinux || Platform.isWindows || Platform.isMacOS;
 
     final contentCache = _buildContentMap(contentState);
     final errorCache = _buildErrorMap(contentState);
@@ -619,54 +673,62 @@ class _ReaderScreenState extends ConsumerState<ReaderScreen> {
     final readerBody = nav.isLoading
         ? const Center(child: CircularProgressIndicator())
         : nav.error != null
-            ? _buildError()
-            : settings.scrollMode == 'paged'
-                ? buildPagedContent(
-                    context: context,
-                    settings: settings,
-                    chapters: nav.chapters,
-                    currentIndex: nav.currentIndex,
-                    contentCache: contentCache,
-                    errorCache: errorCache,
-                    pageController: _pageController,
-                    onPageChanged: (index) {
-                      ref.read(readerNavigationProvider(widget.novelId).notifier).jumpToChapter(index);
-                    },
-                    loadChapter: (chapterId) => ref.read(contentProvider.notifier).loadChapter(chapterId),
-                    goToPreviousChapter: _goToPreviousChapter,
-                    goToNextChapter: _goToNextChapter,
-                    chunkKeys: _chunkKeys,
-                    settingsVersion: _settingsVersion,
-                    ttsState: ttsState,
-                    blockToParagraph: _blockToParagraph,
-                  )
-                : buildContinuousContent(
-                    context: context,
-                    settings: settings,
-                    chapters: nav.chapters,
-                    currentIndex: nav.currentIndex,
-                    contentCache: contentCache,
-                    errorCache: errorCache,
-                    scrollController: _scrollController,
-                    loadChapter: (chapterId) => ref.read(contentProvider.notifier).loadChapter(chapterId),
-                    chunkKeys: _chunkKeys,
-                    settingsVersion: _settingsVersion,
-                    ttsState: ttsState,
-                    blockToParagraph: _blockToParagraph,
-                  );
+        ? _buildError()
+        : settings.scrollMode == 'paged'
+        ? buildPagedContent(
+            context: context,
+            settings: settings,
+            chapters: nav.chapters,
+            currentIndex: nav.currentIndex,
+            contentCache: contentCache,
+            errorCache: errorCache,
+            pageController: _pageController,
+            onPageChanged: (index) {
+              ref
+                  .read(readerNavigationProvider(widget.novelId).notifier)
+                  .jumpToChapter(index);
+            },
+            loadChapter: (chapterId) =>
+                ref.read(contentProvider.notifier).loadChapter(chapterId),
+            goToPreviousChapter: _goToPreviousChapter,
+            goToNextChapter: _goToNextChapter,
+            chunkKeys: _chunkKeys,
+            settingsVersion: _settingsVersion,
+            ttsState: ttsState,
+            blockToParagraph: _blockToParagraph,
+          )
+        : buildContinuousContent(
+            context: context,
+            settings: settings,
+            chapters: nav.chapters,
+            currentIndex: nav.currentIndex,
+            contentCache: contentCache,
+            errorCache: errorCache,
+            scrollController: _scrollController,
+            loadChapter: (chapterId) =>
+                ref.read(contentProvider.notifier).loadChapter(chapterId),
+            chunkKeys: _chunkKeys,
+            settingsVersion: _settingsVersion,
+            ttsState: ttsState,
+            blockToParagraph: _blockToParagraph,
+          );
 
     return Scaffold(
       backgroundColor: settings.bgColor,
       body: isDesktop
           ? CallbackShortcuts(
               bindings: {
-                SingleActivator(LogicalKeyboardKey.arrowLeft): _goToPreviousChapter,
-                SingleActivator(LogicalKeyboardKey.arrowRight): _goToNextChapter,
-                SingleActivator(LogicalKeyboardKey.escape): () => Navigator.pop(context),
+                SingleActivator(LogicalKeyboardKey.arrowLeft):
+                    _goToPreviousChapter,
+                SingleActivator(LogicalKeyboardKey.arrowRight):
+                    _goToNextChapter,
+                SingleActivator(LogicalKeyboardKey.escape): () =>
+                    Navigator.pop(context),
                 SingleActivator(LogicalKeyboardKey.space): () {
                   setState(() => _showControls = !_showControls);
                 },
-                SingleActivator(LogicalKeyboardKey.keyL, control: true): _toggleSliderPinned,
+                SingleActivator(LogicalKeyboardKey.keyL, control: true):
+                    _toggleSliderPinned,
               },
               child: Focus(
                 autofocus: true,
@@ -684,7 +746,12 @@ class _ReaderScreenState extends ConsumerState<ReaderScreen> {
                             padding: EdgeInsets.zero,
                             child: readerBody,
                           ),
-                          ..._overlayWidgets(settings, ttsState, ttsActive, currentChapter),
+                          ..._overlayWidgets(
+                            settings,
+                            ttsState,
+                            ttsActive,
+                            currentChapter,
+                          ),
                         ],
                       ),
                     ),
@@ -741,7 +808,12 @@ class _ReaderScreenState extends ConsumerState<ReaderScreen> {
               child: Stack(
                 children: [
                   readerBody,
-                  ..._overlayWidgets(settings, ttsState, ttsActive, currentChapter),
+                  ..._overlayWidgets(
+                    settings,
+                    ttsState,
+                    ttsActive,
+                    currentChapter,
+                  ),
                 ],
               ),
             ),
@@ -779,8 +851,10 @@ class _ReaderScreenState extends ConsumerState<ReaderScreen> {
         buildTtsFloatingPlayer(
           settings: settings,
           ttsState: ttsState,
-          onSkipBack: () => ref.read(ttsManagerProvider.notifier).skipBackward(),
-          onTogglePause: () => ref.read(ttsManagerProvider.notifier).togglePause(),
+          onSkipBack: () =>
+              ref.read(ttsManagerProvider.notifier).skipBackward(),
+          onTogglePause: () =>
+              ref.read(ttsManagerProvider.notifier).togglePause(),
           onStop: () => ref.read(ttsManagerProvider.notifier).stop(),
           onSkipNext: () => ref.read(ttsManagerProvider.notifier).skipForward(),
         ),
@@ -795,11 +869,17 @@ class _ReaderScreenState extends ConsumerState<ReaderScreen> {
         children: [
           const Icon(Icons.error_outline, size: 48, color: Colors.red),
           const SizedBox(height: 16),
-          Text(nav.error!, style: const TextStyle(color: AppTheme.kReaderTextDefault), textAlign: TextAlign.center),
+          Text(
+            nav.error!,
+            style: const TextStyle(color: AppTheme.kReaderTextDefault),
+            textAlign: TextAlign.center,
+          ),
           const SizedBox(height: 16),
           TextButton(
             onPressed: () {
-              ref.read(readerNavigationProvider(widget.novelId).notifier).loadChapters(widget.chapterId);
+              ref
+                  .read(readerNavigationProvider(widget.novelId).notifier)
+                  .loadChapters(widget.chapterId);
             },
             child: const Text('Retry'),
           ),

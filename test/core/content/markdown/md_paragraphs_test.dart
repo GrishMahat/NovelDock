@@ -22,13 +22,17 @@ void main() {
     });
 
     test('drops images from extracted text', () {
-      final doc = MDParser.parse('Text ![alt](https://example.com/img.png) end');
+      final doc = MDParser.parse(
+        'Text ![alt](https://example.com/img.png) end',
+      );
       final result = extractParagraphs(doc);
       expect(result[0].text, 'Text  end');
     });
 
     test('skips non-paragraph blocks and keeps block indices', () {
-      final doc = MDParser.parse('# Heading\n\nFirst para.\n\n```dart\ncode\n```\n\nLast para.');
+      final doc = MDParser.parse(
+        '# Heading\n\nFirst para.\n\n```dart\ncode\n```\n\nLast para.',
+      );
       final result = extractParagraphs(doc);
       expect(result.map((e) => e.text), ['First para.', 'Last para.']);
       expect(result.map((e) => e.blockIndex), [1, 3]);

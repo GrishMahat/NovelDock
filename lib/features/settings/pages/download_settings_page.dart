@@ -25,7 +25,12 @@ class DownloadSettings {
     this.autoDeleteRead = false,
   });
 
-  DownloadSettings copyWith({String? downloadPath, bool? wifiOnly, int? parallelDownloads, bool? autoDeleteRead}) {
+  DownloadSettings copyWith({
+    String? downloadPath,
+    bool? wifiOnly,
+    int? parallelDownloads,
+    bool? autoDeleteRead,
+  }) {
     return DownloadSettings(
       downloadPath: downloadPath ?? this.downloadPath,
       wifiOnly: wifiOnly ?? this.wifiOnly,
@@ -36,14 +41,17 @@ class DownloadSettings {
 }
 
 class DownloadSettingsNotifier extends StateNotifier<DownloadSettings> {
-  DownloadSettingsNotifier() : super(const DownloadSettings()) { _load(); }
+  DownloadSettingsNotifier() : super(const DownloadSettings()) {
+    _load();
+  }
 
   Future<void> _load() async {
     try {
       final p = await SharedPreferences.getInstance();
       final appDir = await getApplicationDocumentsDirectory();
       state = DownloadSettings(
-        downloadPath: p.getString('download_path') ?? '${appDir.path}/downloads',
+        downloadPath:
+            p.getString('download_path') ?? '${appDir.path}/downloads',
         wifiOnly: p.getBool('download_wifi_only') ?? false,
         parallelDownloads: p.getInt('download_parallel') ?? 3,
         autoDeleteRead: p.getBool('download_auto_delete') ?? false,
@@ -70,15 +78,19 @@ class DownloadSettingsNotifier extends StateNotifier<DownloadSettings> {
     _save();
   }
 
-  void updateDownloadPath(String v) => _update((s) => s.copyWith(downloadPath: v));
+  void updateDownloadPath(String v) =>
+      _update((s) => s.copyWith(downloadPath: v));
   void toggleWifiOnly() => _update((s) => s.copyWith(wifiOnly: !s.wifiOnly));
-  void updateParallelDownloads(int v) => _update((s) => s.copyWith(parallelDownloads: v));
-  void toggleAutoDeleteRead() => _update((s) => s.copyWith(autoDeleteRead: !s.autoDeleteRead));
+  void updateParallelDownloads(int v) =>
+      _update((s) => s.copyWith(parallelDownloads: v));
+  void toggleAutoDeleteRead() =>
+      _update((s) => s.copyWith(autoDeleteRead: !s.autoDeleteRead));
 }
 
-final downloadSettingsProvider = StateNotifierProvider<DownloadSettingsNotifier, DownloadSettings>((ref) {
-  return DownloadSettingsNotifier();
-});
+final downloadSettingsProvider =
+    StateNotifierProvider<DownloadSettingsNotifier, DownloadSettings>((ref) {
+      return DownloadSettingsNotifier();
+    });
 
 class DownloadSettingsPage extends ConsumerWidget {
   const DownloadSettingsPage({super.key});
@@ -98,22 +110,35 @@ class DownloadSettingsPage extends ConsumerWidget {
             dense: true,
             contentPadding: EdgeInsets.zero,
             title: const Text('Download Path'),
-            subtitle: Text(settings.downloadPath, style: const TextStyle(fontSize: 12)),
+            subtitle: Text(
+              settings.downloadPath,
+              style: const TextStyle(fontSize: 12),
+            ),
             trailing: const Icon(Icons.chevron_right),
             onTap: () async {
               // On Linux, show path in a dialog since file_picker doesn't support directory picking well
-              final controller = TextEditingController(text: settings.downloadPath);
+              final controller = TextEditingController(
+                text: settings.downloadPath,
+              );
               final result = await showDialog<String>(
                 context: context,
                 builder: (ctx) => AlertDialog(
                   title: const Text('Download Path'),
                   content: TextField(
                     controller: controller,
-                    decoration: const InputDecoration(border: OutlineInputBorder()),
+                    decoration: const InputDecoration(
+                      border: OutlineInputBorder(),
+                    ),
                   ),
                   actions: [
-                    TextButton(onPressed: () => Navigator.pop(ctx), child: const Text('Cancel')),
-                    FilledButton(onPressed: () => Navigator.pop(ctx, controller.text), child: const Text('Save')),
+                    TextButton(
+                      onPressed: () => Navigator.pop(ctx),
+                      child: const Text('Cancel'),
+                    ),
+                    FilledButton(
+                      onPressed: () => Navigator.pop(ctx, controller.text),
+                      child: const Text('Save'),
+                    ),
                   ],
                 ),
               );
@@ -166,17 +191,33 @@ class DownloadSettingsPage extends ConsumerWidget {
       padding: const EdgeInsets.symmetric(vertical: 4),
       child: Row(
         children: [
-          const SizedBox(width: 80, child: Text('Limit', style: TextStyle(fontSize: 13))),
+          const SizedBox(
+            width: 80,
+            child: Text('Limit', style: TextStyle(fontSize: 13)),
+          ),
           Expanded(
             child: SegmentedButton<int>(
               segments: const [
-                ButtonSegment(value: 1, label: Text('1', style: TextStyle(fontSize: 12))),
-                ButtonSegment(value: 2, label: Text('2', style: TextStyle(fontSize: 12))),
-                ButtonSegment(value: 3, label: Text('3', style: TextStyle(fontSize: 12))),
-                ButtonSegment(value: 5, label: Text('5', style: TextStyle(fontSize: 12))),
+                ButtonSegment(
+                  value: 1,
+                  label: Text('1', style: TextStyle(fontSize: 12)),
+                ),
+                ButtonSegment(
+                  value: 2,
+                  label: Text('2', style: TextStyle(fontSize: 12)),
+                ),
+                ButtonSegment(
+                  value: 3,
+                  label: Text('3', style: TextStyle(fontSize: 12)),
+                ),
+                ButtonSegment(
+                  value: 5,
+                  label: Text('5', style: TextStyle(fontSize: 12)),
+                ),
               ],
               selected: {current},
-              onSelectionChanged: (s) => notifier.updateParallelDownloads(s.first),
+              onSelectionChanged: (s) =>
+                  notifier.updateParallelDownloads(s.first),
             ),
           ),
         ],
@@ -187,7 +228,14 @@ class DownloadSettingsPage extends ConsumerWidget {
   Widget _section(String title) {
     return Padding(
       padding: const EdgeInsets.only(bottom: 8),
-      child: Text(title, style: const TextStyle(fontSize: 14, fontWeight: FontWeight.w600, color: AppTheme.kPrimary)),
+      child: Text(
+        title,
+        style: const TextStyle(
+          fontSize: 14,
+          fontWeight: FontWeight.w600,
+          color: AppTheme.kPrimary,
+        ),
+      ),
     );
   }
 }
@@ -214,7 +262,12 @@ class _StorageInfoCardState extends State<_StorageInfoCard> {
     try {
       final dir = Directory(widget.downloadPath);
       if (!await dir.exists()) {
-        if (mounted) setState(() { _fileCount = 0; _totalSize = 0; });
+        if (mounted) {
+          setState(() {
+            _fileCount = 0;
+            _totalSize = 0;
+          });
+        }
         return;
       }
 
@@ -226,7 +279,12 @@ class _StorageInfoCardState extends State<_StorageInfoCard> {
           size += await entity.length();
         }
       }
-      if (mounted) setState(() { _fileCount = count; _totalSize = size; });
+      if (mounted) {
+        setState(() {
+          _fileCount = count;
+          _totalSize = size;
+        });
+      }
     } catch (e) {
       Log.e(_tag, 'Failed to load storage info', e);
     }
@@ -262,7 +320,10 @@ class _StorageInfoCardState extends State<_StorageInfoCard> {
             const SizedBox(height: 8),
             Text(
               '$_fileCount files · ${_formatSize(_totalSize)}',
-              style: TextStyle(fontSize: 12, color: Theme.of(context).colorScheme.onSurfaceVariant),
+              style: TextStyle(
+                fontSize: 12,
+                color: Theme.of(context).colorScheme.onSurfaceVariant,
+              ),
             ),
             const SizedBox(height: 8),
             SizedBox(

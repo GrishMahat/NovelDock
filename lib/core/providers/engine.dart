@@ -17,10 +17,14 @@ String decodeHtmlEntities(String str) {
       .replaceAll('&gt;', '>')
       .replaceAll('&quot;', '"')
       .replaceAll('&nbsp;', ' ');
-  str = str.replaceAllMapped(RegExp(r'&#(\d+);'), (m) =>
-    String.fromCharCode(int.parse(m[1]!)));
-  str = str.replaceAllMapped(RegExp(r'&#x([0-9a-fA-F]+);'), (m) =>
-    String.fromCharCode(int.parse(m[1]!, radix: 16)));
+  str = str.replaceAllMapped(
+    RegExp(r'&#(\d+);'),
+    (m) => String.fromCharCode(int.parse(m[1]!)),
+  );
+  str = str.replaceAllMapped(
+    RegExp(r'&#x([0-9a-fA-F]+);'),
+    (m) => String.fromCharCode(int.parse(m[1]!, radix: 16)),
+  );
   return str;
 }
 
@@ -108,7 +112,8 @@ class ProviderEngine {
     final runtime = getJavascriptRuntime();
     _runtimes.add(runtime);
 
-    final wrappedSource = '''
+    final wrappedSource =
+        '''
       var module = { exports: {} };
       ${await _providerHelpersSource()}
       $jsSource
@@ -184,7 +189,14 @@ class ProviderInstance {
   /// Validate that the provider exports required functions.
   /// Returns a list of missing required functions (empty = valid).
   List<String> validate() {
-    const required = ['getSearchUrl', 'parseSearchResults', 'getNovelInfoUrl', 'parseNovelInfo', 'getChapterContentUrl', 'parseChapterContent'];
+    const required = [
+      'getSearchUrl',
+      'parseSearchResults',
+      'getNovelInfoUrl',
+      'parseNovelInfo',
+      'getChapterContentUrl',
+      'parseChapterContent',
+    ];
     return required.where((fn) => !_exportedFunctions.contains(fn)).toList();
   }
 
@@ -199,7 +211,9 @@ class ProviderInstance {
 
     if (result.isError) {
       Log.e(_tag, 'Function "$name" error: ${result.stringResult}');
-      throw Exception('Provider function "$name" error: ${result.stringResult}');
+      throw Exception(
+        'Provider function "$name" error: ${result.stringResult}',
+      );
     }
 
     final str = result.stringResult;
@@ -344,7 +358,12 @@ class ProviderInstance {
 
   /// Load the main/explore page for this provider.
   /// Returns a list of novel items featured on the main page.
-  Future<SearchResults?> loadMainPage({int page = 1, String? category, String? orderBy, String? tag}) async {
+  Future<SearchResults?> loadMainPage({
+    int page = 1,
+    String? category,
+    String? orderBy,
+    String? tag,
+  }) async {
     try {
       final result = await call('loadMainPage', [page, category, orderBy, tag]);
       if (result != null && result is Map<String, dynamic>) {
@@ -405,7 +424,8 @@ class SearchResults {
   SearchResults({required this.results, required this.hasNextPage});
 
   factory SearchResults.fromJson(Map<String, dynamic> json) {
-    final resultsList = (json['results'] as List?)
+    final resultsList =
+        (json['results'] as List?)
             ?.map((e) => SearchResultItem.fromJson(e as Map<String, dynamic>))
             .toList() ??
         [];
@@ -444,12 +464,17 @@ class SearchResultItem {
       title: decodeHtmlEntities(json['title'] as String? ?? ''),
       url: json['url'] as String? ?? '',
       cover: json['cover'] as String?,
-      author: json['author'] != null ? decodeHtmlEntities(json['author'] as String) : null,
-      summary: json['summary'] != null ? decodeHtmlEntities(json['summary'] as String) : null,
+      author: json['author'] != null
+          ? decodeHtmlEntities(json['author'] as String)
+          : null,
+      summary: json['summary'] != null
+          ? decodeHtmlEntities(json['summary'] as String)
+          : null,
       rating: json['rating'] as int?,
       latestChapter: json['latestChapter'] as String?,
-      coverHeaders: (json['coverHeaders'] as Map<String, dynamic>?)
-          ?.map((k, v) => MapEntry(k, v.toString())),
+      coverHeaders: (json['coverHeaders'] as Map<String, dynamic>?)?.map(
+        (k, v) => MapEntry(k, v.toString()),
+      ),
     );
   }
 }
@@ -486,20 +511,28 @@ class NovelInfo {
   factory NovelInfo.fromJson(Map<String, dynamic> json) {
     return NovelInfo(
       title: decodeHtmlEntities(json['title'] as String? ?? ''),
-      author: json['author'] != null ? decodeHtmlEntities(json['author'] as String) : null,
+      author: json['author'] != null
+          ? decodeHtmlEntities(json['author'] as String)
+          : null,
       cover: json['cover'] as String?,
       status: json['status'] as String?,
-      genres: (json['genres'] as List?)?.map((e) => decodeHtmlEntities(e as String)).toList() ?? [],
+      genres:
+          (json['genres'] as List?)
+              ?.map((e) => decodeHtmlEntities(e as String))
+              .toList() ??
+          [],
       description: decodeHtmlEntities(json['description'] as String? ?? ''),
-      chapters: (json['chapters'] as List?)
+      chapters:
+          (json['chapters'] as List?)
               ?.map((e) => NovelChapter.fromJson(e as Map<String, dynamic>))
               .toList() ??
           [],
       rating: json['rating'] as int?,
       peopleVoted: json['peopleVoted'] as int?,
       views: json['views'] as int?,
-      coverHeaders: (json['coverHeaders'] as Map<String, dynamic>?)
-          ?.map((k, v) => MapEntry(k, v.toString())),
+      coverHeaders: (json['coverHeaders'] as Map<String, dynamic>?)?.map(
+        (k, v) => MapEntry(k, v.toString()),
+      ),
       related: (json['related'] as List?)
           ?.map((e) => SearchResultItem.fromJson(e as Map<String, dynamic>))
           .toList(),
@@ -534,7 +567,8 @@ class ChapterContent {
   factory ChapterContent.fromJson(Map<String, dynamic> json) {
     return ChapterContent(
       html: json['html'] as String? ?? '',
-      images: (json['images'] as List?)
+      images:
+          (json['images'] as List?)
               ?.map((e) => ImageRef.fromJson(e as Map<String, dynamic>))
               .toList() ??
           [],
@@ -572,27 +606,26 @@ final providerEngineProvider = Provider<ProviderEngine>((ref) {
 /// update, invalidate the family to force a fresh instance.
 final providerInstanceProvider =
     FutureProvider.family<ProviderInstance?, String>((ref, providerId) async {
-  Log.i(_tag, 'Loading provider: $providerId');
+      Log.i(_tag, 'Loading provider: $providerId');
 
-  final registry = await ref.watch(registryManagerProvider.future);
-  final engine = ref.watch(providerEngineProvider);
+      final registry = await ref.watch(registryManagerProvider.future);
+      final engine = ref.watch(providerEngineProvider);
 
-  final jsSource = await registry.loadCachedProviderJs(providerId);
-  if (jsSource == null) {
-    Log.w(_tag, 'No cached JS for provider: $providerId');
-    return null;
-  }
+      final jsSource = await registry.loadCachedProviderJs(providerId);
+      if (jsSource == null) {
+        Log.w(_tag, 'No cached JS for provider: $providerId');
+        return null;
+      }
 
-  try {
-    final instance = await engine.loadProvider(jsSource);
-    await instance.loadFlags();
-    return instance;
-  } catch (e) {
-    Log.e(_tag, 'Failed to load provider: $providerId', e);
-    return null;
-  }
-});
-
+      try {
+        final instance = await engine.loadProvider(jsSource);
+        await instance.loadFlags();
+        return instance;
+      } catch (e) {
+        Log.e(_tag, 'Failed to load provider: $providerId', e);
+        return null;
+      }
+    });
 
 /// Manages loaded provider instances keyed by provider ID.
 class LoadedProvidersNotifier extends Notifier<Map<String, ProviderInstance>> {
@@ -606,7 +639,9 @@ class LoadedProvidersNotifier extends Notifier<Map<String, ProviderInstance>> {
 }
 
 final loadedProvidersProvider =
-    NotifierProvider<LoadedProvidersNotifier, Map<String, ProviderInstance>>(LoadedProvidersNotifier.new);
+    NotifierProvider<LoadedProvidersNotifier, Map<String, ProviderInstance>>(
+      LoadedProvidersNotifier.new,
+    );
 
 /// Load a provider's JS from disk cache, evaluate it, and cache the instance.
 /// Returns cached instance if already loaded.

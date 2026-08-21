@@ -138,6 +138,7 @@ class TtsChunker {
       out.add(
         _buildChunk(
           _Unit(paragraph, 0, paragraph.length),
+          paragraph,
           paragraphIndex,
           speed,
           sentenceCount: _countSentences(paragraph),
@@ -155,7 +156,14 @@ class TtsChunker {
     if (sentences.isEmpty) {
       for (final part in _hardSplit(_Unit(paragraph, 0, paragraph.length))) {
         out.add(
-          _buildChunk(part, paragraphIndex, speed, sentenceCount: 1, out: out),
+          _buildChunk(
+            part,
+            paragraph,
+            paragraphIndex,
+            speed,
+            sentenceCount: 1,
+            out: out,
+          ),
         );
       }
 
@@ -174,6 +182,7 @@ class TtsChunker {
           out.add(
             _buildChunk(
               part,
+              paragraph,
               paragraphIndex,
               speed,
               sentenceCount: 1,
@@ -209,6 +218,7 @@ class TtsChunker {
             merged.first.start,
             merged.last.end,
           ),
+          paragraph,
           paragraphIndex,
           speed,
           sentenceCount: merged.length,
@@ -251,13 +261,9 @@ class TtsChunker {
 
       units.add(_Unit(text.substring(start, end), start, end));
 
+      // Leave the separator whitespace at the start of the next unit so
+      // merged chunks preserve the original paragraph exactly.
       start = end;
-
-      // Include immediate whitespace in the current sentence so the merged
-      // chunks preserve the original paragraph exactly.
-      while (start < text.length && _isWhitespace(text.codeUnitAt(start))) {
-        start++;
-      }
     }
 
     if (start < text.length) {
@@ -338,13 +344,9 @@ class TtsChunker {
         ),
       );
 
+      // Leave the separator whitespace at the start of the next clause so
+      // merged chunks preserve the original text exactly.
       start = end;
-
-      // Keep whitespace with the preceding clause.
-      while (start < unit.text.length &&
-          _isWhitespace(unit.text.codeUnitAt(start))) {
-        start++;
-      }
     }
 
     if (start < unit.text.length) {
@@ -407,15 +409,9 @@ class TtsChunker {
         ),
       );
 
+      // The split lands before the whitespace, so the next piece keeps it
+      // and joining the pieces reproduces the original text exactly.
       position = cut;
-
-      // Discard only whitespace that sits at the split boundary. This keeps
-      // the spoken text natural while preserving valid offsets for the next
-      // unit.
-      while (position < unit.length &&
-          _isWhitespace(unit.text.codeUnitAt(position))) {
-        position++;
-      }
     }
 
     if (position < unit.length) {
@@ -429,6 +425,7 @@ class TtsChunker {
 
   TtsChunk _buildChunk(
     _Unit unit,
+    String paragraph,
     int paragraphIndex,
     double speed, {
     required int sentenceCount,
@@ -443,7 +440,7 @@ class TtsChunker {
       paragraphIndex: paragraphIndex,
       startOffset: unit.start,
       endOffset: unit.end,
-      paragraphWordOffset: _countWordsBeforeOffset(unit.text, 0),
+      paragraphWordOffset: _countWordsBeforeOffset(paragraph, unit.start),
       sentenceCount: sentenceCount.clamp(0, 0x7fffffff),
       estimatedDurationMs: estimatedDurationMs,
       text: unit.text,

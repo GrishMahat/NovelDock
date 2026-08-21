@@ -1,7 +1,6 @@
 import 'package:drift/drift.dart';
 
 import '../database.dart';
-import '../tables.dart';
 
 part 'bookmark_dao.g.dart';
 
@@ -11,20 +10,24 @@ class BookmarkDao extends DatabaseAccessor<AppDatabase>
   BookmarkDao(super.db);
 
   Future<int> addBookmark(BookmarksCompanion bookmark) {
-    return into(bookmarks).insert(bookmark,
-        mode: InsertMode.insertOrReplace);
+    return into(bookmarks).insert(bookmark, mode: InsertMode.insertOrReplace);
   }
 
   Future<void> removeBookmark(int id) async {
     await (delete(bookmarks)..where((t) => t.id.equals(id))).go();
   }
 
-  Future<void> removeBookmarkForPosition(int novelId, int chapterId, String position) async {
-    await (delete(bookmarks)
-          ..where((t) =>
+  Future<void> removeBookmarkForPosition(
+    int novelId,
+    int chapterId,
+    String position,
+  ) async {
+    await (delete(bookmarks)..where(
+          (t) =>
               t.novelId.equals(novelId) &
               t.chapterId.equals(chapterId) &
-              t.position.equals(position)))
+              t.position.equals(position),
+        ))
         .go();
   }
 
@@ -43,18 +46,20 @@ class BookmarkDao extends DatabaseAccessor<AppDatabase>
   }
 
   Future<List<Bookmark>> getAllBookmarks() {
-    return (select(bookmarks)
-          ..orderBy([(t) => OrderingTerm.desc(t.createdAt)]))
-        .get();
+    return (select(
+      bookmarks,
+    )..orderBy([(t) => OrderingTerm.desc(t.createdAt)])).get();
   }
 
   Future<bool> hasBookmark(int novelId, int chapterId, String position) async {
-    final result = await (select(bookmarks)
-          ..where((t) =>
-              t.novelId.equals(novelId) &
-              t.chapterId.equals(chapterId) &
-              t.position.equals(position)))
-        .getSingleOrNull();
+    final result =
+        await (select(bookmarks)..where(
+              (t) =>
+                  t.novelId.equals(novelId) &
+                  t.chapterId.equals(chapterId) &
+                  t.position.equals(position),
+            ))
+            .getSingleOrNull();
     return result != null;
   }
 }

@@ -81,7 +81,9 @@ class TtsMiniPlayer extends ConsumerWidget {
                           overflow: TextOverflow.ellipsis,
                           style: TextStyle(
                             fontSize: 12,
-                            color: Theme.of(context).colorScheme.onSurfaceVariant,
+                            color: Theme.of(
+                              context,
+                            ).colorScheme.onSurfaceVariant,
                           ),
                         ),
                         const SizedBox(height: 2),
@@ -89,7 +91,10 @@ class TtsMiniPlayer extends ConsumerWidget {
                           '${ttsState.currentLineIndex + 1} / ${ttsState.totalLines}',
                           style: TextStyle(
                             fontSize: 10,
-                            color: Theme.of(context).colorScheme.onSurfaceVariant.withValues(alpha: 0.7),
+                            color: Theme.of(context)
+                                .colorScheme
+                                .onSurfaceVariant
+                                .withValues(alpha: 0.7),
                           ),
                         ),
                       ],
@@ -109,7 +114,9 @@ class TtsMiniPlayer extends ConsumerWidget {
             LinearProgressIndicator(
               value: progress,
               backgroundColor: Colors.white12,
-              valueColor: const AlwaysStoppedAnimation<Color>(AppTheme.kPrimary),
+              valueColor: const AlwaysStoppedAnimation<Color>(
+                AppTheme.kPrimary,
+              ),
               minHeight: 2,
             ),
           ],

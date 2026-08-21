@@ -14,8 +14,12 @@ class MDParser {
         continue;
       }
 
-      if (line.trim() == '---' || line.trim() == '***' || line.trim() == '___'
-          || line.trim() == '- - -' || line.trim() == '* * *' || line.trim() == '_ _ _') {
+      if (line.trim() == '---' ||
+          line.trim() == '***' ||
+          line.trim() == '___' ||
+          line.trim() == '- - -' ||
+          line.trim() == '* * *' ||
+          line.trim() == '_ _ _') {
         blocks.add(HorizontalRuleNode());
         i++;
         continue;
@@ -44,8 +48,10 @@ class MDParser {
         continue;
       }
 
-      if (trimmed.startsWith('- ') || trimmed.startsWith('* ') || trimmed.startsWith('+ ')
-          || RegExp(r'^\d+\.\s').hasMatch(trimmed)) {
+      if (trimmed.startsWith('- ') ||
+          trimmed.startsWith('* ') ||
+          trimmed.startsWith('+ ') ||
+          RegExp(r'^\d+\.\s').hasMatch(trimmed)) {
         final (list, next) = _parseList(lines, i);
         blocks.add(list);
         i = next;
@@ -62,7 +68,9 @@ class MDParser {
 
   static (BlockNode, int) _parseHeading(String line) {
     int level = 0;
-    for (int j = 0; j < line.length && line[j] == '#'; j++) { level++; }
+    for (int j = 0; j < line.length && line[j] == '#'; j++) {
+      level++;
+    }
     level = level.clamp(1, 6);
     String content;
     if (level < line.length && line[level] == ' ') {
@@ -147,9 +155,13 @@ class MDParser {
         final next = lines[i];
         final nextTrimmed = next.trim();
         final nextIndent = next.length - next.trimLeft().length;
-        if (nextTrimmed.isEmpty) { i++; break; }
-        if ((RegExp(r'^\d+\.\s').hasMatch(nextTrimmed) || RegExp(r'^[-*+]\s').hasMatch(nextTrimmed))
-            && nextIndent == indent) {
+        if (nextTrimmed.isEmpty) {
+          i++;
+          break;
+        }
+        if ((RegExp(r'^\d+\.\s').hasMatch(nextTrimmed) ||
+                RegExp(r'^[-*+]\s').hasMatch(nextTrimmed)) &&
+            nextIndent == indent) {
           break;
         }
         items.last.textLines.add(nextTrimmed);
@@ -160,7 +172,9 @@ class MDParser {
     final listItems = <ListItemNode>[];
     for (final item in items) {
       final text = item.textLines.join(' ').trim();
-      final inlines = text.isNotEmpty ? _parseInlines(text) : <InlineNode>[TextNode('')];
+      final inlines = text.isNotEmpty
+          ? _parseInlines(text)
+          : <InlineNode>[TextNode('')];
       listItems.add(ListItemNode(inlines));
     }
 
@@ -181,8 +195,12 @@ class MDParser {
       }
       if (trimmed.startsWith('>')) break;
       if (trimmed.startsWith('```')) break;
-      if (trimmed.startsWith('- ') || trimmed.startsWith('* ') || trimmed.startsWith('+ ')
-          || RegExp(r'^\d+\.\s').hasMatch(trimmed)) { break; }
+      if (trimmed.startsWith('- ') ||
+          trimmed.startsWith('* ') ||
+          trimmed.startsWith('+ ') ||
+          RegExp(r'^\d+\.\s').hasMatch(trimmed)) {
+        break;
+      }
       if (trimmed == '---' || trimmed == '***' || trimmed == '___') break;
       textLines.add(line);
       i++;
@@ -249,7 +267,9 @@ class MDParser {
 
       if (c == '!' && i + 1 < text.length && text[i + 1] == '[') {
         final close = text.indexOf(']', i + 2);
-        if (close > i + 2 && close + 1 < text.length && text[close + 1] == '(') {
+        if (close > i + 2 &&
+            close + 1 < text.length &&
+            text[close + 1] == '(') {
           final parenClose = text.indexOf(')', close + 2);
           if (parenClose > close + 2) {
             final alt = text.substring(i + 2, close);
@@ -264,7 +284,9 @@ class MDParser {
 
       if (c == '[') {
         final close = text.indexOf(']', i + 1);
-        if (close > i + 1 && close + 1 < text.length && text[close + 1] == '(') {
+        if (close > i + 1 &&
+            close + 1 < text.length &&
+            text[close + 1] == '(') {
           final parenClose = text.indexOf(')', close + 2);
           if (parenClose > close + 2) {
             final linkText = text.substring(i + 1, close);

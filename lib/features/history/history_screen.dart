@@ -25,8 +25,9 @@ class HistoryScreen extends ConsumerStatefulWidget {
 
 class _HistoryScreenState extends ConsumerState<HistoryScreen> {
   String _searchQuery = '';
-  late final Future<List<Novel>> _novelsFuture =
-      ref.read(novelDaoProvider).getAllNovels();
+  late final Future<List<Novel>> _novelsFuture = ref
+      .read(novelDaoProvider)
+      .getAllNovels();
 
   @override
   Widget build(BuildContext context) {
@@ -78,24 +79,29 @@ class _HistoryScreenState extends ConsumerState<HistoryScreen> {
                 child: Column(
                   mainAxisAlignment: MainAxisAlignment.center,
                   children: [
-                    Icon(Icons.history, size: 64,
-                        color: Theme.of(context).colorScheme.onSurfaceVariant.withValues(alpha: 0.5)),
+                    Icon(
+                      Icons.history,
+                      size: 64,
+                      color: Theme.of(
+                        context,
+                      ).colorScheme.onSurfaceVariant.withValues(alpha: 0.5),
+                    ),
                     const SizedBox(height: Insets.lg),
                     Text(
-                        filtered
-                            ? 'No results for "$_searchQuery"'
-                            : 'No reading history',
-                        style: Theme.of(context).textTheme.titleMedium),
+                      filtered
+                          ? 'No results for "$_searchQuery"'
+                          : 'No reading history',
+                      style: Theme.of(context).textTheme.titleMedium,
+                    ),
                     const SizedBox(height: Insets.sm),
                     Text(
                       filtered
                           ? 'Try a different title or author.'
                           : 'Start reading novels to build\nyour history.',
                       textAlign: TextAlign.center,
-                      style: Theme.of(context)
-                          .textTheme
-                          .bodyMedium
-                          ?.copyWith(color: Theme.of(context).colorScheme.onSurfaceVariant),
+                      style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                        color: Theme.of(context).colorScheme.onSurfaceVariant,
+                      ),
                     ),
                   ],
                 ),
@@ -163,7 +169,11 @@ class _HistoryScreenState extends ConsumerState<HistoryScreen> {
           // Search bar
           Padding(
             padding: const EdgeInsets.fromLTRB(
-                Insets.lg, Insets.sm, Insets.lg, Insets.sm),
+              Insets.lg,
+              Insets.sm,
+              Insets.lg,
+              Insets.sm,
+            ),
             child: TextField(
               decoration: InputDecoration(
                 hintText: 'Filter history...',
@@ -186,7 +196,8 @@ class _HistoryScreenState extends ConsumerState<HistoryScreen> {
   }
 
   Map<String, List<ReadingHistoryData>> _groupByDate(
-      List<ReadingHistoryData> entries) {
+    List<ReadingHistoryData> entries,
+  ) {
     final now = DateTime.now();
     final today = DateTime(now.year, now.month, now.day);
     final yesterday = today.subtract(const Duration(days: 1));
@@ -224,18 +235,26 @@ class _HistoryScreenState extends ConsumerState<HistoryScreen> {
   }
 
   Widget _buildItem(
-      Map<String, List<ReadingHistoryData>> grouped, int index,
-      NovelDao novelDao, HistoryDao historyDao) {
+    Map<String, List<ReadingHistoryData>> grouped,
+    int index,
+    NovelDao novelDao,
+    HistoryDao historyDao,
+  ) {
     int current = 0;
     for (final group in grouped.entries) {
       if (current == index) {
         return Padding(
-          padding: const EdgeInsets.fromLTRB(Insets.lg, Insets.lg, Insets.lg, Insets.sm),
+          padding: const EdgeInsets.fromLTRB(
+            Insets.lg,
+            Insets.lg,
+            Insets.lg,
+            Insets.sm,
+          ),
           child: Text(
             group.key,
             style: Theme.of(context).textTheme.titleSmall?.copyWith(
-                  color: Theme.of(context).colorScheme.onSurfaceVariant,
-                ),
+              color: Theme.of(context).colorScheme.onSurfaceVariant,
+            ),
           ),
         );
       }
@@ -254,12 +273,16 @@ class _HistoryScreenState extends ConsumerState<HistoryScreen> {
     return const SizedBox.shrink();
   }
 
-  void _deleteEntry(BuildContext context, WidgetRef ref,
-      HistoryDao historyDao, ReadingHistoryData entry) {
+  void _deleteEntry(
+    BuildContext context,
+    WidgetRef ref,
+    HistoryDao historyDao,
+    ReadingHistoryData entry,
+  ) {
     historyDao.deleteHistoryEntry(entry.id);
-    ScaffoldMessenger.of(context).showSnackBar(
-      const SnackBar(content: Text('History entry removed')),
-    );
+    ScaffoldMessenger.of(
+      context,
+    ).showSnackBar(const SnackBar(content: Text('History entry removed')));
   }
 
   void _confirmClearAll(BuildContext context, WidgetRef ref) {
@@ -267,7 +290,9 @@ class _HistoryScreenState extends ConsumerState<HistoryScreen> {
       context: context,
       builder: (context) => AlertDialog(
         title: const Text('Clear History'),
-        content: const Text('Remove all reading history? This cannot be undone.'),
+        content: const Text(
+          'Remove all reading history? This cannot be undone.',
+        ),
         actions: [
           TextButton(
             onPressed: () => Navigator.pop(context),
@@ -277,9 +302,9 @@ class _HistoryScreenState extends ConsumerState<HistoryScreen> {
             onPressed: () {
               ref.read(historyDaoProvider).clearHistory();
               Navigator.pop(context);
-              ScaffoldMessenger.of(context).showSnackBar(
-                const SnackBar(content: Text('History cleared')),
-              );
+              ScaffoldMessenger.of(
+                context,
+              ).showSnackBar(const SnackBar(content: Text('History cleared')));
             },
             child: const Text('Clear'),
           ),
@@ -308,22 +333,21 @@ class _HistoryTile extends ConsumerWidget {
       future: novelDao.getNovelById(entry.novelId),
       builder: (context, novelSnapshot) {
         final novel = novelSnapshot.data;
-        final title = novel?.title != null ? stripHtml(novel!.title) : 'Novel #${entry.novelId}';
+        final title = novel?.title != null
+            ? stripHtml(novel!.title)
+            : 'Novel #${entry.novelId}';
 
         return FutureBuilder<Chapter?>(
           future: chapterDao.getChapterById(entry.chapterId),
           builder: (context, chapterSnapshot) {
             final chapter = chapterSnapshot.data;
             final chapterName = chapter?.name ?? 'Chapter #${entry.chapterId}';
-            final time = DateTime.fromMillisecondsSinceEpoch(entry.readAt)
-                .toLocal()
-                .toString()
-                .split(' ')[1]
-                .substring(0, 5);
-            final date = DateTime.fromMillisecondsSinceEpoch(entry.readAt)
-                .toLocal()
-                .toString()
-                .split(' ')[0];
+            final time = DateTime.fromMillisecondsSinceEpoch(
+              entry.readAt,
+            ).toLocal().toString().split(' ')[1].substring(0, 5);
+            final date = DateTime.fromMillisecondsSinceEpoch(
+              entry.readAt,
+            ).toLocal().toString().split(' ')[0];
 
             return ListTile(
               leading: novel?.coverUrl != null
@@ -334,10 +358,12 @@ class _HistoryTile extends ConsumerWidget {
                         width: 40,
                         height: 56,
                         fit: BoxFit.cover,
-                        errorBuilder: (_, __, ___) => Container(
+                        errorBuilder: (_, _, _) => Container(
                           width: 40,
                           height: 56,
-                          color: Theme.of(context).colorScheme.surfaceContainerHighest,
+                          color: Theme.of(
+                            context,
+                          ).colorScheme.surfaceContainerHighest,
                           child: const Icon(Icons.book, size: 20),
                         ),
                       ),
@@ -346,7 +372,9 @@ class _HistoryTile extends ConsumerWidget {
                       width: 40,
                       height: 56,
                       decoration: BoxDecoration(
-                        color: Theme.of(context).colorScheme.surfaceContainerHighest,
+                        color: Theme.of(
+                          context,
+                        ).colorScheme.surfaceContainerHighest,
                         borderRadius: BorderRadius.circular(4),
                       ),
                       child: const Icon(Icons.book, size: 20),
@@ -365,7 +393,8 @@ class _HistoryTile extends ConsumerWidget {
                 icon: const Icon(Icons.delete_outline, size: 20),
                 onPressed: onDelete,
               ),
-              onTap: () => context.push('/reader/${entry.novelId}/${entry.chapterId}'),
+              onTap: () =>
+                  context.push('/reader/${entry.novelId}/${entry.chapterId}'),
             );
           },
         );

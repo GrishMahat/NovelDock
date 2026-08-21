@@ -1,29 +1,25 @@
 import 'package:drift/drift.dart';
 
 import '../database.dart';
-import '../tables.dart';
 
 part 'settings_dao.g.dart';
 
 @DriftAccessor(tables: [Settings])
 class SettingsDao extends DatabaseAccessor<AppDatabase>
     with _$SettingsDaoMixin {
-  SettingsDao(AppDatabase db) : super(db);
+  SettingsDao(super.db);
 
   Future<void> setSetting(String key, String value) async {
     await (delete(settings)..where((t) => t.key.equals(key))).go();
-    await into(settings).insert(
-      SettingsCompanion(
-        key: Value(key),
-        value: Value(value),
-      ),
-    );
+    await into(
+      settings,
+    ).insert(SettingsCompanion(key: Value(key), value: Value(value)));
   }
 
   Future<String?> getSetting(String key) async {
-    final results = await (select(settings)
-          ..where((t) => t.key.equals(key)))
-        .get();
+    final results = await (select(
+      settings,
+    )..where((t) => t.key.equals(key))).get();
     if (results.isEmpty) return null;
     return results.first.value;
   }

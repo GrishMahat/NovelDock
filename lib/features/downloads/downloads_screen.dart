@@ -45,16 +45,17 @@ class _DownloadsScreenState extends ConsumerState<DownloadsScreen> {
     return Scaffold(
       appBar: isDesktop
           ? null
-          : AppBar(
-              title: const Text('Downloads'),
-              actions: [_clearActions()],
-            ),
+          : AppBar(title: const Text('Downloads'), actions: [_clearActions()]),
       body: Column(
         children: [
           if (isDesktop)
             Padding(
               padding: const EdgeInsets.fromLTRB(
-                  Insets.lg, Insets.md, Insets.lg, Insets.sm),
+                Insets.lg,
+                Insets.md,
+                Insets.lg,
+                Insets.sm,
+              ),
               child: Row(
                 children: [
                   Expanded(
@@ -70,9 +71,13 @@ class _DownloadsScreenState extends ConsumerState<DownloadsScreen> {
           // ── Settings toggle ──
           ExpansionTile(
             leading: const Icon(Icons.settings, size: 20),
-            title: const Text('Download Settings', style: TextStyle(fontSize: 14)),
+            title: const Text(
+              'Download Settings',
+              style: TextStyle(fontSize: 14),
+            ),
             initiallyExpanded: _showSettings,
-            onExpansionChanged: (expanded) => setState(() => _showSettings = expanded),
+            onExpansionChanged: (expanded) =>
+                setState(() => _showSettings = expanded),
             children: [
               Padding(
                 padding: const EdgeInsets.fromLTRB(16, 0, 16, 16),
@@ -83,29 +88,53 @@ class _DownloadsScreenState extends ConsumerState<DownloadsScreen> {
                       dense: true,
                       contentPadding: EdgeInsets.zero,
                       title: const Text('Path', style: TextStyle(fontSize: 13)),
-                      subtitle: Text(dlSettings.downloadPath, style: const TextStyle(fontSize: 11), maxLines: 1, overflow: TextOverflow.ellipsis),
+                      subtitle: Text(
+                        dlSettings.downloadPath,
+                        style: const TextStyle(fontSize: 11),
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                      ),
                       trailing: const Icon(Icons.edit, size: 18),
                       onTap: () async {
-                        final controller = TextEditingController(text: dlSettings.downloadPath);
+                        final controller = TextEditingController(
+                          text: dlSettings.downloadPath,
+                        );
                         final result = await showDialog<String>(
                           context: context,
                           builder: (ctx) => AlertDialog(
                             title: const Text('Download Path'),
-                            content: TextField(controller: controller, decoration: const InputDecoration(border: OutlineInputBorder())),
+                            content: TextField(
+                              controller: controller,
+                              decoration: const InputDecoration(
+                                border: OutlineInputBorder(),
+                              ),
+                            ),
                             actions: [
-                              TextButton(onPressed: () => Navigator.pop(ctx), child: const Text('Cancel')),
-                              FilledButton(onPressed: () => Navigator.pop(ctx, controller.text), child: const Text('Save')),
+                              TextButton(
+                                onPressed: () => Navigator.pop(ctx),
+                                child: const Text('Cancel'),
+                              ),
+                              FilledButton(
+                                onPressed: () =>
+                                    Navigator.pop(ctx, controller.text),
+                                child: const Text('Save'),
+                              ),
                             ],
                           ),
                         );
-                        if (result != null && result.isNotEmpty) dlNotifier.updateDownloadPath(result);
+                        if (result != null && result.isNotEmpty) {
+                          dlNotifier.updateDownloadPath(result);
+                        }
                       },
                     ),
                     // Wi-Fi only
                     SwitchListTile(
                       dense: true,
                       contentPadding: EdgeInsets.zero,
-                      title: const Text('Wi-Fi Only', style: TextStyle(fontSize: 13)),
+                      title: const Text(
+                        'Wi-Fi Only',
+                        style: TextStyle(fontSize: 13),
+                      ),
                       value: dlSettings.wifiOnly,
                       onChanged: (_) => dlNotifier.toggleWifiOnly(),
                     ),
@@ -113,7 +142,10 @@ class _DownloadsScreenState extends ConsumerState<DownloadsScreen> {
                     ListTile(
                       dense: true,
                       contentPadding: EdgeInsets.zero,
-                      title: const Text('Parallel Downloads', style: TextStyle(fontSize: 13)),
+                      title: const Text(
+                        'Parallel Downloads',
+                        style: TextStyle(fontSize: 13),
+                      ),
                       trailing: DropdownButton<int>(
                         value: dlSettings.parallelDownloads,
                         isDense: true,
@@ -123,7 +155,9 @@ class _DownloadsScreenState extends ConsumerState<DownloadsScreen> {
                           DropdownMenuItem(value: 3, child: Text('3')),
                           DropdownMenuItem(value: 5, child: Text('5')),
                         ],
-                        onChanged: (v) { if (v != null) dlNotifier.updateParallelDownloads(v); },
+                        onChanged: (v) {
+                          if (v != null) dlNotifier.updateParallelDownloads(v);
+                        },
                       ),
                     ),
                   ],
@@ -149,11 +183,27 @@ class _DownloadsScreenState extends ConsumerState<DownloadsScreen> {
                     child: Column(
                       mainAxisAlignment: MainAxisAlignment.center,
                       children: [
-                        Icon(Icons.download, size: 64, color: Theme.of(context).colorScheme.onSurfaceVariant.withValues(alpha: 0.5)),
+                        Icon(
+                          Icons.download,
+                          size: 64,
+                          color: Theme.of(
+                            context,
+                          ).colorScheme.onSurfaceVariant.withValues(alpha: 0.5),
+                        ),
                         const SizedBox(height: 16),
-                        const Text('No downloads yet', style: TextStyle(fontSize: 16)),
+                        const Text(
+                          'No downloads yet',
+                          style: TextStyle(fontSize: 16),
+                        ),
                         const SizedBox(height: 8),
-                        Text('Download novels from their detail page.', style: TextStyle(color: Theme.of(context).colorScheme.onSurfaceVariant)),
+                        Text(
+                          'Download novels from their detail page.',
+                          style: TextStyle(
+                            color: Theme.of(
+                              context,
+                            ).colorScheme.onSurfaceVariant,
+                          ),
+                        ),
                       ],
                     ),
                   );
@@ -197,22 +247,63 @@ class _DownloadTile extends ConsumerWidget {
 
             return ListTile(
               leading: _buildStatusIcon(context, download.status),
-              title: Text(chapter?.name ?? 'Chapter #${download.chapterId}', maxLines: 1, overflow: TextOverflow.ellipsis),
+              title: Text(
+                chapter?.name ?? 'Chapter #${download.chapterId}',
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+              ),
               subtitle: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  Text(novel?.title ?? 'Novel #${download.novelId}', maxLines: 1, overflow: TextOverflow.ellipsis, style: const TextStyle(fontSize: 12)),
-                  if (download.status == 'downloading' && download.progress != null)
-                    Padding(padding: const EdgeInsets.only(top: 4), child: LinearProgressIndicator(value: download.progress, minHeight: 3)),
+                  Text(
+                    novel?.title ?? 'Novel #${download.novelId}',
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: const TextStyle(fontSize: 12),
+                  ),
+                  if (download.status == 'downloading' &&
+                      download.progress != null)
+                    Padding(
+                      padding: const EdgeInsets.only(top: 4),
+                      child: LinearProgressIndicator(
+                        value: download.progress,
+                        minHeight: 3,
+                      ),
+                    ),
                   if (download.status == 'failed' && download.error != null)
-                    Text(download.error!, style: TextStyle(fontSize: 11, color: Theme.of(context).colorScheme.error), maxLines: 1, overflow: TextOverflow.ellipsis),
+                    Text(
+                      download.error!,
+                      style: TextStyle(
+                        fontSize: 11,
+                        color: Theme.of(context).colorScheme.error,
+                      ),
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                    ),
                 ],
               ),
-              trailing: download.status == 'queued' || download.status == 'downloading'
-                  ? IconButton(icon: const Icon(Icons.close, size: 20), onPressed: () => ref.read(downloadDaoProvider).removeDownload(download.id))
+              trailing:
+                  download.status == 'queued' ||
+                      download.status == 'downloading'
+                  ? IconButton(
+                      icon: const Icon(Icons.close, size: 20),
+                      onPressed: () => ref
+                          .read(downloadDaoProvider)
+                          .removeDownload(download.id),
+                    )
                   : download.status == 'failed'
-                      ? IconButton(icon: const Icon(Icons.refresh, size: 20), onPressed: () => ref.read(downloadDaoProvider).updateDownloadStatus(download.id, 'queued', progress: 0, error: null))
-                      : null,
+                  ? IconButton(
+                      icon: const Icon(Icons.refresh, size: 20),
+                      onPressed: () => ref
+                          .read(downloadDaoProvider)
+                          .updateDownloadStatus(
+                            download.id,
+                            'queued',
+                            progress: 0,
+                            error: null,
+                          ),
+                    )
+                  : null,
             );
           },
         );
@@ -223,14 +314,22 @@ class _DownloadTile extends ConsumerWidget {
   Widget _buildStatusIcon(BuildContext context, String status) {
     switch (status) {
       case 'downloading':
-        return const SizedBox(width: 24, height: 24, child: CircularProgressIndicator(strokeWidth: 2));
+        return const SizedBox(
+          width: 24,
+          height: 24,
+          child: CircularProgressIndicator(strokeWidth: 2),
+        );
       case 'done':
         return const Icon(Icons.check_circle, color: Colors.green, size: 24);
       case 'failed':
         return const Icon(Icons.error, color: Colors.red, size: 24);
       case 'queued':
       default:
-        return Icon(Icons.schedule, color: Theme.of(context).colorScheme.onSurfaceVariant, size: 24);
+        return Icon(
+          Icons.schedule,
+          color: Theme.of(context).colorScheme.onSurfaceVariant,
+          size: 24,
+        );
     }
   }
 }

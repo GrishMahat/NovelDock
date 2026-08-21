@@ -1,7 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:shimmer/shimmer.dart';
 
-
 class ShimmerGrid extends StatelessWidget {
   final int itemCount;
   final int crossAxisCount;
@@ -58,17 +57,30 @@ class _ShimmerCard extends StatelessWidget {
   Widget build(BuildContext context) {
     return Shimmer.fromColors(
       baseColor: Theme.of(context).colorScheme.surfaceContainerHighest,
-      highlightColor: Theme.of(context).colorScheme.surfaceContainerHighest.withValues(alpha: 0.6),
+      highlightColor: Theme.of(
+        context,
+      ).colorScheme.surfaceContainerHighest.withValues(alpha: 0.6),
       child: Card(
         color: Theme.of(context).colorScheme.surfaceContainerHighest,
         clipBehavior: Clip.antiAlias,
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
-            Expanded(child: Container(color: Theme.of(context).colorScheme.surfaceContainerHighest.withValues(alpha: 0.6))),
+            Expanded(
+              child: Container(
+                color: Theme.of(
+                  context,
+                ).colorScheme.surfaceContainerHighest.withValues(alpha: 0.6),
+              ),
+            ),
             Padding(
               padding: const EdgeInsets.all(8),
-              child: Container(height: 12, color: Theme.of(context).colorScheme.surfaceContainerHighest.withValues(alpha: 0.6)),
+              child: Container(
+                height: 12,
+                color: Theme.of(
+                  context,
+                ).colorScheme.surfaceContainerHighest.withValues(alpha: 0.6),
+              ),
             ),
           ],
         ),
@@ -84,7 +96,9 @@ class _ShimmerTile extends StatelessWidget {
   Widget build(BuildContext context) {
     return Shimmer.fromColors(
       baseColor: Theme.of(context).colorScheme.surfaceContainerHighest,
-      highlightColor: Theme.of(context).colorScheme.surfaceContainerHighest.withValues(alpha: 0.6),
+      highlightColor: Theme.of(
+        context,
+      ).colorScheme.surfaceContainerHighest.withValues(alpha: 0.6),
       child: Padding(
         padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
         child: Row(
@@ -93,7 +107,9 @@ class _ShimmerTile extends StatelessWidget {
               width: 48,
               height: 64,
               decoration: BoxDecoration(
-                color: Theme.of(context).colorScheme.surfaceContainerHighest.withValues(alpha: 0.6),
+                color: Theme.of(
+                  context,
+                ).colorScheme.surfaceContainerHighest.withValues(alpha: 0.6),
                 borderRadius: BorderRadius.circular(4),
               ),
             ),
@@ -102,12 +118,17 @@ class _ShimmerTile extends StatelessWidget {
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  Container(height: 14, color: Theme.of(context).colorScheme.surfaceContainerHighest.withValues(alpha: 0.6)),
+                  Container(
+                    height: 14,
+                    color: Theme.of(context).colorScheme.surfaceContainerHighest
+                        .withValues(alpha: 0.6),
+                  ),
                   const SizedBox(height: 8),
                   Container(
                     height: 12,
                     width: 120,
-                    color: Theme.of(context).colorScheme.surfaceContainerHighest.withValues(alpha: 0.6),
+                    color: Theme.of(context).colorScheme.surfaceContainerHighest
+                        .withValues(alpha: 0.6),
                   ),
                 ],
               ),
@@ -126,23 +147,36 @@ class ShimmerChapterTile extends StatelessWidget {
   Widget build(BuildContext context) {
     return Shimmer.fromColors(
       baseColor: Theme.of(context).colorScheme.surfaceContainerHighest,
-      highlightColor: Theme.of(context).colorScheme.surfaceContainerHighest.withValues(alpha: 0.6),
+      highlightColor: Theme.of(
+        context,
+      ).colorScheme.surfaceContainerHighest.withValues(alpha: 0.6),
       child: Padding(
         padding: const EdgeInsets.symmetric(vertical: 10),
         child: Row(
           children: [
-            Container(width: 4, height: 16, color: Theme.of(context).colorScheme.surfaceContainerHighest.withValues(alpha: 0.6)),
+            Container(
+              width: 4,
+              height: 16,
+              color: Theme.of(
+                context,
+              ).colorScheme.surfaceContainerHighest.withValues(alpha: 0.6),
+            ),
             const SizedBox(width: 12),
             Expanded(
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  Container(height: 14, color: Theme.of(context).colorScheme.surfaceContainerHighest.withValues(alpha: 0.6)),
+                  Container(
+                    height: 14,
+                    color: Theme.of(context).colorScheme.surfaceContainerHighest
+                        .withValues(alpha: 0.6),
+                  ),
                   const SizedBox(height: 6),
                   Container(
                     width: 80,
                     height: 11,
-                    color: Theme.of(context).colorScheme.surfaceContainerHighest.withValues(alpha: 0.6),
+                    color: Theme.of(context).colorScheme.surfaceContainerHighest
+                        .withValues(alpha: 0.6),
                   ),
                 ],
               ),
@@ -152,7 +186,9 @@ class ShimmerChapterTile extends StatelessWidget {
               width: 20,
               height: 20,
               decoration: BoxDecoration(
-                color: Theme.of(context).colorScheme.surfaceContainerHighest.withValues(alpha: 0.6),
+                color: Theme.of(
+                  context,
+                ).colorScheme.surfaceContainerHighest.withValues(alpha: 0.6),
                 borderRadius: BorderRadius.circular(4),
               ),
             ),

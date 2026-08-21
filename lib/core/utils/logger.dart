@@ -29,16 +29,20 @@ class Log {
   }
 
   static void w(String tag, String message) {
-    print('$_yellow[$tag] WARN: $message$_reset');
+    debugPrint('$_yellow[$tag] WARN: $message$_reset');
     onLog?.call(LogLevel.warning, tag, message);
   }
 
   static void e(String tag, String message, [Object? error]) {
-    print('$_red[$tag] ERROR: $message$_reset');
+    debugPrint('$_red[$tag] ERROR: $message$_reset');
     if (error != null) {
-      print('$_red[$tag]   $error$_reset');
+      debugPrint('$_red[$tag]   $error$_reset');
     }
-    onLog?.call(LogLevel.error, tag, error is String ? '$message\n  $error' : '$message\n  $error');
+    onLog?.call(
+      LogLevel.error,
+      tag,
+      error is String ? '$message\n  $error' : '$message\n  $error',
+    );
   }
 
   static void ok(String tag, String message) {

@@ -42,9 +42,9 @@ class AppTheme {
         brightness: ThemeData.estimateBrightnessForColor(bg),
       ),
       textTheme: ThemeData.light().textTheme.apply(
-            bodyColor: text,
-            displayColor: text,
-          ),
+        bodyColor: text,
+        displayColor: text,
+      ),
     );
   }
 
@@ -71,18 +71,17 @@ class AppTheme {
       final word = words[i];
       if (word.isEmpty) continue;
       final mid = (word.length / 2).ceil();
-      spans.add(TextSpan(
-        children: [
-          TextSpan(
-            text: word.substring(0, mid),
-            style: style.copyWith(fontWeight: FontWeight.bold),
-          ),
-          TextSpan(
-            text: word.substring(mid),
-            style: style,
-          ),
-        ],
-      ));
+      spans.add(
+        TextSpan(
+          children: [
+            TextSpan(
+              text: word.substring(0, mid),
+              style: style.copyWith(fontWeight: FontWeight.bold),
+            ),
+            TextSpan(text: word.substring(mid), style: style),
+          ],
+        ),
+      );
       if (i < words.length - 1) {
         spans.add(TextSpan(text: ' ', style: style));
       }
@@ -90,66 +89,70 @@ class AppTheme {
     return TextSpan(children: spans);
   }
 
-  static ThemeData dark({Color primary = kAccentSeed}) => _build(FlexColorScheme.dark(
-        colors: FlexSchemeColor(
-          primary: primary,
-          secondary: primary,
-          tertiary: Color(0xFF8AB4F8),
-          primaryContainer: Color(0xFF16325C),
-          secondaryContainer: Color(0xFF16325C),
-          tertiaryContainer: Color(0xFF0B1E38),
-          error: Color(0xFFF2B8B5),
-          errorContainer: Color(0xFF8C1D18),
-        ),
-        surfaceMode: FlexSurfaceMode.level,
-        blendLevel: 0,
-        useMaterial3: true,
-        visualDensity: FlexColorScheme.comfortablePlatformDensity,
-      ));
+  static ThemeData dark({Color primary = kAccentSeed}) => _build(
+    FlexColorScheme.dark(
+      colors: FlexSchemeColor(
+        primary: primary,
+        secondary: primary,
+        tertiary: Color(0xFF8AB4F8),
+        primaryContainer: Color(0xFF16325C),
+        secondaryContainer: Color(0xFF16325C),
+        tertiaryContainer: Color(0xFF0B1E38),
+        error: Color(0xFFF2B8B5),
+        errorContainer: Color(0xFF8C1D18),
+      ),
+      surfaceMode: FlexSurfaceMode.level,
+      blendLevel: 0,
+      useMaterial3: true,
+      visualDensity: FlexColorScheme.comfortablePlatformDensity,
+    ),
+  );
 
-  static ThemeData light({Color primary = kAccentSeed}) => _build(FlexColorScheme.light(
-        colors: FlexSchemeColor(
-          primary: primary,
-          secondary: primary,
-          tertiary: Color(0xFF0B57D0),
-          primaryContainer: Color(0xFFD6E4FF),
-          secondaryContainer: Color(0xFFD6E4FF),
-          tertiaryContainer: Color(0xFFD3E3FD),
-          error: Color(0xFFB3261E),
-          errorContainer: Color(0xFFF9DEDC),
-        ),
-        surfaceMode: FlexSurfaceMode.level,
-        blendLevel: 0,
-        useMaterial3: true,
-        visualDensity: FlexColorScheme.comfortablePlatformDensity,
-      ));
+  static ThemeData light({Color primary = kAccentSeed}) => _build(
+    FlexColorScheme.light(
+      colors: FlexSchemeColor(
+        primary: primary,
+        secondary: primary,
+        tertiary: Color(0xFF0B57D0),
+        primaryContainer: Color(0xFFD6E4FF),
+        secondaryContainer: Color(0xFFD6E4FF),
+        tertiaryContainer: Color(0xFFD3E3FD),
+        error: Color(0xFFB3261E),
+        errorContainer: Color(0xFFF9DEDC),
+      ),
+      surfaceMode: FlexSurfaceMode.level,
+      blendLevel: 0,
+      useMaterial3: true,
+      visualDensity: FlexColorScheme.comfortablePlatformDensity,
+    ),
+  );
 
   static ThemeData amoled({Color primary = kAccentSeed}) => _build(
-        FlexColorScheme.dark(
-          colors: FlexSchemeColor(
-            primary: primary,
-            secondary: primary,
-            tertiary: Color(0xFF8AB4F8),
-            primaryContainer: Color(0xFF16325C),
-            secondaryContainer: Color(0xFF16325C),
-            tertiaryContainer: Color(0xFF0B1E38),
-            error: Color(0xFFF2B8B5),
-            errorContainer: Color(0xFF8C1D18),
-          ),
-          surfaceMode: FlexSurfaceMode.level,
-          blendLevel: 0,
-          useMaterial3: true,
-          visualDensity: FlexColorScheme.comfortablePlatformDensity,
-        ),
-        surfaceOverride: Colors.black,
-        surfaceLayers: const {
-          'lowest': Color(0xFF08080A),
-          'low': Color(0xFF0E0E10),
-          'default': Color(0xFF121214),
-          'high': Color(0xFF17171A),
-          'highest': Color(0xFF1D1D21),
-        },
-      );
+    FlexColorScheme.dark(
+      colors: FlexSchemeColor(
+        primary: primary,
+        secondary: primary,
+        tertiary: Color(0xFF8AB4F8),
+        primaryContainer: Color(0xFF16325C),
+        secondaryContainer: Color(0xFF16325C),
+        tertiaryContainer: Color(0xFF0B1E38),
+        error: Color(0xFFF2B8B5),
+        errorContainer: Color(0xFF8C1D18),
+      ),
+      surfaceMode: FlexSurfaceMode.level,
+      blendLevel: 0,
+      useMaterial3: true,
+      visualDensity: FlexColorScheme.comfortablePlatformDensity,
+    ),
+    surfaceOverride: Colors.black,
+    surfaceLayers: const {
+      'lowest': Color(0xFF08080A),
+      'low': Color(0xFF0E0E10),
+      'default': Color(0xFF121214),
+      'high': Color(0xFF17171A),
+      'highest': Color(0xFF1D1D21),
+    },
+  );
 
   static ThemeData _build(
     FlexColorScheme scheme, {
@@ -161,15 +164,21 @@ class AppTheme {
     final schemeColors = base.copyWith(
       surface: surfaceOverride ?? base.surface,
       surfaceContainerLowest:
-          surfaceLayers?['lowest'] ?? surfaceOverride ?? base.surfaceContainerLowest,
+          surfaceLayers?['lowest'] ??
+          surfaceOverride ??
+          base.surfaceContainerLowest,
       surfaceContainerLow:
           surfaceLayers?['low'] ?? surfaceOverride ?? base.surfaceContainerLow,
       surfaceContainer:
           surfaceLayers?['default'] ?? surfaceOverride ?? base.surfaceContainer,
       surfaceContainerHigh:
-          surfaceLayers?['high'] ?? surfaceOverride ?? base.surfaceContainerHigh,
+          surfaceLayers?['high'] ??
+          surfaceOverride ??
+          base.surfaceContainerHigh,
       surfaceContainerHighest:
-          surfaceLayers?['highest'] ?? surfaceOverride ?? base.surfaceContainerHighest,
+          surfaceLayers?['highest'] ??
+          surfaceOverride ??
+          base.surfaceContainerHighest,
       surfaceTint: primary,
     );
     final text = _textTheme(schemeColors);
@@ -178,9 +187,7 @@ class AppTheme {
       colorScheme: schemeColors,
       textTheme: text,
       scaffoldBackgroundColor: schemeColors.surface,
-      extensions: [
-        AppColors.forBrightness(schemeColors.brightness),
-      ],
+      extensions: [AppColors.forBrightness(schemeColors.brightness)],
       appBarTheme: AppBarTheme(
         backgroundColor: schemeColors.surface,
         surfaceTintColor: Colors.transparent,
@@ -203,20 +210,26 @@ class AppTheme {
       filledButtonTheme: FilledButtonThemeData(
         style: FilledButton.styleFrom(
           minimumSize: const Size(64, 44),
-          shape: RoundedRectangleBorder(borderRadius: BorderRadius.all(Radii.md)),
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.all(Radii.md),
+          ),
         ),
       ),
       outlinedButtonTheme: OutlinedButtonThemeData(
         style: OutlinedButton.styleFrom(
           minimumSize: const Size(64, 44),
-          shape: RoundedRectangleBorder(borderRadius: BorderRadius.all(Radii.md)),
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.all(Radii.md),
+          ),
           side: BorderSide(color: schemeColors.outline),
         ),
       ),
       textButtonTheme: TextButtonThemeData(
         style: TextButton.styleFrom(
           minimumSize: const Size(48, 40),
-          shape: RoundedRectangleBorder(borderRadius: BorderRadius.all(Radii.md)),
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.all(Radii.md),
+          ),
         ),
       ),
       inputDecorationTheme: InputDecorationTheme(
@@ -243,9 +256,7 @@ class AppTheme {
       bottomSheetTheme: BottomSheetThemeData(
         backgroundColor: schemeColors.surfaceContainerLow,
         surfaceTintColor: Colors.transparent,
-        shape: const RoundedRectangleBorder(
-          borderRadius: Radii.sheet,
-        ),
+        shape: const RoundedRectangleBorder(borderRadius: Radii.sheet),
         showDragHandle: true,
         dragHandleColor: schemeColors.outlineVariant,
       ),
@@ -277,9 +288,12 @@ class AppTheme {
       navigationRailTheme: NavigationRailThemeData(
         backgroundColor: schemeColors.surface,
         indicatorColor: schemeColors.primaryContainer,
-        selectedIconTheme: IconThemeData(color: schemeColors.onPrimaryContainer),
-        unselectedIconTheme:
-            IconThemeData(color: schemeColors.onSurfaceVariant),
+        selectedIconTheme: IconThemeData(
+          color: schemeColors.onPrimaryContainer,
+        ),
+        unselectedIconTheme: IconThemeData(
+          color: schemeColors.onSurfaceVariant,
+        ),
         selectedLabelTextStyle: TextStyle(
           fontSize: 12,
           fontWeight: FontWeight.w600,
@@ -303,8 +317,10 @@ class AppTheme {
         indicatorColor: schemeColors.primary,
         dividerColor: Colors.transparent,
         labelStyle: const TextStyle(fontSize: 13, fontWeight: FontWeight.w600),
-        unselectedLabelStyle:
-            const TextStyle(fontSize: 13, fontWeight: FontWeight.w500),
+        unselectedLabelStyle: const TextStyle(
+          fontSize: 13,
+          fontWeight: FontWeight.w500,
+        ),
       ),
       listTileTheme: ListTileThemeData(
         iconColor: schemeColors.onSurfaceVariant,
@@ -421,10 +437,7 @@ class AppTheme {
         fontWeight: FontWeight.w600,
         letterSpacing: 0.2,
       ),
-    ).apply(
-      bodyColor: scheme.onSurface,
-      displayColor: scheme.onSurface,
-    );
+    ).apply(bodyColor: scheme.onSurface, displayColor: scheme.onSurface);
   }
 }
 

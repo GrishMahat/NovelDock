@@ -40,17 +40,17 @@ class ProviderMeta {
   }
 
   Map<String, dynamic> toJson() => {
-        'id': id,
-        'name': name,
-        'lang': lang,
-        'baseUrl': baseUrl,
-        'file': file,
-        'version': version,
-        if (author != null) 'author': author,
-        if (icon != null) 'icon': icon,
-        if (nsfw) 'nsfw': true,
-        if (registryId != null) 'registryId': registryId,
-      };
+    'id': id,
+    'name': name,
+    'lang': lang,
+    'baseUrl': baseUrl,
+    'file': file,
+    'version': version,
+    if (author != null) 'author': author,
+    if (icon != null) 'icon': icon,
+    if (nsfw) 'nsfw': true,
+    if (registryId != null) 'registryId': registryId,
+  };
 }
 
 /// A registry's JSON content
@@ -78,7 +78,8 @@ class RegistryMetadata {
       description: json['description'] as String?,
       status: json['status'] as String?,
       updated: json['updated'] as int?,
-      providers: (json['providers'] as List?)
+      providers:
+          (json['providers'] as List?)
               ?.map((e) => ProviderMeta.fromJson(e as Map<String, dynamic>))
               .toList() ??
           [],
@@ -86,13 +87,13 @@ class RegistryMetadata {
   }
 
   Map<String, dynamic> toJson() => {
-        'version': version,
-        if (name != null) 'name': name,
-        if (description != null) 'description': description,
-        if (status != null) 'status': status,
-        if (updated != null) 'updated': updated,
-        'providers': providers.map((p) => p.toJson()).toList(),
-      };
+    'version': version,
+    if (name != null) 'name': name,
+    if (description != null) 'description': description,
+    if (status != null) 'status': status,
+    if (updated != null) 'updated': updated,
+    'providers': providers.map((p) => p.toJson()).toList(),
+  };
 }
 
 /// A registry as stored/tracked by the app
@@ -137,17 +138,17 @@ class RegistryInfo {
   }
 
   Map<String, dynamic> toJson() => {
-        'id': id,
-        'url': url,
-        if (name != null) 'name': name,
-        if (description != null) 'description': description,
-        if (status != null) 'status': status,
-        'enabled': enabled,
-        if (lastFetchedAt != null) 'lastFetchedAt': lastFetchedAt,
-        if (lastUpdated != null) 'lastUpdated': lastUpdated,
-        if (pendingUpdate) 'pendingUpdate': true,
-        if (error != null) 'error': error,
-      };
+    'id': id,
+    'url': url,
+    if (name != null) 'name': name,
+    if (description != null) 'description': description,
+    if (status != null) 'status': status,
+    'enabled': enabled,
+    if (lastFetchedAt != null) 'lastFetchedAt': lastFetchedAt,
+    if (lastUpdated != null) 'lastUpdated': lastUpdated,
+    if (pendingUpdate) 'pendingUpdate': true,
+    if (error != null) 'error': error,
+  };
 
   RegistryInfo copyWith({
     String? id,

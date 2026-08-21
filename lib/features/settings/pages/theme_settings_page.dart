@@ -9,12 +9,16 @@ import '../../../core/utils/logger.dart';
 
 const _tag = 'ThemeSettings';
 
-final themeModeProvider = StateNotifierProvider<ThemeModeNotifier, String>((ref) {
+final themeModeProvider = StateNotifierProvider<ThemeModeNotifier, String>((
+  ref,
+) {
   return ThemeModeNotifier();
 });
 
 class ThemeModeNotifier extends StateNotifier<String> {
-  ThemeModeNotifier() : super('system') { _load(); }
+  ThemeModeNotifier() : super('system') {
+    _load();
+  }
 
   Future<void> _load() async {
     try {
@@ -36,12 +40,16 @@ class ThemeModeNotifier extends StateNotifier<String> {
   }
 }
 
-final accentColorProvider = StateNotifierProvider<AccentColorNotifier, int>((ref) {
+final accentColorProvider = StateNotifierProvider<AccentColorNotifier, int>((
+  ref,
+) {
   return AccentColorNotifier();
 });
 
 class AccentColorNotifier extends StateNotifier<int> {
-  AccentColorNotifier() : super(AppTheme.kPrimary.toARGB32()) { _load(); }
+  AccentColorNotifier() : super(AppTheme.kPrimary.toARGB32()) {
+    _load();
+  }
 
   Future<void> _load() async {
     try {
@@ -94,18 +102,28 @@ class ThemeSettingsPage extends ConsumerWidget {
       body: ListView(
         children: [
           _buildSection(context, 'Theme Mode'),
-          ..._themeModes.map((mode) => ListTile(
-            leading: Icon(mode.$3, color: Theme.of(context).colorScheme.onSurfaceVariant),
-            title: Text(mode.$2),
-            trailing: Radio<String>(
-              value: mode.$1,
-              groupValue: currentMode,
-              onChanged: (v) {
-                if (v != null) ref.read(themeModeProvider.notifier).setMode(v);
-              },
+          RadioGroup<String>(
+            groupValue: currentMode,
+            onChanged: (v) {
+              if (v != null) ref.read(themeModeProvider.notifier).setMode(v);
+            },
+            child: Column(
+              children: _themeModes
+                  .map(
+                    (mode) => ListTile(
+                      leading: Icon(
+                        mode.$3,
+                        color: Theme.of(context).colorScheme.onSurfaceVariant,
+                      ),
+                      title: Text(mode.$2),
+                      trailing: Radio<String>(value: mode.$1),
+                      onTap: () =>
+                          ref.read(themeModeProvider.notifier).setMode(mode.$1),
+                    ),
+                  )
+                  .toList(),
             ),
-            onTap: () => ref.read(themeModeProvider.notifier).setMode(mode.$1),
-          )),
+          ),
           _buildSection(context, 'Accent Color'),
           Padding(
             padding: const EdgeInsets.symmetric(horizontal: 12),
@@ -115,7 +133,9 @@ class ThemeSettingsPage extends ConsumerWidget {
               children: _accentColors.map((c) {
                 final isSelected = currentColor == c.$2.toARGB32();
                 return GestureDetector(
-                  onTap: () => ref.read(accentColorProvider.notifier).setColor(c.$2.toARGB32()),
+                  onTap: () => ref
+                      .read(accentColorProvider.notifier)
+                      .setColor(c.$2.toARGB32()),
                   child: Container(
                     width: 56,
                     height: 56,
@@ -129,7 +149,12 @@ class ThemeSettingsPage extends ConsumerWidget {
                             )
                           : null,
                       boxShadow: isSelected
-                          ? [BoxShadow(color: c.$2.withValues(alpha: 0.5), blurRadius: 8)]
+                          ? [
+                              BoxShadow(
+                                color: c.$2.withValues(alpha: 0.5),
+                                blurRadius: 8,
+                              ),
+                            ]
                           : null,
                     ),
                     child: isSelected
@@ -152,8 +177,8 @@ class ThemeSettingsPage extends ConsumerWidget {
       child: Text(
         title,
         style: Theme.of(context).textTheme.titleSmall?.copyWith(
-              color: Theme.of(context).colorScheme.primary,
-            ),
+          color: Theme.of(context).colorScheme.primary,
+        ),
       ),
     );
   }

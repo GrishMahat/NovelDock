@@ -3,7 +3,6 @@ import 'dart:typed_data';
 
 import 'package:dio/dio.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:flutter_riverpod/legacy.dart';
 
 import '../../../core/providers/engine.dart';
 import '../../../core/providers/filters.dart';
@@ -86,7 +85,7 @@ class SearchState {
   FilterValues filtersFor(String providerId) =>
       filters[providerId] ?? const FilterValues();
 
-  bool get hasActiveFilters => filters.values.any((f) => !f.isEmpty);
+  bool get hasActiveFilters => filters.values.any((f) => f.isNotEmpty);
 
   SearchState copyWith({
     String? query,
@@ -110,7 +109,9 @@ class SearchState {
 // ═══════════════════════════════════════════════════════════
 
 final searchHistoryProvider =
-    NotifierProvider<SearchHistoryNotifier, List<String>>(SearchHistoryNotifier.new);
+    NotifierProvider<SearchHistoryNotifier, List<String>>(
+      SearchHistoryNotifier.new,
+    );
 
 class SearchHistoryNotifier extends Notifier<List<String>> {
   static const _key = 'search_history';
@@ -592,7 +593,7 @@ Future<SearchResults?> searchProviderOnce(
   Log.i(_tag, 'searchProviderOnce: query="$query" page=$page filters=$filters');
 
   // When filters are active, skip search paths that cannot receive them.
-  final filtersActive = !filters.isEmpty;
+  final filtersActive = filters.isNotEmpty;
   // A provider that cannot apply filters to search must not be pushed down
   // the filter-aware GET path. It would silently drop the filters, and for
   // some sites it returns an unusable URL. Run the unfiltered search instead.
@@ -608,11 +609,14 @@ Future<SearchResults?> searchProviderOnce(
     Log.i(_tag, 'POST search: has getSearchConfig');
 
     try {
-      final searchConfig = await instance.call('getSearchConfig', [query, page]);
+      final searchConfig = await instance.call('getSearchConfig', [
+        query,
+        page,
+      ]);
 
       Log.i(_tag, 'POST search: config = $searchConfig');
 
-        if (searchConfig is Map<String, dynamic>) {
+      if (searchConfig is Map<String, dynamic>) {
         final results = await postNovelList(
           instance,
           dio,
@@ -732,12 +736,6 @@ Future<SearchResults?> postNovelList(
       Log.w(_tag, 'postNovelList: config has no "url"');
       return null;
     }
-
-    // Build form data from provider config.
-    final formData = <String, String>{
-      if (fields != null) ...fields.map((k, v) => MapEntry(k, v.toString())),
-      'keyboard': ?query,
-    };
 
     // Build headers from provider config.
     final requestHeaders = <String, String>{
@@ -888,8 +886,7 @@ Future<SearchResults?> postSearch(
   Map<String, dynamic> config,
   String query,
   int page,
-) =>
-    postNovelList(instance, dio, config, query: query, page: page);
+) => postNovelList(instance, dio, config, query: query, page: page);
 
 /// POST-based browse (wraps [postNovelList] without a query).
 Future<SearchResults?> postBrowse(
@@ -897,8 +894,8 @@ Future<SearchResults?> postBrowse(
   Dio dio,
   Map<String, dynamic> config,
   int page,
-) =>
-    postNovelList(instance, dio, config, page: page);
+) => postNovelList(instance, dio, config, page: page);
 
-final searchProvider =
-    NotifierProvider<SearchNotifier, SearchState>(SearchNotifier.new);
+final searchProvider = NotifierProvider<SearchNotifier, SearchState>(
+  SearchNotifier.new,
+);

@@ -4,10 +4,8 @@ import 'package:noveldock/core/tts/engine/edge_tts_engine.dart';
 import 'package:noveldock/core/tts/engine/tts_engine.dart';
 
 void main() {
-  test(
-    'EdgeTtsEngine live: voices + short turn + long turn',
-    () async {
-      final engine = EdgeTtsEngine();
+  test('EdgeTtsEngine live: voices + short turn + long turn', () async {
+    final engine = EdgeTtsEngine();
 
     final voices = await engine.getVoices();
     expect(voices, isNotEmpty);
@@ -56,7 +54,5 @@ void main() {
     expect(long.$2, greaterThan(800));
 
     await engine.close();
-    },
-    timeout: const Timeout(Duration(minutes: 4)),
-  );
+  }, timeout: const Timeout(Duration(minutes: 4)));
 }

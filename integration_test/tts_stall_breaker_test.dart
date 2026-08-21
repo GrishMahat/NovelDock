@@ -56,8 +56,9 @@ void main() {
   JustAudioMediaKit.mpvProperties = const {'network-timeout': '0'};
   JustAudioMediaKit.ensureInitialized(linux: true, windows: true);
 
-  testWidgets('repeated stalls at the same chunk escalate to a bounded fatal',
-      (tester) async {
+  testWidgets('repeated stalls at the same chunk escalate to a bounded fatal', (
+    tester,
+  ) async {
     // Real ~3s of speech to replay.
     final real = EdgeTtsEngine();
     addTearDown(real.close);
@@ -136,9 +137,11 @@ void main() {
 
     final poll = Timer.periodic(const Duration(milliseconds: 250), (_) {
       final p = controller.player.audioPlayer;
-      debugPrint('DIAG t=${p.position.inMilliseconds}ms '
-          'state=${p.processingState.name} playing=${p.playing} '
-          'isRunning=${controller.isRunning} errors=${events.length}');
+      debugPrint(
+        'DIAG t=${p.position.inMilliseconds}ms '
+        'state=${p.processingState.name} playing=${p.playing} '
+        'isRunning=${controller.isRunning} errors=${events.length}',
+      );
       if (events.any((e) => e.startsWith('error:fatal'))) {
         if (!fatal.isCompleted) fatal.complete();
       }

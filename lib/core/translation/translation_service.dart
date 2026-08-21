@@ -28,7 +28,8 @@ class TranslationService {
       final dir = await getApplicationSupportDirectory();
       final file = File(p.join(dir.path, 'translation_cache.json'));
       if (await file.exists()) {
-        final data = jsonDecode(await file.readAsString()) as Map<String, dynamic>;
+        final data =
+            jsonDecode(await file.readAsString()) as Map<String, dynamic>;
         for (final entry in data.entries) {
           _cache[entry.key] = entry.value as String;
         }
@@ -52,7 +53,11 @@ class TranslationService {
 
   /// Translate text from [sourceLang] to [targetLang].
   /// [sourceLang] can be 'auto' for auto-detection.
-  Future<String> translate(String text, {required String sourceLang, required String targetLang}) async {
+  Future<String> translate(
+    String text, {
+    required String sourceLang,
+    required String targetLang,
+  }) async {
     if (text.trim().isEmpty) return text;
     if (sourceLang == targetLang) return text;
 
@@ -103,7 +108,11 @@ class TranslationService {
     return chunks;
   }
 
-  Future<String> _translateChunk(String text, String sourceLang, String targetLang) async {
+  Future<String> _translateChunk(
+    String text,
+    String sourceLang,
+    String targetLang,
+  ) async {
     final src = sourceLang == 'auto' ? 'autodetect' : sourceLang;
     final url = Uri.parse(
       'https://api.mymemory.translated.net/get?q=${Uri.encodeComponent(text)}&langpair=$src|$targetLang',

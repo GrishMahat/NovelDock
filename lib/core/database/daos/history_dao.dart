@@ -1,18 +1,19 @@
 import 'package:drift/drift.dart';
 
 import '../database.dart';
-import '../tables.dart';
 
 part 'history_dao.g.dart';
 
 @DriftAccessor(tables: [ReadingHistory, Novels, Chapters])
 class HistoryDao extends DatabaseAccessor<AppDatabase> with _$HistoryDaoMixin {
-  HistoryDao(AppDatabase db) : super(db);
+  HistoryDao(super.db);
 
   Future<int> addHistoryEntry(ReadingHistoryCompanion entry) async {
     // Keep only ONE entry per novel in history (standard novel reader behavior)
     final novelId = entry.novelId.value;
-    await (delete(readingHistory)..where((t) => t.novelId.equals(novelId))).go();
+    await (delete(
+      readingHistory,
+    )..where((t) => t.novelId.equals(novelId))).go();
     return into(readingHistory).insert(entry);
   }
 
@@ -25,9 +26,9 @@ class HistoryDao extends DatabaseAccessor<AppDatabase> with _$HistoryDaoMixin {
   }
 
   Future<void> clearHistoryForNovel(int novelId) {
-    return (delete(readingHistory)
-          ..where((t) => t.novelId.equals(novelId)))
-        .go();
+    return (delete(
+      readingHistory,
+    )..where((t) => t.novelId.equals(novelId))).go();
   }
 
   Future<List<ReadingHistoryData>> getHistoryForNovel(int novelId) {
@@ -53,15 +54,15 @@ class HistoryDao extends DatabaseAccessor<AppDatabase> with _$HistoryDaoMixin {
   }
 
   Future<List<ReadingHistoryData>> getAllHistory() {
-    return (select(readingHistory)
-          ..orderBy([(t) => OrderingTerm.desc(t.readAt)]))
-        .get();
+    return (select(
+      readingHistory,
+    )..orderBy([(t) => OrderingTerm.desc(t.readAt)])).get();
   }
 
   Stream<List<ReadingHistoryData>> watchAllHistory() {
-    return (select(readingHistory)
-          ..orderBy([(t) => OrderingTerm.desc(t.readAt)]))
-        .watch();
+    return (select(
+      readingHistory,
+    )..orderBy([(t) => OrderingTerm.desc(t.readAt)])).watch();
   }
 
   Future<Map<String, List<ReadingHistoryData>>> getGroupedHistory() async {

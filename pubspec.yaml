@@ -95,6 +95,9 @@ dependencies:
   flutter_background_service: 5.1.0
   dio_http2_adapter: ^2.8.0
   window_manager: ^0.5.2
+  flutter_svg: ^2.3.0
+  dbus: ^0.7.14
+  image: ^4.5.4
 
 dev_dependencies:
   flutter_test:

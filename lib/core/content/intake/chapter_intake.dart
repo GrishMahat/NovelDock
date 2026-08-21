@@ -44,14 +44,66 @@ class ChapterIntake {
 class HtmlPreprocessor {
   static String clean(String html, {bool keepCss = false}) {
     var result = html
-        .replaceAll(RegExp(r'<script\b[^>]*>.*?</script>', caseSensitive: false, dotAll: true), '')
-        .replaceAll(RegExp(r'<style\b[^>]*>.*?</style>', caseSensitive: false, dotAll: true), '')
-        .replaceAll(RegExp(r'<nav\b[^>]*>.*?</nav>', caseSensitive: false, dotAll: true), '')
-        .replaceAll(RegExp(r'<header\b[^>]*>.*?</header>', caseSensitive: false, dotAll: true), '')
-        .replaceAll(RegExp(r'<footer\b[^>]*>.*?</footer>', caseSensitive: false, dotAll: true), '')
-        .replaceAll(RegExp(r'<aside\b[^>]*>.*?</aside>', caseSensitive: false, dotAll: true), '')
-        .replaceAll(RegExp(r'<form\b[^>]*>.*?</form>', caseSensitive: false, dotAll: true), '')
-        .replaceAll(RegExp(r'<noscript\b[^>]*>.*?</noscript>', caseSensitive: false, dotAll: true), '');
+        .replaceAll(
+          RegExp(
+            r'<script\b[^>]*>.*?</script>',
+            caseSensitive: false,
+            dotAll: true,
+          ),
+          '',
+        )
+        .replaceAll(
+          RegExp(
+            r'<style\b[^>]*>.*?</style>',
+            caseSensitive: false,
+            dotAll: true,
+          ),
+          '',
+        )
+        .replaceAll(
+          RegExp(r'<nav\b[^>]*>.*?</nav>', caseSensitive: false, dotAll: true),
+          '',
+        )
+        .replaceAll(
+          RegExp(
+            r'<header\b[^>]*>.*?</header>',
+            caseSensitive: false,
+            dotAll: true,
+          ),
+          '',
+        )
+        .replaceAll(
+          RegExp(
+            r'<footer\b[^>]*>.*?</footer>',
+            caseSensitive: false,
+            dotAll: true,
+          ),
+          '',
+        )
+        .replaceAll(
+          RegExp(
+            r'<aside\b[^>]*>.*?</aside>',
+            caseSensitive: false,
+            dotAll: true,
+          ),
+          '',
+        )
+        .replaceAll(
+          RegExp(
+            r'<form\b[^>]*>.*?</form>',
+            caseSensitive: false,
+            dotAll: true,
+          ),
+          '',
+        )
+        .replaceAll(
+          RegExp(
+            r'<noscript\b[^>]*>.*?</noscript>',
+            caseSensitive: false,
+            dotAll: true,
+          ),
+          '',
+        );
     if (!keepCss) {
       result = result.replaceAll(RegExp(r'\sclass="[^"]*"'), '');
       result = result.replaceAll(RegExp(r"\sclass='[^']*'"), '');

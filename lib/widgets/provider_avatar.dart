@@ -18,7 +18,7 @@ class ProviderAvatar extends ConsumerWidget {
 
     return registryAsync.when(
       loading: () => _letterAvatar(),
-      error: (_, __) => _letterAvatar(),
+      error: (_, _) => _letterAvatar(),
       data: (registry) {
         final iconFile = registry.loadCachedProviderIcon(provider.id);
         if (iconFile != null) {
@@ -26,7 +26,7 @@ class ProviderAvatar extends ConsumerWidget {
             radius: radius,
             backgroundImage: FileImage(iconFile),
             backgroundColor: Colors.transparent,
-            onBackgroundImageError: (_, __) {},
+            onBackgroundImageError: (_, _) {},
           );
         }
         return _letterAvatar();

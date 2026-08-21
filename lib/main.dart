@@ -50,8 +50,10 @@ void main() async {
 
   // Create notification channels (Android only)
   if (Platform.isAndroid) {
-    final androidPlugin = flutterLocalNotificationsPlugin.resolvePlatformSpecificImplementation<
-        AndroidFlutterLocalNotificationsPlugin>();
+    final androidPlugin = flutterLocalNotificationsPlugin
+        .resolvePlatformSpecificImplementation<
+          AndroidFlutterLocalNotificationsPlugin
+        >();
     await androidPlugin?.createNotificationChannel(
       const AndroidNotificationChannel(
         'downloads',
@@ -87,9 +89,5 @@ void main() async {
   // Initialize log buffer (captures all Log calls in-memory)
   initLogBuffer();
 
-  runApp(
-    const ProviderScope(
-      child: NovelDockApp(),
-    ),
-  );
+  runApp(const ProviderScope(child: NovelDockApp()));
 }

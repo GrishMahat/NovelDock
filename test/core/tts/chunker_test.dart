@@ -24,22 +24,24 @@ void main() {
       expect(c.sentenceCount, 1);
     });
 
-    test('long paragraph packs sentences into chunks at sentence boundaries',
-        () {
-      final chunks = chunker.chunkParagraphs(['Aaa. Bbb. Ccc.']);
-      expect(chunks, hasLength(3));
-      expect(chunks[0].text, 'Aaa.');
-      expect(chunks[1].text, ' Bbb.');
-      expect(chunks[2].text, ' Ccc.');
-      expect(chunks[0].paragraphWordOffset, 0);
-      expect(chunks[1].paragraphWordOffset, 1);
-      expect(chunks[2].paragraphWordOffset, 2);
-      expect(chunks[0].sentenceCount, 1);
-      expect(chunks[0].startOffset, 0);
-      expect(chunks[0].endOffset, 4);
-      expect(chunks[1].startOffset, 4);
-      expect(chunks[1].endOffset, 9);
-    });
+    test(
+      'long paragraph packs sentences into chunks at sentence boundaries',
+      () {
+        final chunks = chunker.chunkParagraphs(['Aaa. Bbb. Ccc.']);
+        expect(chunks, hasLength(3));
+        expect(chunks[0].text, 'Aaa.');
+        expect(chunks[1].text, ' Bbb.');
+        expect(chunks[2].text, ' Ccc.');
+        expect(chunks[0].paragraphWordOffset, 0);
+        expect(chunks[1].paragraphWordOffset, 1);
+        expect(chunks[2].paragraphWordOffset, 2);
+        expect(chunks[0].sentenceCount, 1);
+        expect(chunks[0].startOffset, 0);
+        expect(chunks[0].endOffset, 4);
+        expect(chunks[1].startOffset, 4);
+        expect(chunks[1].endOffset, 9);
+      },
+    );
 
     test('period inside a number is not a sentence boundary', () {
       final chunks = chunker.chunkParagraphs(['Pi is 3.14. Done.']);
@@ -55,16 +57,18 @@ void main() {
       expect(chunks[2].text, '第三句？');
     });
 
-    test('oversize sentence without punctuation is hard-split at last space',
-        () {
-      final text = '${'word ' * 60}fin';
-      final chunks = chunker.chunkParagraphs([text]);
-      expect(chunks.length, greaterThan(1));
-      for (final c in chunks) {
-        expect(c.text.length, lessThanOrEqualTo(100));
-      }
-      expect(chunks.map((c) => c.text).join(), text);
-    });
+    test(
+      'oversize sentence without punctuation is hard-split at last space',
+      () {
+        final text = '${'word ' * 60}fin';
+        final chunks = chunker.chunkParagraphs([text]);
+        expect(chunks.length, greaterThan(1));
+        for (final c in chunks) {
+          expect(c.text.length, lessThanOrEqualTo(100));
+        }
+        expect(chunks.map((c) => c.text).join(), text);
+      },
+    );
 
     test('oversize CJK sentence is hard-split at the char cap', () {
       final text = '汉' * 250;
@@ -103,10 +107,11 @@ void main() {
 
     test('estimated duration scales with speed', () {
       final chunks1 = chunker.chunkParagraphs(['Hello world.']);
-      final chunks2 =
-          chunker.chunkParagraphs(['Hello world.'], speed: 2.0);
-      expect(chunks1.single.estimatedDurationMs,
-          chunks2.single.estimatedDurationMs * 2);
+      final chunks2 = chunker.chunkParagraphs(['Hello world.'], speed: 2.0);
+      expect(
+        chunks1.single.estimatedDurationMs,
+        chunks2.single.estimatedDurationMs * 2,
+      );
     });
   });
 }

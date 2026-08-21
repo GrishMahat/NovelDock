@@ -1,6 +1,5 @@
 import 'package:flutter/material.dart';
 
-
 /// Reusable cover image widget with placeholder fallback.
 class CoverImage extends StatelessWidget {
   final String? imageUrl;

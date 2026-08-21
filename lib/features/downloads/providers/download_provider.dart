@@ -53,7 +53,8 @@ class NovelDownloadProgress {
     this.isDownloading = false,
   });
 
-  double get progress => totalChapters == 0 ? 0 : completedChapters / totalChapters;
+  double get progress =>
+      totalChapters == 0 ? 0 : completedChapters / totalChapters;
 }
 
 class DownloadNotifier extends StateNotifier<Map<int, NovelDownloadProgress>> {
@@ -74,12 +75,14 @@ class DownloadNotifier extends StateNotifier<Map<int, NovelDownloadProgress>> {
     }
 
     // Enqueue
-    await downloadDao.enqueueDownload(DownloadsQueueCompanion(
-      novelId: Value(novelId),
-      chapterId: Value(chapterId),
-      status: const Value('queued'),
-      progress: const Value(0.0),
-    ));
+    await downloadDao.enqueueDownload(
+      DownloadsQueueCompanion(
+        novelId: Value(novelId),
+        chapterId: Value(chapterId),
+        status: const Value('queued'),
+        progress: const Value(0.0),
+      ),
+    );
 
     Log.i(_tag, 'Enqueued chapter $chapterId for novel $novelId');
     _updateProgress(novelId);
@@ -91,7 +94,10 @@ class DownloadNotifier extends StateNotifier<Map<int, NovelDownloadProgress>> {
     final chapterDao = ref.read(chapterDaoProvider);
     final chapters = await chapterDao.getChaptersForNovel(novelId);
 
-    Log.i(_tag, 'Downloading all ${chapters.length} chapters for novel $novelId');
+    Log.i(
+      _tag,
+      'Downloading all ${chapters.length} chapters for novel $novelId',
+    );
 
     for (final chapter in chapters) {
       await downloadChapter(novelId, chapter.id);
@@ -103,8 +109,13 @@ class DownloadNotifier extends StateNotifier<Map<int, NovelDownloadProgress>> {
     final chapterDao = ref.read(chapterDaoProvider);
     final chapters = await chapterDao.getChaptersForNovel(novelId);
 
-    final range = chapters.where((c) => c.index >= start && c.index <= end).toList();
-    Log.i(_tag, 'Downloading ${range.length} chapters (range $start-$end) for novel $novelId');
+    final range = chapters
+        .where((c) => c.index >= start && c.index <= end)
+        .toList();
+    Log.i(
+      _tag,
+      'Downloading ${range.length} chapters (range $start-$end) for novel $novelId',
+    );
 
     for (final chapter in range) {
       await downloadChapter(novelId, chapter.id);
@@ -145,19 +156,28 @@ class DownloadNotifier extends StateNotifier<Map<int, NovelDownloadProgress>> {
 
     try {
       // Mark as downloading
-      await downloadDao.updateDownloadStatus(task.id, 'downloading', progress: 0.0);
+      await downloadDao.updateDownloadStatus(
+        task.id,
+        'downloading',
+        progress: 0.0,
+      );
       _updateProgress(task.novelId);
 
       // Get chapter info
       final chapter = await chapterDao.getChapterById(task.chapterId);
       if (chapter == null) {
-        await downloadDao.updateDownloadStatus(task.id, 'failed', error: 'Chapter not found');
+        await downloadDao.updateDownloadStatus(
+          task.id,
+          'failed',
+          error: 'Chapter not found',
+        );
         _updateProgress(task.novelId);
         return;
       }
 
       // Skip EPUB/PDF chapters (already local)
-      if (chapter.url.startsWith('epub://') || chapter.url.startsWith('pdf://')) {
+      if (chapter.url.startsWith('epub://') ||
+          chapter.url.startsWith('pdf://')) {
         await downloadDao.updateDownloadStatus(task.id, 'done', progress: 1.0);
         _updateProgress(task.novelId);
         return;
@@ -167,7 +187,11 @@ class DownloadNotifier extends StateNotifier<Map<int, NovelDownloadProgress>> {
       final novelDao = ref.read(novelDaoProvider);
       final novel = await novelDao.getNovelById(task.novelId);
       if (novel == null) {
-        await downloadDao.updateDownloadStatus(task.id, 'failed', error: 'Novel not found');
+        await downloadDao.updateDownloadStatus(
+          task.id,
+          'failed',
+          error: 'Novel not found',
+        );
         _updateProgress(task.novelId);
         return;
       }
@@ -186,15 +210,17 @@ class DownloadNotifier extends StateNotifier<Map<int, NovelDownloadProgress>> {
         final jsSource = await registry.loadCachedProviderJs(novel.providerId);
         if (jsSource != null) {
           instance = await engine.loadProvider(jsSource);
-          final current = ref.read(loadedProvidersProvider);
-          ref.read(loadedProvidersProvider.notifier).state = {
-            ...current,
-            novel.providerId: instance,
-          };
+          ref
+              .read(loadedProvidersProvider.notifier)
+              .cache(novel.providerId, instance);
         }
       }
       if (instance == null) {
-        await downloadDao.updateDownloadStatus(task.id, 'failed', error: 'Provider not found for ${novel.providerId}');
+        await downloadDao.updateDownloadStatus(
+          task.id,
+          'failed',
+          error: 'Provider not found for ${novel.providerId}',
+        );
         _updateProgress(task.novelId);
         return;
       }
@@ -202,7 +228,11 @@ class DownloadNotifier extends StateNotifier<Map<int, NovelDownloadProgress>> {
       Log.d(_tag, 'Getting content URL for: ${chapter.url}');
       final contentUrl = await instance.getChapterContentUrl(chapter.url);
       if (contentUrl == null) {
-        await downloadDao.updateDownloadStatus(task.id, 'failed', error: 'getChapterContentUrl returned null');
+        await downloadDao.updateDownloadStatus(
+          task.id,
+          'failed',
+          error: 'getChapterContentUrl returned null',
+        );
         _updateProgress(task.novelId);
         return;
       }
@@ -225,7 +255,11 @@ class DownloadNotifier extends StateNotifier<Map<int, NovelDownloadProgress>> {
       }
 
       if (html == null) {
-        await downloadDao.updateDownloadStatus(task.id, 'failed', error: 'Failed to download');
+        await downloadDao.updateDownloadStatus(
+          task.id,
+          'failed',
+          error: 'Failed to download',
+        );
         _updateProgress(task.novelId);
         return;
       }
@@ -233,7 +267,11 @@ class DownloadNotifier extends StateNotifier<Map<int, NovelDownloadProgress>> {
       // Parse content
       final content = await instance.parseChapterContent(html);
       if (content == null) {
-        await downloadDao.updateDownloadStatus(task.id, 'failed', error: 'Failed to parse content');
+        await downloadDao.updateDownloadStatus(
+          task.id,
+          'failed',
+          error: 'Failed to parse content',
+        );
         _updateProgress(task.novelId);
         return;
       }
@@ -263,8 +301,15 @@ class DownloadNotifier extends StateNotifier<Map<int, NovelDownloadProgress>> {
       Log.ok(_tag, 'Chapter ${chapter.name} downloaded to ${file.path}');
     } catch (e, stackTrace) {
       Log.e(_tag, 'Download failed for task ${task.id}: $e');
-      Log.e(_tag, 'Stack: ${stackTrace.toString().split('\n').take(5).join('\n')}');
-      await downloadDao.updateDownloadStatus(task.id, 'failed', error: e.toString());
+      Log.e(
+        _tag,
+        'Stack: ${stackTrace.toString().split('\n').take(5).join('\n')}',
+      );
+      await downloadDao.updateDownloadStatus(
+        task.id,
+        'failed',
+        error: e.toString(),
+      );
       _updateProgress(task.novelId);
     }
   }
@@ -276,11 +321,13 @@ class DownloadNotifier extends StateNotifier<Map<int, NovelDownloadProgress>> {
       final appDir = await getApplicationDocumentsDirectory();
       basePath = p.join(appDir.path, 'downloads');
     }
-    final dir = Directory(p.join(
-      basePath,
-      novel.providerId,
-      novel.title.replaceAll(RegExp(r'[^\w\s-]'), ''),
-    ));
+    final dir = Directory(
+      p.join(
+        basePath,
+        novel.providerId,
+        novel.title.replaceAll(RegExp(r'[^\w\s-]'), ''),
+      ),
+    );
     if (!await dir.exists()) {
       await dir.create(recursive: true);
     }
@@ -293,11 +340,15 @@ class DownloadNotifier extends StateNotifier<Map<int, NovelDownloadProgress>> {
 
     final allChapters = await chapterDao.getChaptersForNovel(novelId);
     final downloads = await downloadDao.getAllDownloads();
-    final novelDownloads = downloads.where((d) => d.novelId == novelId).toList();
+    final novelDownloads = downloads
+        .where((d) => d.novelId == novelId)
+        .toList();
 
     final completed = novelDownloads.where((d) => d.status == 'done').length;
     final failed = novelDownloads.where((d) => d.status == 'failed').length;
-    final isDownloading = novelDownloads.any((d) => d.status == 'downloading' || d.status == 'queued');
+    final isDownloading = novelDownloads.any(
+      (d) => d.status == 'downloading' || d.status == 'queued',
+    );
 
     state = {
       ...state,
@@ -340,7 +391,11 @@ class DownloadNotifier extends StateNotifier<Map<int, NovelDownloadProgress>> {
   Future<void> cancelDownloads(int novelId) async {
     final downloadDao = ref.read(downloadDaoProvider);
     final downloads = await downloadDao.getAllDownloads();
-    for (final d in downloads.where((d) => d.novelId == novelId && (d.status == 'queued' || d.status == 'downloading'))) {
+    for (final d in downloads.where(
+      (d) =>
+          d.novelId == novelId &&
+          (d.status == 'queued' || d.status == 'downloading'),
+    )) {
       await downloadDao.removeDownload(d.id);
     }
     _updateProgress(novelId);
@@ -381,6 +436,9 @@ class DownloadNotifier extends StateNotifier<Map<int, NovelDownloadProgress>> {
   }
 }
 
-final downloadProvider = StateNotifierProvider<DownloadNotifier, Map<int, NovelDownloadProgress>>((ref) {
-  return DownloadNotifier(ref);
-});
+final downloadProvider =
+    StateNotifierProvider<DownloadNotifier, Map<int, NovelDownloadProgress>>((
+      ref,
+    ) {
+      return DownloadNotifier(ref);
+    });

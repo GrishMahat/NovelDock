@@ -46,6 +46,7 @@ String _inlinePlainText(List<InlineNode> inlines) {
       }
     }
   }
+
   walk(inlines);
   return buffer.toString();
 }

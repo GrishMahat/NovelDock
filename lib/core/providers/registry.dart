@@ -45,7 +45,10 @@ class RegistryManager {
 
       final json = jsonDecode(response.data as String) as Map<String, dynamic>;
       final metadata = RegistryMetadata.fromJson(json);
-      Log.ok(_tag, 'Got registry "${metadata.name ?? 'unnamed'}" with ${metadata.providers.length} providers');
+      Log.ok(
+        _tag,
+        'Got registry "${metadata.name ?? 'unnamed'}" with ${metadata.providers.length} providers',
+      );
       return metadata;
     } on DioException catch (e) {
       Log.e(_tag, 'Dio error fetching registry: ${e.message}');
@@ -84,7 +87,10 @@ class RegistryManager {
 
       final json = jsonDecode(response.data as String) as Map<String, dynamic>;
       final metadata = RegistryMetadata.fromJson(json);
-      Log.ok(_tag, 'Got registry "${metadata.name ?? 'unnamed'}" with ${metadata.providers.length} providers');
+      Log.ok(
+        _tag,
+        'Got registry "${metadata.name ?? 'unnamed'}" with ${metadata.providers.length} providers',
+      );
       return null;
     } on DioException catch (e) {
       final msg = e.message ?? 'Unknown network error';
@@ -158,12 +164,19 @@ class RegistryManager {
       return [];
     }
 
-    return await _syncMetadata(registryId, metadata, rawBaseUrl: _getBaseUrl(rawUrl));
+    return await _syncMetadata(
+      registryId,
+      metadata,
+      rawBaseUrl: _getBaseUrl(rawUrl),
+    );
   }
 
   /// Sync a registry from a local JSON file.
   /// JS/icon files are resolved relative to the JSON file's directory.
-  Future<List<ProviderMeta>> syncRegistryFromFile(String registryId, String filePath) async {
+  Future<List<ProviderMeta>> syncRegistryFromFile(
+    String registryId,
+    String filePath,
+  ) async {
     Log.i(_tag, 'Syncing registry "$registryId" from local file: $filePath');
 
     try {
@@ -195,60 +208,62 @@ class RegistryManager {
     final registryDir = _config.registryDir(registryId);
     await registryDir.create(recursive: true);
 
-    final results = await Future.wait(metadata.providers.map((provider) async {
-      final futures = <Future<dynamic>>[];
-      final jsFuture = rawBaseUrl != null
-          ? _fetchString('$rawBaseUrl${provider.file}')
-          : _readLocalFile('$localBaseDir/${provider.file}');
-      futures.add(jsFuture);
+    final results = await Future.wait(
+      metadata.providers.map((provider) async {
+        final futures = <Future<dynamic>>[];
+        final jsFuture = rawBaseUrl != null
+            ? _fetchString('$rawBaseUrl${provider.file}')
+            : _readLocalFile('$localBaseDir/${provider.file}');
+        futures.add(jsFuture);
 
-      Future<List<int>?>? iconFuture;
-      if (provider.icon != null && rawBaseUrl != null) {
-        iconFuture = _fetchBytes('$rawBaseUrl${provider.icon}');
-        futures.add(iconFuture);
-      }
+        Future<List<int>?>? iconFuture;
+        if (provider.icon != null && rawBaseUrl != null) {
+          iconFuture = _fetchBytes('$rawBaseUrl${provider.icon}');
+          futures.add(iconFuture);
+        }
 
-      final completed = await Future.wait(futures);
-      final jsSource = completed[0] as String?;
+        final completed = await Future.wait(futures);
+        final jsSource = completed[0] as String?;
 
-      if (jsSource == null) {
-        Log.w(_tag, 'Failed to load JS for provider ${provider.id}');
-        return null;
-      }
+        if (jsSource == null) {
+          Log.w(_tag, 'Failed to load JS for provider ${provider.id}');
+          return null;
+        }
 
-      List<int>? iconBytes;
-      if (iconFuture != null && completed.length > 1) {
-        iconBytes = completed[1] as List<int>?;
-      }
+        List<int>? iconBytes;
+        if (iconFuture != null && completed.length > 1) {
+          iconBytes = completed[1] as List<int>?;
+        }
 
-      final jsPath = p.join(registryDir.path, provider.file);
-      final jsFile = File(jsPath);
-      await jsFile.parent.create(recursive: true);
-      await jsFile.writeAsString(jsSource);
+        final jsPath = p.join(registryDir.path, provider.file);
+        final jsFile = File(jsPath);
+        await jsFile.parent.create(recursive: true);
+        await jsFile.writeAsString(jsSource);
 
-      if (iconBytes != null) {
-        final iconPath = p.join(registryDir.path, provider.icon!);
-        final iconFile = File(iconPath);
-        await iconFile.parent.create(recursive: true);
-        await iconFile.writeAsBytes(iconBytes);
-      } else if (provider.icon != null && localBaseDir != null) {
-        final iconPath = p.join(registryDir.path, provider.icon!);
-        await _copyLocalFile('$localBaseDir/${provider.icon}', iconPath);
-      }
+        if (iconBytes != null) {
+          final iconPath = p.join(registryDir.path, provider.icon!);
+          final iconFile = File(iconPath);
+          await iconFile.parent.create(recursive: true);
+          await iconFile.writeAsBytes(iconBytes);
+        } else if (provider.icon != null && localBaseDir != null) {
+          final iconPath = p.join(registryDir.path, provider.icon!);
+          await _copyLocalFile('$localBaseDir/${provider.icon}', iconPath);
+        }
 
-      return ProviderMeta(
-        id: provider.id,
-        name: provider.name,
-        lang: provider.lang,
-        baseUrl: provider.baseUrl,
-        file: provider.file,
-        version: provider.version,
-        author: provider.author,
-        icon: provider.icon,
-        nsfw: provider.nsfw,
-        registryId: registryId,
-      );
-    }));
+        return ProviderMeta(
+          id: provider.id,
+          name: provider.name,
+          lang: provider.lang,
+          baseUrl: provider.baseUrl,
+          file: provider.file,
+          version: provider.version,
+          author: provider.author,
+          icon: provider.icon,
+          nsfw: provider.nsfw,
+          registryId: registryId,
+        );
+      }),
+    );
 
     final downloaded = results.whereType<ProviderMeta>().toList();
 
@@ -256,8 +271,11 @@ class RegistryManager {
     // Writing it first would make the UI show the new version while the
     // runtime still loads the old JS files (stale cache inconsistency).
     if (downloaded.length != metadata.providers.length) {
-      Log.w(_tag, 'Sync incomplete (${downloaded.length}/${metadata.providers.length}), '
-          'keeping previous metadata.json');
+      Log.w(
+        _tag,
+        'Sync incomplete (${downloaded.length}/${metadata.providers.length}), '
+        'keeping previous metadata.json',
+      );
       return downloaded;
     }
 
@@ -265,7 +283,10 @@ class RegistryManager {
     await metadataFile.writeAsString(jsonEncode(metadata.toJson()));
     Log.i(_tag, 'Cached registry JSON to: ${metadataFile.path}');
 
-    Log.ok(_tag, 'Synced ${downloaded.length}/${metadata.providers.length} providers');
+    Log.ok(
+      _tag,
+      'Synced ${downloaded.length}/${metadata.providers.length} providers',
+    );
     return downloaded;
   }
 
@@ -308,7 +329,10 @@ class RegistryManager {
 
       for (final provider in metadata.providers) {
         if (provider.id == providerId) {
-          final jsPath = p.join(_config.registryDir(registryId).path, provider.file);
+          final jsPath = p.join(
+            _config.registryDir(registryId).path,
+            provider.file,
+          );
           final jsFile = File(jsPath);
           if (await jsFile.exists()) {
             final metadataFile = File(_config.registryMetadataPath(registryId));
@@ -328,8 +352,11 @@ class RegistryManager {
     final (jsPath, registryId, _) = matches.first;
     try {
       final content = await File(jsPath).readAsString();
-      Log.ok(_tag, 'Loaded ${content.length} chars of JS for "$providerId" '
-          '(from registry "$registryId")');
+      Log.ok(
+        _tag,
+        'Loaded ${content.length} chars of JS for "$providerId" '
+        '(from registry "$registryId")',
+      );
       return content;
     } catch (e) {
       Log.e(_tag, 'Error reading JS file: $e');
@@ -352,7 +379,8 @@ class RegistryManager {
       if (!metadataFile.existsSync()) continue;
 
       try {
-        final json = jsonDecode(metadataFile.readAsStringSync()) as Map<String, dynamic>;
+        final json =
+            jsonDecode(metadataFile.readAsStringSync()) as Map<String, dynamic>;
         final metadata = RegistryMetadata.fromJson(json);
         for (final provider in metadata.providers) {
           if (provider.id == providerId && provider.icon != null) {

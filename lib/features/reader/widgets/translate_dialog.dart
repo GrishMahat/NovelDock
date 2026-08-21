@@ -38,17 +38,25 @@ void showTranslateDialog(BuildContext context, WidgetRef ref) {
                   width: double.infinity,
                   padding: const EdgeInsets.all(12),
                   decoration: BoxDecoration(
-                    color: Theme.of(context).colorScheme.surfaceContainerHighest,
+                    color: Theme.of(
+                      context,
+                    ).colorScheme.surfaceContainerHighest,
                     borderRadius: BorderRadius.circular(8),
                   ),
-                  child: Text(translatedText!, style: const TextStyle(fontSize: 14)),
+                  child: Text(
+                    translatedText!,
+                    style: const TextStyle(fontSize: 14),
+                  ),
                 ),
               ],
             ],
           ),
         ),
         actions: [
-          TextButton(onPressed: () => Navigator.pop(ctx), child: const Text('Close')),
+          TextButton(
+            onPressed: () => Navigator.pop(ctx),
+            child: const Text('Close'),
+          ),
           FilledButton(
             onPressed: isTranslating
                 ? null
@@ -58,7 +66,9 @@ void showTranslateDialog(BuildContext context, WidgetRef ref) {
 
                     setDialogState(() => isTranslating = true);
 
-                    final translationSettings = ref.read(translationSettingsProvider);
+                    final translationSettings = ref.read(
+                      translationSettingsProvider,
+                    );
                     final service = ref.read(translationServiceProvider);
                     final result = await service.translate(
                       text,

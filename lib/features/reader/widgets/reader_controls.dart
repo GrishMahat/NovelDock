@@ -7,8 +7,8 @@ import '../../settings/pages/reader/reader_settings_state.dart';
 
 /// Reader-theme surface color: text tinted over background, so chrome sits
 /// well on every reader background (dark/light/sepia/green/blue).
-Color _readerSurface(ReaderSettings s) => Color.alphaBlend(
-    s.textColor.withValues(alpha: 0.08), s.bgColor);
+Color _readerSurface(ReaderSettings s) =>
+    Color.alphaBlend(s.textColor.withValues(alpha: 0.08), s.bgColor);
 
 BorderSide _readerHairline(ReaderSettings s) =>
     BorderSide(color: s.textColor.withValues(alpha: 0.18));
@@ -19,10 +19,7 @@ class _ReaderEnter extends StatefulWidget {
   final bool entersFromTop;
   final Widget child;
 
-  const _ReaderEnter({
-    required this.entersFromTop,
-    required this.child,
-  });
+  const _ReaderEnter({required this.entersFromTop, required this.child});
 
   @override
   State<_ReaderEnter> createState() => _ReaderEnterState();
@@ -30,10 +27,11 @@ class _ReaderEnter extends StatefulWidget {
 
 class _ReaderEnterState extends State<_ReaderEnter>
     with SingleTickerProviderStateMixin {
-  late final AnimationController _controller =
-      AnimationController(vsync: this);
-  late final CurvedAnimation _curve =
-      CurvedAnimation(parent: _controller, curve: Curves.easeOutCubic);
+  late final AnimationController _controller = AnimationController(vsync: this);
+  late final CurvedAnimation _curve = CurvedAnimation(
+    parent: _controller,
+    curve: Curves.easeOutCubic,
+  );
 
   @override
   void didChangeDependencies() {
@@ -80,7 +78,9 @@ Widget buildReaderTopBar({
 }) {
   final s = settings;
   return Positioned(
-    top: 0, left: 0, right: 0,
+    top: 0,
+    left: 0,
+    right: 0,
     child: SafeArea(
       bottom: false,
       child: _ReaderEnter(
@@ -102,7 +102,8 @@ Widget buildReaderTopBar({
                         tooltip: 'Back (Esc)',
                         onPressed: () {
                           SystemChrome.setEnabledSystemUIMode(
-                              SystemUiMode.edgeToEdge);
+                            SystemUiMode.edgeToEdge,
+                          );
                           onBack();
                         },
                       ),
@@ -152,7 +153,9 @@ Widget buildReaderBottomBar({
   required VoidCallback onSettings,
 }) {
   return Positioned(
-    bottom: Insets.sm, left: 0, right: 0,
+    bottom: Insets.sm,
+    left: 0,
+    right: 0,
     child: SafeArea(
       top: false,
       child: Center(
@@ -223,7 +226,9 @@ Widget buildTtsFloatingPlayer({
       : 0.0;
 
   return Positioned(
-    bottom: Insets.sm, left: 0, right: 0,
+    bottom: Insets.sm,
+    left: 0,
+    right: 0,
     child: SafeArea(
       top: false,
       child: Center(
@@ -243,8 +248,7 @@ Widget buildTtsFloatingPlayer({
                 mainAxisSize: MainAxisSize.min,
                 children: [
                   Padding(
-                    padding:
-                        const EdgeInsets.symmetric(horizontal: Insets.sm),
+                    padding: const EdgeInsets.symmetric(horizontal: Insets.sm),
                     child: Row(
                       mainAxisSize: MainAxisSize.min,
                       children: [
@@ -255,9 +259,7 @@ Widget buildTtsFloatingPlayer({
                         ),
                         IconButton(
                           icon: Icon(
-                            ttsState.isPaused
-                                ? Icons.play_arrow
-                                : Icons.pause,
+                            ttsState.isPaused ? Icons.play_arrow : Icons.pause,
                           ),
                           tooltip: ttsState.isPaused ? 'Resume' : 'Pause',
                           onPressed: onTogglePause,
@@ -277,10 +279,10 @@ Widget buildTtsFloatingPlayer({
                   ),
                   LinearProgressIndicator(
                     value: progress,
-                    backgroundColor:
-                        settings.textColor.withValues(alpha: 0.15),
+                    backgroundColor: settings.textColor.withValues(alpha: 0.15),
                     valueColor: AlwaysStoppedAnimation<Color>(
-                        settings.textColor.withValues(alpha: 0.7)),
+                      settings.textColor.withValues(alpha: 0.7),
+                    ),
                     minHeight: 3,
                   ),
                 ],
@@ -296,12 +298,15 @@ Widget buildTtsFloatingPlayer({
 /// Thin reading-progress line at the very top of the screen.
 Widget buildReaderProgressBar(double scrollProgress, ReaderSettings settings) {
   return Positioned(
-    top: 0, left: 0, right: 0,
+    top: 0,
+    left: 0,
+    right: 0,
     child: LinearProgressIndicator(
       value: scrollProgress,
       backgroundColor: Colors.transparent,
       valueColor: AlwaysStoppedAnimation<Color>(
-          settings.textColor.withValues(alpha: 0.55)),
+        settings.textColor.withValues(alpha: 0.55),
+      ),
       minHeight: 2,
     ),
   );

@@ -19,7 +19,9 @@ class DownloadNotification {
     if (_initialized) return;
     if (Platform.isLinux) return;
 
-    const androidSettings = AndroidInitializationSettings('@mipmap/ic_launcher');
+    const androidSettings = AndroidInitializationSettings(
+      '@mipmap/ic_launcher',
+    );
     const initSettings = InitializationSettings(android: androidSettings);
     await _plugin.initialize(settings: initSettings);
     _initialized = true;
@@ -55,7 +57,10 @@ class DownloadNotification {
     );
   }
 
-  static Future<void> showComplete({required String novelTitle, required int total}) async {
+  static Future<void> showComplete({
+    required String novelTitle,
+    required int total,
+  }) async {
     if (!_initialized) return;
 
     await _plugin.show(

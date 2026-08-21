@@ -38,8 +38,8 @@ class GeneralSettings {
 
 final generalSettingsProvider =
     StateNotifierProvider<GeneralSettingsNotifier, GeneralSettings>((ref) {
-  return GeneralSettingsNotifier();
-});
+      return GeneralSettingsNotifier();
+    });
 
 class GeneralSettingsNotifier extends StateNotifier<GeneralSettings> {
   GeneralSettingsNotifier() : super(const GeneralSettings()) {
@@ -98,43 +98,42 @@ class GeneralSettingsPage extends ConsumerWidget {
       body: ListView(
         children: [
           _buildSection('Startup Tab'),
-          RadioListTile<int>(
-            title: const Text('Library'),
-            value: 0,
+          RadioGroup<int>(
             groupValue: settings.startupTab,
-            onChanged: (v) => v != null ? notifier.setStartupTab(v) : null,
-          ),
-          RadioListTile<int>(
-            title: const Text('Browse'),
-            value: 1,
-            groupValue: settings.startupTab,
-            onChanged: (v) => v != null ? notifier.setStartupTab(v) : null,
-          ),
-          RadioListTile<int>(
-            title: const Text('History'),
-            value: 2,
-            groupValue: settings.startupTab,
-            onChanged: (v) => v != null ? notifier.setStartupTab(v) : null,
+            onChanged: (v) {
+              if (v != null) notifier.setStartupTab(v);
+            },
+            child: Column(
+              children: [
+                RadioListTile<int>(title: const Text('Library'), value: 0),
+                RadioListTile<int>(title: const Text('Browse'), value: 1),
+                RadioListTile<int>(title: const Text('History'), value: 2),
+              ],
+            ),
           ),
           const Divider(),
           _buildSection('Library Default View'),
-          RadioListTile<String>(
-            title: const Text('Grid View'),
-            value: 'grid',
+          RadioGroup<String>(
             groupValue: settings.defaultDisplayMode,
-            onChanged: (v) => v != null ? notifier.setDefaultDisplayMode(v) : null,
-          ),
-          RadioListTile<String>(
-            title: const Text('List View'),
-            value: 'list',
-            groupValue: settings.defaultDisplayMode,
-            onChanged: (v) => v != null ? notifier.setDefaultDisplayMode(v) : null,
-          ),
-          RadioListTile<String>(
-            title: const Text('Compact View'),
-            value: 'compact',
-            groupValue: settings.defaultDisplayMode,
-            onChanged: (v) => v != null ? notifier.setDefaultDisplayMode(v) : null,
+            onChanged: (v) {
+              if (v != null) notifier.setDefaultDisplayMode(v);
+            },
+            child: Column(
+              children: [
+                RadioListTile<String>(
+                  title: const Text('Grid View'),
+                  value: 'grid',
+                ),
+                RadioListTile<String>(
+                  title: const Text('List View'),
+                  value: 'list',
+                ),
+                RadioListTile<String>(
+                  title: const Text('Compact View'),
+                  value: 'compact',
+                ),
+              ],
+            ),
           ),
           const Divider(),
           _buildSection('Application Behavior'),

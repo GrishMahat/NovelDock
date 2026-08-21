@@ -1,13 +1,13 @@
 import 'package:drift/drift.dart';
 
 import '../database.dart';
-import '../tables.dart';
 
 part 'novel_progress_dao.g.dart';
 
 @DriftAccessor(tables: [NovelProgress, Novels, Chapters])
-class NovelProgressDao extends DatabaseAccessor<AppDatabase> with _$NovelProgressDaoMixin {
-  NovelProgressDao(AppDatabase db) : super(db);
+class NovelProgressDao extends DatabaseAccessor<AppDatabase>
+    with _$NovelProgressDaoMixin {
+  NovelProgressDao(super.db);
 
   Future<int> updateProgress({
     required int novelId,
@@ -18,40 +18,62 @@ class NovelProgressDao extends DatabaseAccessor<AppDatabase> with _$NovelProgres
     int? lastTtsChapterId,
   }) async {
     final now = DateTime.now().millisecondsSinceEpoch;
-    final existing = await (select(novelProgress)..where((t) => t.novelId.equals(novelId))).getSingleOrNull();
+    final existing = await (select(
+      novelProgress,
+    )..where((t) => t.novelId.equals(novelId))).getSingleOrNull();
 
     if (existing != null) {
-      await update(novelProgress).replace(NovelProgressCompanion(
-        novelId: Value(novelId),
-        totalChapters: Value(totalChapters),
-        readChapters: Value(readChapters ?? existing.readChapters),
-        ttsReadChapters: Value(ttsReadChapters ?? existing.ttsReadChapters),
-        lastReadChapterId: lastReadChapterId != null ? Value(lastReadChapterId) : const Value.absent(),
-        lastTtsChapterId: lastTtsChapterId != null ? Value(lastTtsChapterId) : const Value.absent(),
-        lastReadAt: Value(now),
-        lastTtsAt: lastTtsChapterId != null ? Value(now) : const Value.absent(),
-      ));
+      await update(novelProgress).replace(
+        NovelProgressCompanion(
+          novelId: Value(novelId),
+          totalChapters: Value(totalChapters),
+          readChapters: Value(readChapters ?? existing.readChapters),
+          ttsReadChapters: Value(ttsReadChapters ?? existing.ttsReadChapters),
+          lastReadChapterId: lastReadChapterId != null
+              ? Value(lastReadChapterId)
+              : const Value.absent(),
+          lastTtsChapterId: lastTtsChapterId != null
+              ? Value(lastTtsChapterId)
+              : const Value.absent(),
+          lastReadAt: Value(now),
+          lastTtsAt: lastTtsChapterId != null
+              ? Value(now)
+              : const Value.absent(),
+        ),
+      );
       return 1;
     } else {
-      return into(novelProgress).insert(NovelProgressCompanion(
-        novelId: Value(novelId),
-        totalChapters: Value(totalChapters),
-        readChapters: Value(readChapters ?? 0),
-        ttsReadChapters: Value(ttsReadChapters ?? 0),
-        lastReadChapterId: lastReadChapterId != null ? Value(lastReadChapterId) : const Value.absent(),
-        lastTtsChapterId: lastTtsChapterId != null ? Value(lastTtsChapterId) : const Value.absent(),
-        lastReadAt: Value(now),
-        lastTtsAt: lastTtsChapterId != null ? Value(now) : const Value.absent(),
-      ));
+      return into(novelProgress).insert(
+        NovelProgressCompanion(
+          novelId: Value(novelId),
+          totalChapters: Value(totalChapters),
+          readChapters: Value(readChapters ?? 0),
+          ttsReadChapters: Value(ttsReadChapters ?? 0),
+          lastReadChapterId: lastReadChapterId != null
+              ? Value(lastReadChapterId)
+              : const Value.absent(),
+          lastTtsChapterId: lastTtsChapterId != null
+              ? Value(lastTtsChapterId)
+              : const Value.absent(),
+          lastReadAt: Value(now),
+          lastTtsAt: lastTtsChapterId != null
+              ? Value(now)
+              : const Value.absent(),
+        ),
+      );
     }
   }
 
   Future<NovelProgressData?> getProgress(int novelId) {
-    return (select(novelProgress)..where((t) => t.novelId.equals(novelId))).getSingleOrNull();
+    return (select(
+      novelProgress,
+    )..where((t) => t.novelId.equals(novelId))).getSingleOrNull();
   }
 
   Stream<NovelProgressData?> watchProgress(int novelId) {
-    return (select(novelProgress)..where((t) => t.novelId.equals(novelId))).watchSingleOrNull();
+    return (select(
+      novelProgress,
+    )..where((t) => t.novelId.equals(novelId))).watchSingleOrNull();
   }
 
   Future<List<NovelProgressData>> getAllProgress() {

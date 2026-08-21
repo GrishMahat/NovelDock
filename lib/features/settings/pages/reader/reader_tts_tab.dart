@@ -104,35 +104,35 @@ class TtsTab extends ConsumerWidget {
         // ── Highlight ──
         section('Read-along Highlight'),
 
-        radioTts(context,
+        radioTts(
+          context,
           'Paragraph',
           TtsHighlightMode.paragraph,
           ttsState.highlightMode,
           (value) {
-            if (value == null) return;
-
             unawaited(ttsNotifier.updateHighlightMode(value));
           },
         ),
 
-        radioTts(context,
+        radioTts(
+          context,
           'Sentence',
           TtsHighlightMode.sentence,
           ttsState.highlightMode,
           (value) {
-            if (value == null) return;
-
             unawaited(ttsNotifier.updateHighlightMode(value));
           },
         ),
 
-        radioTts(context, 'Word', TtsHighlightMode.word, ttsState.highlightMode, (
-          value,
-        ) {
-          if (value == null) return;
-
-          unawaited(ttsNotifier.updateHighlightMode(value));
-        }),
+        radioTts(
+          context,
+          'Word',
+          TtsHighlightMode.word,
+          ttsState.highlightMode,
+          (value) {
+            unawaited(ttsNotifier.updateHighlightMode(value));
+          },
+        ),
       ],
     );
   }
@@ -606,7 +606,9 @@ class _VoicePickerSheetState extends State<_VoicePickerSheet> {
                                   : Icons.play_circle_outline,
                               color: isPlaying
                                   ? AppTheme.kPrimary
-                                  : Theme.of(context).colorScheme.onSurfaceVariant,
+                                  : Theme.of(
+                                      context,
+                                    ).colorScheme.onSurfaceVariant,
                             ),
                             tooltip: isPlaying ? 'Stop sample' : 'Play sample',
                             onPressed: _sampleBusy && !isPlaying

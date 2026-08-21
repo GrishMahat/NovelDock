@@ -63,8 +63,9 @@ void main() {
   JustAudioMediaKit.mpvProperties = const {'network-timeout': '0'};
   JustAudioMediaKit.ensureInitialized(linux: true, windows: true);
 
-  testWidgets('slow synthesis must not stall or truncate playback',
-      (tester) async {
+  testWidgets('slow synthesis must not stall or truncate playback', (
+    tester,
+  ) async {
     // Real ~3s of speech to replay.
     final real = EdgeTtsEngine();
     addTearDown(real.close);
@@ -130,9 +131,10 @@ void main() {
     final poll = Timer.periodic(const Duration(seconds: 1), (_) {
       final p = controller.player.audioPlayer;
       states.add(
-          't=${(p.position.inMilliseconds ~/ 1000)}s '
-          'state=${p.processingState.name} playing=${p.playing} '
-          'pos=${p.position.inMilliseconds}ms dur=${p.duration?.inMilliseconds ?? -1}ms');
+        't=${(p.position.inMilliseconds ~/ 1000)}s '
+        'state=${p.processingState.name} playing=${p.playing} '
+        'pos=${p.position.inMilliseconds}ms dur=${p.duration?.inMilliseconds ?? -1}ms',
+      );
     });
 
     Duration? waited;
@@ -153,10 +155,16 @@ void main() {
     }
     debugPrint('DIAG waited=${waited?.inSeconds}s');
 
-    expect(events, containsAll(['done:0', 'done:1', 'done:2', 'completed']),
-        reason: events.toString());
-    expect(events.indexOf('done:2') < events.indexOf('completed'), isTrue,
-        reason: events.toString());
+    expect(
+      events,
+      containsAll(['done:0', 'done:1', 'done:2', 'completed']),
+      reason: events.toString(),
+    );
+    expect(
+      events.indexOf('done:2') < events.indexOf('completed'),
+      isTrue,
+      reason: events.toString(),
+    );
     expect(events, isNot(contains('timeout')), reason: events.toString());
   }, timeout: const Timeout(Duration(minutes: 3)));
 }

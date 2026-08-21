@@ -195,7 +195,11 @@ class _SearchResultsScreenState extends ConsumerState<SearchResultsScreen> {
           if (isDesktop)
             Padding(
               padding: const EdgeInsets.fromLTRB(
-                  Insets.lg, Insets.md, Insets.lg, Insets.sm),
+                Insets.lg,
+                Insets.md,
+                Insets.lg,
+                Insets.sm,
+              ),
               child: Row(
                 children: [
                   IconButton(
@@ -288,7 +292,9 @@ class _SearchRows extends ConsumerWidget {
         child: Text(
           'No sources selected.\nTap the tune icon to pick sources.',
           textAlign: TextAlign.center,
-          style: TextStyle(color: Theme.of(context).colorScheme.onSurfaceVariant),
+          style: TextStyle(
+            color: Theme.of(context).colorScheme.onSurfaceVariant,
+          ),
         ),
       );
     }
@@ -301,18 +307,20 @@ class _SearchRows extends ConsumerWidget {
         .where((provider) => searchState.stateFor(provider.id).loaded)
         .toList(growable: false);
 
-    final resultRows = loaded
-        .where(
-          (provider) => searchState.stateFor(provider.id).results.isNotEmpty,
-        )
-        .toList(growable: false)
-      ..sort(
-        (a, b) => searchState
-            .stateFor(b.id)
-            .results
-            .length
-            .compareTo(searchState.stateFor(a.id).results.length),
-      );
+    final resultRows =
+        loaded
+            .where(
+              (provider) =>
+                  searchState.stateFor(provider.id).results.isNotEmpty,
+            )
+            .toList(growable: false)
+          ..sort(
+            (a, b) => searchState
+                .stateFor(b.id)
+                .results
+                .length
+                .compareTo(searchState.stateFor(a.id).results.length),
+          );
 
     // Rows for providers that returned nothing are deferred. They only
     // appear once every provider has finished, and always at the bottom.
@@ -359,7 +367,9 @@ class _SearchRows extends ConsumerWidget {
               Text(
                 'None of the selected sources returned results.',
                 textAlign: TextAlign.center,
-                style: TextStyle(color: Theme.of(context).colorScheme.onSurfaceVariant),
+                style: TextStyle(
+                  color: Theme.of(context).colorScheme.onSurfaceVariant,
+                ),
               ),
               const SizedBox(height: 16),
               FilledButton.icon(
@@ -395,7 +405,9 @@ class _SearchRows extends ConsumerWidget {
               Text(
                 'Try a different query.',
                 textAlign: TextAlign.center,
-                style: TextStyle(color: Theme.of(context).colorScheme.onSurfaceVariant),
+                style: TextStyle(
+                  color: Theme.of(context).colorScheme.onSurfaceVariant,
+                ),
               ),
             ],
           ),
@@ -596,7 +608,7 @@ class _ProviderRow extends ConsumerWidget {
                 scrollDirection: Axis.horizontal,
                 padding: const EdgeInsets.symmetric(horizontal: 12),
                 itemCount: results.length + (hasMorePreview ? 1 : 0),
-                separatorBuilder: (_, __) => const SizedBox(width: 8),
+                separatorBuilder: (_, _) => const SizedBox(width: 8),
                 itemBuilder: (context, index) {
                   if (index >= results.length) {
                     return SizedBox(
@@ -613,37 +625,37 @@ class _ProviderRow extends ConsumerWidget {
 
                   final item = results[index];
 
-                return SizedBox(
-                  width: 112,
-                  child: InkWell(
-                    onTap: () => onOpen(item),
-                    borderRadius: BorderRadius.circular(8),
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        ClipRRect(
-                          borderRadius: BorderRadius.circular(8),
-                          child: CoverImage(
-                            imageUrl: item.cover,
-                            width: 112,
-                            height: 152,
-                            imageHeaders: item.coverHeaders,
+                  return SizedBox(
+                    width: 112,
+                    child: InkWell(
+                      onTap: () => onOpen(item),
+                      borderRadius: BorderRadius.circular(8),
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          ClipRRect(
+                            borderRadius: BorderRadius.circular(8),
+                            child: CoverImage(
+                              imageUrl: item.cover,
+                              width: 112,
+                              height: 152,
+                              imageHeaders: item.coverHeaders,
+                            ),
                           ),
-                        ),
-                        const SizedBox(height: 4),
-                        Text(
-                          item.title,
-                          maxLines: 2,
-                          overflow: TextOverflow.ellipsis,
-                          style: const TextStyle(fontSize: 12),
-                        ),
-                      ],
+                          const SizedBox(height: 4),
+                          Text(
+                            item.title,
+                            maxLines: 2,
+                            overflow: TextOverflow.ellipsis,
+                            style: const TextStyle(fontSize: 12),
+                          ),
+                        ],
+                      ),
                     ),
-                  ),
-                );
-              },
+                  );
+                },
+              ),
             ),
-          ),
           )
         else if (providerState.isLoading)
           const Padding(

@@ -10,7 +10,10 @@ class StatusChip extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final (color, label) = switch (status.toLowerCase()) {
-      'ongoing' => (Theme.of(context).extension<AppColors>()!.ongoing, 'Ongoing'),
+      'ongoing' => (
+        Theme.of(context).extension<AppColors>()!.ongoing,
+        'Ongoing',
+      ),
       'completed' => (Colors.green, 'Completed'),
       'dropped' => (Colors.red, 'Dropped'),
       _ => (Theme.of(context).colorScheme.onSurfaceVariant, status),
@@ -22,7 +25,14 @@ class StatusChip extends StatelessWidget {
         color: color.withValues(alpha: 0.15),
         borderRadius: BorderRadius.circular(4),
       ),
-      child: Text(label, style: TextStyle(fontSize: 11, color: color, fontWeight: FontWeight.w600)),
+      child: Text(
+        label,
+        style: TextStyle(
+          fontSize: 11,
+          color: color,
+          fontWeight: FontWeight.w600,
+        ),
+      ),
     );
   }
 }

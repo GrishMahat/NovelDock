@@ -68,7 +68,9 @@ class _ChapterSidebarState extends State<ChapterSidebar> {
   Widget build(BuildContext context) {
     final s = widget.settings;
     final surface = Color.alphaBlend(
-        s.textColor.withValues(alpha: 0.07), s.bgColor);
+      s.textColor.withValues(alpha: 0.07),
+      s.bgColor,
+    );
     final hairline = s.textColor.withValues(alpha: 0.18);
     final query = _query.trim().toLowerCase();
 
@@ -97,7 +99,11 @@ class _ChapterSidebarState extends State<ChapterSidebar> {
             children: [
               Padding(
                 padding: const EdgeInsets.fromLTRB(
-                    Insets.md, Insets.sm, Insets.xs, Insets.xs),
+                  Insets.md,
+                  Insets.sm,
+                  Insets.xs,
+                  Insets.xs,
+                ),
                 child: Row(
                   children: [
                     Expanded(
@@ -123,19 +129,30 @@ class _ChapterSidebarState extends State<ChapterSidebar> {
               ),
               Padding(
                 padding: const EdgeInsets.fromLTRB(
-                    Insets.md, Insets.xs, Insets.md, Insets.sm),
+                  Insets.md,
+                  Insets.xs,
+                  Insets.md,
+                  Insets.sm,
+                ),
                 child: TextField(
                   controller: _filterController,
                   style: TextStyle(fontSize: 13, color: s.textColor),
                   decoration: InputDecoration(
                     hintText: 'Filter chapters',
-                    hintStyle:
-                        TextStyle(fontSize: 13, color: s.textColor.withValues(alpha: 0.5)),
-                    prefixIcon: Icon(Icons.search,
-                        size: 16, color: s.textColor.withValues(alpha: 0.6)),
+                    hintStyle: TextStyle(
+                      fontSize: 13,
+                      color: s.textColor.withValues(alpha: 0.5),
+                    ),
+                    prefixIcon: Icon(
+                      Icons.search,
+                      size: 16,
+                      color: s.textColor.withValues(alpha: 0.6),
+                    ),
                     isDense: true,
-                    contentPadding:
-                        const EdgeInsets.symmetric(vertical: 8, horizontal: Insets.sm),
+                    contentPadding: const EdgeInsets.symmetric(
+                      vertical: 8,
+                      horizontal: Insets.sm,
+                    ),
                     filled: true,
                     fillColor: s.textColor.withValues(alpha: 0.06),
                     border: OutlineInputBorder(
@@ -162,13 +179,13 @@ class _ChapterSidebarState extends State<ChapterSidebar> {
                       return ListTile(
                         dense: true,
                         selected: isCurrent,
-                        selectedTileColor:
-                            s.textColor.withValues(alpha: 0.12),
+                        selectedTileColor: s.textColor.withValues(alpha: 0.12),
                         shape: RoundedRectangleBorder(
                           borderRadius: BorderRadius.circular(Radii.sm.x),
                         ),
-                        contentPadding:
-                            const EdgeInsets.symmetric(horizontal: Insets.md),
+                        contentPadding: const EdgeInsets.symmetric(
+                          horizontal: Insets.md,
+                        ),
                         minLeadingWidth: 28,
                         leading: SizedBox(
                           width: 28,
@@ -177,8 +194,9 @@ class _ChapterSidebarState extends State<ChapterSidebar> {
                             textAlign: TextAlign.center,
                             style: TextStyle(
                               fontSize: 11,
-                              fontWeight:
-                                  isCurrent ? FontWeight.w600 : FontWeight.w400,
+                              fontWeight: isCurrent
+                                  ? FontWeight.w600
+                                  : FontWeight.w400,
                               color: isCurrent
                                   ? s.textColor
                                   : s.textColor.withValues(alpha: 0.55),
@@ -191,8 +209,9 @@ class _ChapterSidebarState extends State<ChapterSidebar> {
                           overflow: TextOverflow.ellipsis,
                           style: TextStyle(
                             fontSize: 13,
-                            fontWeight:
-                                isCurrent ? FontWeight.w600 : FontWeight.w400,
+                            fontWeight: isCurrent
+                                ? FontWeight.w600
+                                : FontWeight.w400,
                             color: isCurrent
                                 ? s.textColor
                                 : s.textColor.withValues(alpha: 0.75),

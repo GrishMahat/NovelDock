@@ -2,7 +2,7 @@ import 'dart:collection';
 
 class LruCache<K, V> with MapMixin<K, V> {
   final int maxSize;
-  final _map = LinkedHashMap<K, V>();
+  final _map = <K, V>{};
 
   LruCache(this.maxSize) : assert(maxSize > 0, 'maxSize must be positive');
 

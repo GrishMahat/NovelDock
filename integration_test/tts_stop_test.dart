@@ -62,8 +62,9 @@ void main() {
   };
   JustAudioMediaKit.ensureInitialized(linux: true, windows: true);
 
-  testWidgets('stop() must halt playback promptly and stay halted',
-      (tester) async {
+  testWidgets('stop() must halt playback promptly and stay halted', (
+    tester,
+  ) async {
     final real = EdgeTtsEngine();
     addTearDown(real.close);
     final bytes = <int>[];
@@ -102,8 +103,7 @@ void main() {
     controller.onWord = (c, w) => events.add('word:$c:$w');
     controller.onChunkStart = (c) => events.add('start:$c');
     controller.onChunkCompleted = (c) => events.add('done:$c');
-    controller.onError = (e, {required bool fatal}) =>
-        events.add('error:$e');
+    controller.onError = (e, {required bool fatal}) => events.add('error:$e');
 
     final engine = FakeGapEngine(mp3, const Duration(milliseconds: 200));
     await controller.start(
@@ -117,38 +117,63 @@ void main() {
 
     // Let the first chunk actually play.
     await tester.pump(const Duration(seconds: 2));
-    expect(controller.player.audioPlayer.playing, isTrue,
-        reason: 'should be playing before stop');
+    expect(
+      controller.player.audioPlayer.playing,
+      isTrue,
+      reason: 'should be playing before stop',
+    );
 
-    final startEventsBeforeStop = events.where((e) => e.startsWith('start:')).length;
+    final startEventsBeforeStop = events
+        .where((e) => e.startsWith('start:'))
+        .length;
     debugPrint('DIAG chunk start events before stop=$startEventsBeforeStop');
-    expect(startEventsBeforeStop, greaterThan(0),
-        reason: 'sanity: chunk start events should have fired while playing');
+    expect(
+      startEventsBeforeStop,
+      greaterThan(0),
+      reason: 'sanity: chunk start events should have fired while playing',
+    );
 
     final stopwatch = Stopwatch()..start();
     await controller.stop();
     stopwatch.stop();
     debugPrint('DIAG stop took ${stopwatch.elapsedMilliseconds}ms');
-    expect(stopwatch.elapsed, lessThan(const Duration(seconds: 2)),
-        reason: 'stop() must not block on the engine close handshake');
+    expect(
+      stopwatch.elapsed,
+      lessThan(const Duration(seconds: 2)),
+      reason: 'stop() must not block on the engine close handshake',
+    );
 
-    expect(controller.player.audioPlayer.playing, isFalse,
-        reason: 'playback must stop');
+    expect(
+      controller.player.audioPlayer.playing,
+      isFalse,
+      reason: 'playback must stop',
+    );
     final stoppedPosition = controller.position;
 
     // Give the pipeline time to (wrongly) resume if it ever would.
     await tester.pump(const Duration(seconds: 1));
     await Future<void>.delayed(const Duration(seconds: 1));
 
-    expect(controller.player.audioPlayer.playing, isFalse,
-        reason: 'playback must stay stopped');
-    expect((controller.position - stoppedPosition).abs() <
-        const Duration(milliseconds: 300), isTrue,
-        reason: 'position must freeze after stop');
+    expect(
+      controller.player.audioPlayer.playing,
+      isFalse,
+      reason: 'playback must stay stopped',
+    );
+    expect(
+      (controller.position - stoppedPosition).abs() <
+          const Duration(milliseconds: 300),
+      isTrue,
+      reason: 'position must freeze after stop',
+    );
 
-    final startEventsAfterStop = events.where((e) => e.startsWith('start:')).length;
-    expect(startEventsAfterStop, startEventsBeforeStop,
-        reason: 'no chunk start events may fire after stop');
+    final startEventsAfterStop = events
+        .where((e) => e.startsWith('start:'))
+        .length;
+    expect(
+      startEventsAfterStop,
+      startEventsBeforeStop,
+      reason: 'no chunk start events may fire after stop',
+    );
     debugPrint('DIAG chunk start events after stop=$startEventsAfterStop');
   }, timeout: const Timeout(Duration(minutes: 3)));
 }

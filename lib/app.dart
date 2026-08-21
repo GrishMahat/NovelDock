@@ -32,7 +32,9 @@ class NovelDockApp extends ConsumerWidget {
       debugShowCheckedModeBanner: false,
       routerConfig: router,
       theme: AppTheme.light(primary: accentColor),
-      darkTheme: isAmoled ? AppTheme.amoled(primary: accentColor) : AppTheme.dark(primary: accentColor),
+      darkTheme: isAmoled
+          ? AppTheme.amoled(primary: accentColor)
+          : AppTheme.dark(primary: accentColor),
       themeMode: themeMode,
     );
   }
@@ -44,12 +46,7 @@ class MainShell extends StatelessWidget {
   final Widget child;
   const MainShell({super.key, required this.child});
 
-  static const _tabPaths = [
-    '/library',
-    '/browse',
-    '/history',
-    '/settings',
-  ];
+  static const _tabPaths = ['/library', '/browse', '/history', '/settings'];
 
   /// Derive the active tab index from the current GoRouter location so the
   /// rail/bar stays in sync even after deep-link/notification navigation.
@@ -62,8 +59,7 @@ class MainShell extends StatelessWidget {
 
   /// Whether [location] is one of the four top-level tabs (vs a nested
   /// sub-page like /provider/:id or /search/results).
-  bool _isTabLocation(String location) =>
-      _tabPaths.any(location.startsWith);
+  bool _isTabLocation(String location) => _tabPaths.any(location.startsWith);
 
   void _onTap(BuildContext context, int index) {
     context.go(_tabPaths[index]);
@@ -83,16 +79,24 @@ class MainShell extends StatelessWidget {
 
     final bindings = <ShortcutActivator, VoidCallback>{
       // Tab switching
-      const SingleActivator(LogicalKeyboardKey.digit1): () => _onTap(context, 0),
-      const SingleActivator(LogicalKeyboardKey.digit2): () => _onTap(context, 1),
-      const SingleActivator(LogicalKeyboardKey.digit3): () => _onTap(context, 2),
-      const SingleActivator(LogicalKeyboardKey.digit4): () => _onTap(context, 3),
+      const SingleActivator(LogicalKeyboardKey.digit1): () =>
+          _onTap(context, 0),
+      const SingleActivator(LogicalKeyboardKey.digit2): () =>
+          _onTap(context, 1),
+      const SingleActivator(LogicalKeyboardKey.digit3): () =>
+          _onTap(context, 2),
+      const SingleActivator(LogicalKeyboardKey.digit4): () =>
+          _onTap(context, 3),
       // Navigation shortcuts
-      const SingleActivator(LogicalKeyboardKey.keyD, control: true): () => context.push('/downloads'),
-      const SingleActivator(LogicalKeyboardKey.comma, control: true): () => _onTap(context, 3),
+      const SingleActivator(LogicalKeyboardKey.keyD, control: true): () =>
+          context.push('/downloads'),
+      const SingleActivator(LogicalKeyboardKey.comma, control: true): () =>
+          _onTap(context, 3),
       // Refresh shortcut — invalidate provider on current tab via F5 or Ctrl+R
-      const SingleActivator(LogicalKeyboardKey.f5): () => _requestRefresh(context, currentIndex),
-      const SingleActivator(LogicalKeyboardKey.keyR, control: true): () => _requestRefresh(context, currentIndex),
+      const SingleActivator(LogicalKeyboardKey.f5): () =>
+          _requestRefresh(context, currentIndex),
+      const SingleActivator(LogicalKeyboardKey.keyR, control: true): () =>
+          _requestRefresh(context, currentIndex),
     };
 
     if (isDesktop) {
@@ -282,7 +286,9 @@ class _RailButton extends StatelessWidget {
                 width: 64,
                 height: 36,
                 decoration: BoxDecoration(
-                  color: selected ? scheme.primaryContainer : Colors.transparent,
+                  color: selected
+                      ? scheme.primaryContainer
+                      : Colors.transparent,
                   borderRadius: BorderRadius.circular(18),
                 ),
                 child: Icon(

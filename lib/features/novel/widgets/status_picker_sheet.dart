@@ -42,16 +42,22 @@ class _StatusPickerSheetState extends State<StatusPickerSheet> {
             style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
           ),
           const SizedBox(height: 8),
-          ..._options.map((s) => ListTile(
-            title: Text(s),
-            trailing: _selected == s ? const Icon(Icons.check, size: 20) : null,
-            onTap: () => setState(() => _selected = s),
-          )),
+          ..._options.map(
+            (s) => ListTile(
+              title: Text(s),
+              trailing: _selected == s
+                  ? const Icon(Icons.check, size: 20)
+                  : null,
+              onTap: () => setState(() => _selected = s),
+            ),
+          ),
           const Divider(),
           ListTile(
             leading: Icon(Icons.remove_circle, color: Colors.red.shade400),
             title: Text('None', style: TextStyle(color: Colors.red.shade400)),
-            trailing: _selected == 'None' ? Icon(Icons.check, size: 20, color: Colors.red.shade400) : null,
+            trailing: _selected == 'None'
+                ? Icon(Icons.check, size: 20, color: Colors.red.shade400)
+                : null,
             onTap: () => setState(() => _selected = 'None'),
           ),
           const SizedBox(height: 8),
@@ -59,7 +65,11 @@ class _StatusPickerSheetState extends State<StatusPickerSheet> {
             children: [
               Expanded(
                 child: Padding(
-                  padding: const EdgeInsets.only(left: 16, right: 4, bottom: 16),
+                  padding: const EdgeInsets.only(
+                    left: 16,
+                    right: 4,
+                    bottom: 16,
+                  ),
                   child: OutlinedButton(
                     onPressed: () => Navigator.pop(context),
                     child: const Text('Cancel'),
@@ -68,7 +78,11 @@ class _StatusPickerSheetState extends State<StatusPickerSheet> {
               ),
               Expanded(
                 child: Padding(
-                  padding: const EdgeInsets.only(left: 4, right: 16, bottom: 16),
+                  padding: const EdgeInsets.only(
+                    left: 4,
+                    right: 16,
+                    bottom: 16,
+                  ),
                   child: FilledButton(
                     onPressed: () => Navigator.pop(context, _selected),
                     child: const Text('OK'),

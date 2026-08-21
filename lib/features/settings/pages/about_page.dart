@@ -39,7 +39,9 @@ class AboutPage extends StatelessWidget {
               return Center(
                 child: Text(
                   'Version $version',
-                  style: TextStyle(color: Theme.of(context).colorScheme.onSurfaceVariant),
+                  style: TextStyle(
+                    color: Theme.of(context).colorScheme.onSurfaceVariant,
+                  ),
                 ),
               );
             },
@@ -71,22 +73,34 @@ class AboutPage extends StatelessWidget {
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  Text('NovelDock', style: TextStyle(fontWeight: FontWeight.w600)),
+                  Text(
+                    'NovelDock',
+                    style: TextStyle(fontWeight: FontWeight.w600),
+                  ),
                   SizedBox(height: 4),
                   Text(
                     'Multi-platform novel reader and downloader. '
                     'Supports reading from various novel websites via a plugin system.',
-                    style: TextStyle(fontSize: 13, color: Theme.of(context).colorScheme.onSurfaceVariant),
+                    style: TextStyle(
+                      fontSize: 13,
+                      color: Theme.of(context).colorScheme.onSurfaceVariant,
+                    ),
                   ),
                   SizedBox(height: 12),
-                  Text('QuickNovel', style: TextStyle(fontWeight: FontWeight.w600)),
+                  Text(
+                    'QuickNovel',
+                    style: TextStyle(fontWeight: FontWeight.w600),
+                  ),
                   SizedBox(height: 4),
                   Text(
                     'Inspired by QuickNovel by LagradOst and contributors. '
                     'NovelDock is an independent Flutter implementation with '
                     'its own architecture. Credit goes to the QuickNovel team '
                     'for the original concept.',
-                    style: TextStyle(fontSize: 13, color: Theme.of(context).colorScheme.onSurfaceVariant),
+                    style: TextStyle(
+                      fontSize: 13,
+                      color: Theme.of(context).colorScheme.onSurfaceVariant,
+                    ),
                   ),
                 ],
               ),
@@ -105,7 +119,10 @@ class AboutPage extends StatelessWidget {
                 'version 3 or later. This software is provided as-is, without '
                 'warranty of any kind. Content accessed through this app belongs '
                 'to the respective content providers.',
-                style: TextStyle(fontSize: 12, color: Theme.of(context).colorScheme.onSurfaceVariant),
+                style: TextStyle(
+                  fontSize: 12,
+                  color: Theme.of(context).colorScheme.onSurfaceVariant,
+                ),
               ),
             ),
           ),
@@ -119,7 +136,11 @@ class AboutPage extends StatelessWidget {
       padding: const EdgeInsets.only(bottom: 8),
       child: Text(
         title,
-        style: const TextStyle(fontSize: 14, fontWeight: FontWeight.w600, color: AppTheme.kPrimary),
+        style: const TextStyle(
+          fontSize: 14,
+          fontWeight: FontWeight.w600,
+          color: AppTheme.kPrimary,
+        ),
       ),
     );
   }

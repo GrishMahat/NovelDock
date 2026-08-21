@@ -58,13 +58,26 @@ class ReaderSettings {
   });
 
   ReaderSettings copyWith({
-    double? fontSize, String? fontFamily, double? lineHeight,
-    double? paddingH, double? paddingV, String? scrollMode,
-    String? textAlignment, double? paragraphSpacing, bool? bionicReading,
-    bool? showTime, bool? showBattery, bool? keepScreenOn,
-    bool? selectableText, bool? ttsAutoScroll, bool? ttsAutoAdvance,
-    String? orientation, String? readerTheme,
-    String? leftTapAction, String? centerTapAction, String? rightTapAction,
+    double? fontSize,
+    String? fontFamily,
+    double? lineHeight,
+    double? paddingH,
+    double? paddingV,
+    String? scrollMode,
+    String? textAlignment,
+    double? paragraphSpacing,
+    bool? bionicReading,
+    bool? showTime,
+    bool? showBattery,
+    bool? keepScreenOn,
+    bool? selectableText,
+    bool? ttsAutoScroll,
+    bool? ttsAutoAdvance,
+    String? orientation,
+    String? readerTheme,
+    String? leftTapAction,
+    String? centerTapAction,
+    String? rightTapAction,
   }) {
     return ReaderSettings(
       fontSize: fontSize ?? this.fontSize,
@@ -92,21 +105,31 @@ class ReaderSettings {
 
   Color get bgColor {
     switch (readerTheme) {
-      case 'light': return AppTheme.kReaderBgColors['light']!;
-      case 'sepia': return AppTheme.kReaderBgColors['sepia']!;
-      case 'green': return AppTheme.kReaderBgColors['green']!;
-      case 'blue': return AppTheme.kReaderBgColors['blue']!;
-      default: return AppTheme.kReaderBgDefault;
+      case 'light':
+        return AppTheme.kReaderBgColors['light']!;
+      case 'sepia':
+        return AppTheme.kReaderBgColors['sepia']!;
+      case 'green':
+        return AppTheme.kReaderBgColors['green']!;
+      case 'blue':
+        return AppTheme.kReaderBgColors['blue']!;
+      default:
+        return AppTheme.kReaderBgDefault;
     }
   }
 
   Color get textColor {
     switch (readerTheme) {
-      case 'light': return AppTheme.kReaderTextColors['light']!;
-      case 'sepia': return AppTheme.kReaderTextColors['sepia']!;
-      case 'green': return AppTheme.kReaderTextColors['green']!;
-      case 'blue': return AppTheme.kReaderTextColors['blue']!;
-      default: return AppTheme.kReaderTextDefault;
+      case 'light':
+        return AppTheme.kReaderTextColors['light']!;
+      case 'sepia':
+        return AppTheme.kReaderTextColors['sepia']!;
+      case 'green':
+        return AppTheme.kReaderTextColors['green']!;
+      case 'blue':
+        return AppTheme.kReaderTextColors['blue']!;
+      default:
+        return AppTheme.kReaderTextDefault;
     }
   }
 }
@@ -133,10 +156,11 @@ Future<List<String>> getSystemFonts() async {
       }
     }
     if (Platform.isWindows) {
-      final result = await Process.run(
-        'reg',
-        ['query', 'HKLM\\SOFTWARE\\Microsoft\\Windows NT\\CurrentVersion\\Fonts', '/s'],
-      );
+      final result = await Process.run('reg', [
+        'query',
+        'HKLM\\SOFTWARE\\Microsoft\\Windows NT\\CurrentVersion\\Fonts',
+        '/s',
+      ]);
       if (result.exitCode == 0) {
         final fonts = <String>{};
         final lines = (result.stdout as String).split('\n');
@@ -151,12 +175,24 @@ Future<List<String>> getSystemFonts() async {
   } catch (e) {
     Log.e(_tag, 'Failed to get system fonts', e);
   }
-  return ['Literata', 'Arial', 'Courier New', 'Georgia', 'Helvetica',
-    'Times New Roman', 'Trebuchet MS', 'Verdana', 'Consolas', 'Lucida Console'];
+  return [
+    'Literata',
+    'Arial',
+    'Courier New',
+    'Georgia',
+    'Helvetica',
+    'Times New Roman',
+    'Trebuchet MS',
+    'Verdana',
+    'Consolas',
+    'Lucida Console',
+  ];
 }
 
 class ReaderSettingsNotifier extends StateNotifier<ReaderSettings> {
-  ReaderSettingsNotifier() : super(const ReaderSettings()) { _load(); }
+  ReaderSettingsNotifier() : super(const ReaderSettings()) {
+    _load();
+  }
 
   Future<void> _load() async {
     try {
@@ -230,23 +266,36 @@ class ReaderSettingsNotifier extends StateNotifier<ReaderSettings> {
   void updatePaddingH(double v) => _update((s) => s.copyWith(paddingH: v));
   void updatePaddingV(double v) => _update((s) => s.copyWith(paddingV: v));
   void updateScrollMode(String v) => _update((s) => s.copyWith(scrollMode: v));
-  void updateTextAlignment(String v) => _update((s) => s.copyWith(textAlignment: v));
-  void updateParagraphSpacing(double v) => _update((s) => s.copyWith(paragraphSpacing: v));
-  void updateOrientation(String v) => _update((s) => s.copyWith(orientation: v));
-  void updateReaderTheme(String v) => _update((s) => s.copyWith(readerTheme: v));
-  void toggleBionicReading() => _update((s) => s.copyWith(bionicReading: !s.bionicReading));
+  void updateTextAlignment(String v) =>
+      _update((s) => s.copyWith(textAlignment: v));
+  void updateParagraphSpacing(double v) =>
+      _update((s) => s.copyWith(paragraphSpacing: v));
+  void updateOrientation(String v) =>
+      _update((s) => s.copyWith(orientation: v));
+  void updateReaderTheme(String v) =>
+      _update((s) => s.copyWith(readerTheme: v));
+  void toggleBionicReading() =>
+      _update((s) => s.copyWith(bionicReading: !s.bionicReading));
   void toggleShowTime() => _update((s) => s.copyWith(showTime: !s.showTime));
-  void toggleShowBattery() => _update((s) => s.copyWith(showBattery: !s.showBattery));
-  void toggleKeepScreenOn() => _update((s) => s.copyWith(keepScreenOn: !s.keepScreenOn));
-  void toggleSelectableText() => _update((s) => s.copyWith(selectableText: !s.selectableText));
-  void toggleTtsAutoScroll() => _update((s) => s.copyWith(ttsAutoScroll: !s.ttsAutoScroll));
-  void toggleTtsAutoAdvance() => _update((s) => s.copyWith(ttsAutoAdvance: !s.ttsAutoAdvance));
-  void updateLeftTapAction(String v) => _update((s) => s.copyWith(leftTapAction: v));
-  void updateCenterTapAction(String v) => _update((s) => s.copyWith(centerTapAction: v));
-  void updateRightTapAction(String v) => _update((s) => s.copyWith(rightTapAction: v));
+  void toggleShowBattery() =>
+      _update((s) => s.copyWith(showBattery: !s.showBattery));
+  void toggleKeepScreenOn() =>
+      _update((s) => s.copyWith(keepScreenOn: !s.keepScreenOn));
+  void toggleSelectableText() =>
+      _update((s) => s.copyWith(selectableText: !s.selectableText));
+  void toggleTtsAutoScroll() =>
+      _update((s) => s.copyWith(ttsAutoScroll: !s.ttsAutoScroll));
+  void toggleTtsAutoAdvance() =>
+      _update((s) => s.copyWith(ttsAutoAdvance: !s.ttsAutoAdvance));
+  void updateLeftTapAction(String v) =>
+      _update((s) => s.copyWith(leftTapAction: v));
+  void updateCenterTapAction(String v) =>
+      _update((s) => s.copyWith(centerTapAction: v));
+  void updateRightTapAction(String v) =>
+      _update((s) => s.copyWith(rightTapAction: v));
 }
 
 final readerSettingsProvider =
     StateNotifierProvider<ReaderSettingsNotifier, ReaderSettings>((ref) {
-  return ReaderSettingsNotifier();
-});
+      return ReaderSettingsNotifier();
+    });

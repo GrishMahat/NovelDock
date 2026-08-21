@@ -56,10 +56,11 @@ class NovelOpener {
     bool isNew = false,
   }) async {
     try {
-      final instance = await ref.read(providerInstanceProvider(item.providerId!).future);
+      final instance = await ref.read(
+        providerInstanceProvider(item.providerId!).future,
+      );
       if (instance == null) return;
       final novelDao = ref.read(novelDaoProvider);
-      final chapterDao = ref.read(chapterDaoProvider);
 
       final novelUrl = await instance.getNovelInfoUrl(item.url);
       if (novelUrl == null) return;
@@ -102,7 +103,9 @@ class NovelOpener {
       final novel = await novelDao.getNovelById(novelId);
       if (novel == null) return false;
 
-      final instance = await ref.read(providerInstanceProvider(novel.providerId).future);
+      final instance = await ref.read(
+        providerInstanceProvider(novel.providerId).future,
+      );
       if (instance == null) return false;
 
       final novelUrl = await instance.getNovelInfoUrl(novel.url);
@@ -159,79 +162,81 @@ class NovelOpener {
     final chapterList = <ChaptersCompanion>[];
     try {
       if (chapters.isEmpty && bookId.isNotEmpty) {
-      var page = 0;
-      var chapterIndex = 0;
-      while (true) {
-        final config = instance.hasFunction('getChaptersApiConfig')
-            ? await instance.call('getChaptersApiConfig', [bookId, page])
-            : null;
-        Object? chData;
-        if (config is Map<String, dynamic> &&
-            config['url'] is String &&
-            config['body'] is List) {
-          final headers = (config['headers'] as Map<String, dynamic>?)
-                  ?.map((k, v) => MapEntry(k, v.toString())) ??
-              const <String, String>{};
-          final chResponse = await dio.post(
-            config['url'] as String,
-            data: Uint8List.fromList((config['body'] as List).cast<int>()),
-            options: Options(
-              headers: headers,
-              responseType: ResponseType.bytes,
-              followRedirects: false,
-              validateStatus: (status) => status != null && status < 500,
-            ),
-          );
-          if (chResponse.statusCode != 200) break;
-          chData = chResponse.data;
-        } else {
-          final chaptersUrl = await instance.call('getChaptersApiUrl', [
-            bookId,
-            page,
-          ]);
-          if (chaptersUrl == null || chaptersUrl is! String) break;
-          final chResponse = await dio.get(
-            chaptersUrl,
-            options: Options(
-              // Tolerate non-2xx (e.g. Syosetu answers 404 one page past
-              // the last chapter list) so the loop ends cleanly instead of
-              // aborting chapter insertion with a DioException.
-              validateStatus: (status) => status != null && status < 500,
-              responseType: ResponseType.plain,
-            ),
-          );
-          if (chResponse.statusCode != 200) break;
-          chData = chResponse.data.toString();
-          if ((chData as String).trim().isEmpty) break;
+        var page = 0;
+        var chapterIndex = 0;
+        while (true) {
+          final config = instance.hasFunction('getChaptersApiConfig')
+              ? await instance.call('getChaptersApiConfig', [bookId, page])
+              : null;
+          Object? chData;
+          if (config is Map<String, dynamic> &&
+              config['url'] is String &&
+              config['body'] is List) {
+            final headers =
+                (config['headers'] as Map<String, dynamic>?)?.map(
+                  (k, v) => MapEntry(k, v.toString()),
+                ) ??
+                const <String, String>{};
+            final chResponse = await dio.post(
+              config['url'] as String,
+              data: Uint8List.fromList((config['body'] as List).cast<int>()),
+              options: Options(
+                headers: headers,
+                responseType: ResponseType.bytes,
+                followRedirects: false,
+                validateStatus: (status) => status != null && status < 500,
+              ),
+            );
+            if (chResponse.statusCode != 200) break;
+            chData = chResponse.data;
+          } else {
+            final chaptersUrl = await instance.call('getChaptersApiUrl', [
+              bookId,
+              page,
+            ]);
+            if (chaptersUrl == null || chaptersUrl is! String) break;
+            final chResponse = await dio.get(
+              chaptersUrl,
+              options: Options(
+                // Tolerate non-2xx (e.g. Syosetu answers 404 one page past
+                // the last chapter list) so the loop ends cleanly instead of
+                // aborting chapter insertion with a DioException.
+                validateStatus: (status) => status != null && status < 500,
+                responseType: ResponseType.plain,
+              ),
+            );
+            if (chResponse.statusCode != 200) break;
+            chData = chResponse.data.toString();
+            if ((chData as String).trim().isEmpty) break;
+          }
+          final chList = await instance.call('parseChapterList', [chData]);
+          if (chList == null || chList is! List || chList.isEmpty) break;
+          for (var i = 0; i < chList.length; i++) {
+            final ch = chList[i] as Map<String, dynamic>;
+            chapterList.add(
+              ChaptersCompanion(
+                novelId: Value(novelId),
+                name: Value(ch['name'] as String? ?? ''),
+                url: Value(ch['url'] as String? ?? ''),
+                index: Value(chapterIndex.toDouble()),
+              ),
+            );
+            chapterIndex++;
+          }
+          page++;
         }
-        final chList = await instance.call('parseChapterList', [chData]);
-        if (chList == null || chList is! List || chList.isEmpty) break;
-        for (var i = 0; i < chList.length; i++) {
-          final ch = chList[i] as Map<String, dynamic>;
+      } else {
+        for (var i = 0; i < chapters.length; i++) {
+          final ch = chapters[i];
           chapterList.add(
             ChaptersCompanion(
               novelId: Value(novelId),
-              name: Value(ch['name'] as String? ?? ''),
-              url: Value(ch['url'] as String? ?? ''),
-              index: Value(chapterIndex.toDouble()),
+              name: Value(ch.name),
+              url: Value(ch.url),
+              index: Value(i.toDouble()),
             ),
           );
-          chapterIndex++;
         }
-        page++;
-      }
-    } else {
-      for (var i = 0; i < chapters.length; i++) {
-        final ch = chapters[i];
-        chapterList.add(
-          ChaptersCompanion(
-            novelId: Value(novelId),
-            name: Value(ch.name),
-            url: Value(ch.url),
-            index: Value(i.toDouble()),
-          ),
-        );
-      }
       }
     } catch (e) {
       Log.w(_tag, 'Failed to fetch novel details: $e');

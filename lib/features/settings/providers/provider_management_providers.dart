@@ -16,7 +16,8 @@ const _tag = 'Providers';
 /// List of registries the user has added — persisted to settings DB.
 final registriesProvider =
     AsyncNotifierProvider<RegistriesNotifier, List<RegistryInfo>>(
-        RegistriesNotifier.new);
+      RegistriesNotifier.new,
+    );
 
 class RegistriesNotifier extends AsyncNotifier<List<RegistryInfo>> {
   @override
@@ -41,7 +42,10 @@ class RegistriesNotifier extends AsyncNotifier<List<RegistryInfo>> {
           if (await File(metadataPath).exists()) {
             valid.add(registry);
           } else {
-            Log.w(_tag, 'Removing stale registry: ${registry.id} (metadata missing)');
+            Log.w(
+              _tag,
+              'Removing stale registry: ${registry.id} (metadata missing)',
+            );
           }
         }
 
@@ -104,15 +108,19 @@ class RegistriesNotifier extends AsyncNotifier<List<RegistryInfo>> {
 }
 
 /// All available providers — from enabled registries only.
-final availableProvidersProvider =
-    FutureProvider<List<ProviderMeta>>((ref) async {
+final availableProvidersProvider = FutureProvider<List<ProviderMeta>>((
+  ref,
+) async {
   final registriesAsync = ref.watch(registriesProvider);
   final registries = registriesAsync.value ?? [];
   final registryManager = await ref.watch(registryManagerProvider.future);
 
   // Only load from enabled registries
   final enabledRegistries = registries.where((r) => r.enabled).toList();
-  Log.i(_tag, 'Loading providers from ${enabledRegistries.length}/${registries.length} enabled registries...');
+  Log.i(
+    _tag,
+    'Loading providers from ${enabledRegistries.length}/${registries.length} enabled registries...',
+  );
 
   // Local file registries are the source of truth: always re-sync on
   // startup so JS edits take effect without a manual sync.
@@ -133,20 +141,25 @@ final availableProvidersProvider =
   for (final registry in enabledRegistries) {
     final metadata = await registryManager.loadCachedMetadata(registry.id);
     if (metadata != null) {
-      Log.i(_tag, 'Got ${metadata.providers.length} providers from registry "${registry.id}"');
+      Log.i(
+        _tag,
+        'Got ${metadata.providers.length} providers from registry "${registry.id}"',
+      );
       for (final provider in metadata.providers) {
-        allProviders.add(ProviderMeta(
-          id: provider.id,
-          name: provider.name,
-          lang: provider.lang,
-          baseUrl: provider.baseUrl,
-          file: provider.file,
-          version: provider.version,
-          author: provider.author,
-          icon: provider.icon,
-          nsfw: provider.nsfw,
-          registryId: registry.id,
-        ));
+        allProviders.add(
+          ProviderMeta(
+            id: provider.id,
+            name: provider.name,
+            lang: provider.lang,
+            baseUrl: provider.baseUrl,
+            file: provider.file,
+            version: provider.version,
+            author: provider.author,
+            icon: provider.icon,
+            nsfw: provider.nsfw,
+            registryId: registry.id,
+          ),
+        );
       }
     }
   }
@@ -158,8 +171,8 @@ final availableProvidersProvider =
 /// Set of enabled provider IDs — persisted to settings table.
 final enabledProvidersProvider =
     StateNotifierProvider<EnabledProvidersNotifier, Set<String>>((ref) {
-  return EnabledProvidersNotifier(ref);
-});
+      return EnabledProvidersNotifier(ref);
+    });
 
 class EnabledProvidersNotifier extends StateNotifier<Set<String>> {
   final Ref ref;
@@ -187,7 +200,10 @@ class EnabledProvidersNotifier extends StateNotifier<Set<String>> {
   Future<void> _saveToDb() async {
     try {
       final settingsDao = ref.read(settingsDaoProvider);
-      await settingsDao.setSetting('enabled_providers', jsonEncode(state.toList()));
+      await settingsDao.setSetting(
+        'enabled_providers',
+        jsonEncode(state.toList()),
+      );
       Log.d(_tag, 'Saved ${state.length} enabled providers to DB');
     } catch (e) {
       Log.e(_tag, 'Failed to save enabled providers to DB', e);
@@ -224,9 +240,7 @@ class EnabledProvidersNotifier extends StateNotifier<Set<String>> {
 Future<String?> addRegistry(String url, WidgetRef ref) async {
   final registryManager = await ref.read(registryManagerProvider.future);
 
-  final id = Uri.parse(url).pathSegments
-      .where((s) => s.isNotEmpty)
-      .join('-');
+  final id = Uri.parse(url).pathSegments.where((s) => s.isNotEmpty).join('-');
 
   Log.i(_tag, 'Adding registry from URL: $url (id: $id)');
   final error = await registryManager.fetchRegistryJsonWithError(url);
@@ -264,7 +278,8 @@ Future<String?> addRegistryFromFile(String filePath, WidgetRef ref) async {
   final registryManager = await ref.read(registryManagerProvider.future);
 
   final filename = p.basenameWithoutExtension(filePath);
-  final id = 'local_${filename.toLowerCase().replaceAll(RegExp(r'[^a-z0-9]'), '_')}';
+  final id =
+      'local_${filename.toLowerCase().replaceAll(RegExp(r'[^a-z0-9]'), '_')}';
 
   Log.i(_tag, 'Adding registry from file: $filePath (id: $id)');
 
@@ -336,15 +351,17 @@ Future<bool> updateRegistryNow(String registryId, WidgetRef ref) async {
 
   await registryManager.syncRegistry(registryId, registry.url);
 
-  ref.read(registriesProvider.notifier).updateRegistry(
-    registryId,
-    registry.copyWith(
-      pendingUpdate: false,
-      lastFetchedAt: DateTime.now().millisecondsSinceEpoch,
-      lastUpdated: metadata.updated,
-      name: metadata.name ?? registry.name,
-    ),
-  );
+  ref
+      .read(registriesProvider.notifier)
+      .updateRegistry(
+        registryId,
+        registry.copyWith(
+          pendingUpdate: false,
+          lastFetchedAt: DateTime.now().millisecondsSinceEpoch,
+          lastUpdated: metadata.updated,
+          name: metadata.name ?? registry.name,
+        ),
+      );
 
   // Force provider list to refresh
   ref.invalidate(availableProvidersProvider);
@@ -366,7 +383,9 @@ Future<int> updateAllRegistries(WidgetRef ref) async {
       // Skip local file registries
       if (_isLocalRegistryUrl(registry.url)) continue;
 
-      final localMetadata = await registryManager.loadCachedMetadata(registry.id);
+      final localMetadata = await registryManager.loadCachedMetadata(
+        registry.id,
+      );
 
       final hasUpdate = await registryManager.checkForUpdates(
         registry.url,
@@ -380,15 +399,17 @@ Future<int> updateAllRegistries(WidgetRef ref) async {
 
       await registryManager.syncRegistry(registry.id, registry.url);
 
-      ref.read(registriesProvider.notifier).updateRegistry(
-        registry.id,
-        registry.copyWith(
-          pendingUpdate: false,
-          lastFetchedAt: DateTime.now().millisecondsSinceEpoch,
-          lastUpdated: metadata.updated,
-          name: metadata.name ?? registry.name,
-        ),
-      );
+      ref
+          .read(registriesProvider.notifier)
+          .updateRegistry(
+            registry.id,
+            registry.copyWith(
+              pendingUpdate: false,
+              lastFetchedAt: DateTime.now().millisecondsSinceEpoch,
+              lastUpdated: metadata.updated,
+              name: metadata.name ?? registry.name,
+            ),
+          );
       updatedCount++;
     } catch (e) {
       Log.w(_tag, 'Update failed for ${registry.id}: $e');

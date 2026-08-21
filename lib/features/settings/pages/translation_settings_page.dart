@@ -19,7 +19,12 @@ class TranslationSettings {
     this.autoTranslate = false,
   });
 
-  TranslationSettings copyWith({String? fromLanguage, String? toLanguage, bool? useOnlineTranslation, bool? autoTranslate}) {
+  TranslationSettings copyWith({
+    String? fromLanguage,
+    String? toLanguage,
+    bool? useOnlineTranslation,
+    bool? autoTranslate,
+  }) {
     return TranslationSettings(
       fromLanguage: fromLanguage ?? this.fromLanguage,
       toLanguage: toLanguage ?? this.toLanguage,
@@ -30,7 +35,9 @@ class TranslationSettings {
 }
 
 class TranslationSettingsNotifier extends StateNotifier<TranslationSettings> {
-  TranslationSettingsNotifier() : super(const TranslationSettings()) { _load(); }
+  TranslationSettingsNotifier() : super(const TranslationSettings()) {
+    _load();
+  }
 
   Future<void> _load() async {
     final p = await SharedPreferences.getInstance();
@@ -55,15 +62,21 @@ class TranslationSettingsNotifier extends StateNotifier<TranslationSettings> {
     _save();
   }
 
-  void updateFromLanguage(String v) => _update((s) => s.copyWith(fromLanguage: v));
+  void updateFromLanguage(String v) =>
+      _update((s) => s.copyWith(fromLanguage: v));
   void updateToLanguage(String v) => _update((s) => s.copyWith(toLanguage: v));
-  void toggleOnlineTranslation() => _update((s) => s.copyWith(useOnlineTranslation: !s.useOnlineTranslation));
-  void toggleAutoTranslate() => _update((s) => s.copyWith(autoTranslate: !s.autoTranslate));
+  void toggleOnlineTranslation() =>
+      _update((s) => s.copyWith(useOnlineTranslation: !s.useOnlineTranslation));
+  void toggleAutoTranslate() =>
+      _update((s) => s.copyWith(autoTranslate: !s.autoTranslate));
 }
 
-final translationSettingsProvider = StateNotifierProvider<TranslationSettingsNotifier, TranslationSettings>((ref) {
-  return TranslationSettingsNotifier();
-});
+final translationSettingsProvider =
+    StateNotifierProvider<TranslationSettingsNotifier, TranslationSettings>((
+      ref,
+    ) {
+      return TranslationSettingsNotifier();
+    });
 
 /// Supported languages for translation
 const _languages = [
@@ -132,7 +145,9 @@ class TranslationSettingsPage extends ConsumerWidget {
             dense: true,
             contentPadding: EdgeInsets.zero,
             title: const Text('Auto-translate'),
-            subtitle: const Text('Translate chapters automatically when reading'),
+            subtitle: const Text(
+              'Translate chapters automatically when reading',
+            ),
             value: settings.autoTranslate,
             onChanged: (_) => notifier.toggleAutoTranslate(),
           ),
@@ -145,13 +160,19 @@ class TranslationSettingsPage extends ConsumerWidget {
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  Text('Translation Engine', style: TextStyle(fontWeight: FontWeight.w600)),
+                  Text(
+                    'Translation Engine',
+                    style: TextStyle(fontWeight: FontWeight.w600),
+                  ),
                   SizedBox(height: 8),
                   Text(
                     'Offline mode uses Google ML Kit for on-device translation. '
                     'Online mode uses Google Translate API (no key required). '
                     'Offline translations are cached locally.',
-                    style: TextStyle(fontSize: 13, color: Theme.of(context).colorScheme.onSurfaceVariant),
+                    style: TextStyle(
+                      fontSize: 13,
+                      color: Theme.of(context).colorScheme.onSurfaceVariant,
+                    ),
                   ),
                 ],
               ),
@@ -174,7 +195,11 @@ class TranslationSettingsPage extends ConsumerWidget {
       padding: const EdgeInsets.only(bottom: 8),
       child: Text(
         title,
-        style: const TextStyle(fontSize: 14, fontWeight: FontWeight.w600, color: AppTheme.kPrimary),
+        style: const TextStyle(
+          fontSize: 14,
+          fontWeight: FontWeight.w600,
+          color: AppTheme.kPrimary,
+        ),
       ),
     );
   }
@@ -185,7 +210,9 @@ class TranslationSettingsPage extends ConsumerWidget {
         ? ref.read(translationSettingsProvider).fromLanguage
         : ref.read(translationSettingsProvider).toLanguage;
 
-    final options = isSource ? _languages : _languages.where((l) => l.$1 != 'auto').toList();
+    final options = isSource
+        ? _languages
+        : _languages.where((l) => l.$1 != 'auto').toList();
 
     showModalBottomSheet(
       context: context,
@@ -201,7 +228,10 @@ class TranslationSettingsPage extends ConsumerWidget {
               padding: const EdgeInsets.all(16),
               child: Text(
                 isSource ? 'Source Language' : 'Target Language',
-                style: const TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
+                style: const TextStyle(
+                  fontSize: 18,
+                  fontWeight: FontWeight.bold,
+                ),
               ),
             ),
             const Divider(height: 1),
@@ -213,8 +243,10 @@ class TranslationSettingsPage extends ConsumerWidget {
                   final (code, name) = options[index];
                   final isSelected = current == code;
                   return ListTile(
-                    leading: Icon(isSelected ? Icons.check_circle : Icons.circle_outlined,
-                        color: isSelected ? AppTheme.kPrimary : null),
+                    leading: Icon(
+                      isSelected ? Icons.check_circle : Icons.circle_outlined,
+                      color: isSelected ? AppTheme.kPrimary : null,
+                    ),
                     title: Text(name),
                     subtitle: Text(code, style: const TextStyle(fontSize: 12)),
                     onTap: () {

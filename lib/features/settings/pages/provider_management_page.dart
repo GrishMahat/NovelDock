@@ -13,10 +13,12 @@ class ProviderManagementPage extends ConsumerStatefulWidget {
   const ProviderManagementPage({super.key});
 
   @override
-  ConsumerState<ProviderManagementPage> createState() => _ProviderManagementPageState();
+  ConsumerState<ProviderManagementPage> createState() =>
+      _ProviderManagementPageState();
 }
 
-class _ProviderManagementPageState extends ConsumerState<ProviderManagementPage> {
+class _ProviderManagementPageState
+    extends ConsumerState<ProviderManagementPage> {
   @override
   void initState() {
     super.initState();
@@ -86,7 +88,9 @@ class _ProviderManagementPageState extends ConsumerState<ProviderManagementPage>
           Icon(
             Icons.cloud_off,
             size: 64,
-            color: Theme.of(context).colorScheme.onSurfaceVariant.withValues(alpha: 0.5),
+            color: Theme.of(
+              context,
+            ).colorScheme.onSurfaceVariant.withValues(alpha: 0.5),
           ),
           const SizedBox(height: 16),
           const Text(
@@ -97,7 +101,9 @@ class _ProviderManagementPageState extends ConsumerState<ProviderManagementPage>
           Text(
             'Add a registry URL or import a JSON file\nto get started.',
             textAlign: TextAlign.center,
-            style: TextStyle(color: Theme.of(context).colorScheme.onSurfaceVariant),
+            style: TextStyle(
+              color: Theme.of(context).colorScheme.onSurfaceVariant,
+            ),
           ),
           const SizedBox(height: 24),
           Row(
@@ -122,7 +128,10 @@ class _ProviderManagementPageState extends ConsumerState<ProviderManagementPage>
   }
 
   Widget _buildRegistryCard(
-      BuildContext context, WidgetRef ref, RegistryInfo registry) {
+    BuildContext context,
+    WidgetRef ref,
+    RegistryInfo registry,
+  ) {
     final status = registry.status;
 
     return Card(
@@ -155,9 +164,14 @@ class _ProviderManagementPageState extends ConsumerState<ProviderManagementPage>
                           if (status != null) ...[
                             const SizedBox(width: 6),
                             Container(
-                              padding: const EdgeInsets.symmetric(horizontal: 5, vertical: 1),
+                              padding: const EdgeInsets.symmetric(
+                                horizontal: 5,
+                                vertical: 1,
+                              ),
                               decoration: BoxDecoration(
-                                color: _registryStatusColor(status).withValues(alpha: 0.2),
+                                color: _registryStatusColor(
+                                  status,
+                                ).withValues(alpha: 0.2),
                                 borderRadius: BorderRadius.circular(3),
                               ),
                               child: Text(
@@ -172,14 +186,17 @@ class _ProviderManagementPageState extends ConsumerState<ProviderManagementPage>
                           ],
                         ],
                       ),
-                      if (registry.description != null && registry.description!.isNotEmpty)
+                      if (registry.description != null &&
+                          registry.description!.isNotEmpty)
                         Padding(
                           padding: const EdgeInsets.only(top: 2),
                           child: Text(
                             registry.description!,
                             style: TextStyle(
                               fontSize: 12,
-                              color: Theme.of(context).colorScheme.onSurfaceVariant,
+                              color: Theme.of(
+                                context,
+                              ).colorScheme.onSurfaceVariant,
                             ),
                             maxLines: 1,
                             overflow: TextOverflow.ellipsis,
@@ -197,13 +214,16 @@ class _ProviderManagementPageState extends ConsumerState<ProviderManagementPage>
                 IconButton(
                   icon: const Icon(Icons.delete_outline, size: 20),
                   tooltip: 'Remove registry',
-                  onPressed: () => _confirmRemoveRegistry(context, ref, registry),
+                  onPressed: () =>
+                      _confirmRemoveRegistry(context, ref, registry),
                 ),
                 // Enable toggle
                 Switch(
                   value: registry.enabled,
                   onChanged: (_) async {
-                    await ref.read(registriesProvider.notifier).toggleRegistry(registry.id);
+                    await ref
+                        .read(registriesProvider.notifier)
+                        .toggleRegistry(registry.id);
                   },
                 ),
               ],
@@ -214,7 +234,10 @@ class _ProviderManagementPageState extends ConsumerState<ProviderManagementPage>
               padding: const EdgeInsets.only(left: 4, top: 4),
               child: Text(
                 registry.url,
-                style: TextStyle(fontSize: 11, color: Theme.of(context).colorScheme.onSurfaceVariant),
+                style: TextStyle(
+                  fontSize: 11,
+                  color: Theme.of(context).colorScheme.onSurfaceVariant,
+                ),
                 maxLines: 1,
                 overflow: TextOverflow.ellipsis,
               ),
@@ -254,9 +277,9 @@ class _ProviderManagementPageState extends ConsumerState<ProviderManagementPage>
     Log.i(_tag, 'Selected registry file: ${file.path}');
     if (!context.mounted) return;
 
-    ScaffoldMessenger.of(context).showSnackBar(
-      const SnackBar(content: Text('Importing registry...')),
-    );
+    ScaffoldMessenger.of(
+      context,
+    ).showSnackBar(const SnackBar(content: Text('Importing registry...')));
 
     final error = await addRegistryFromFile(file.path!, ref);
 
@@ -264,9 +287,9 @@ class _ProviderManagementPageState extends ConsumerState<ProviderManagementPage>
     ScaffoldMessenger.of(context).hideCurrentSnackBar();
 
     if (error == null) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Registry imported')),
-      );
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(const SnackBar(content: Text('Registry imported')));
     } else {
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
@@ -304,7 +327,8 @@ class _ProviderManagementPageState extends ConsumerState<ProviderManagementPage>
                 controller: controller,
                 enabled: !isLoading,
                 decoration: const InputDecoration(
-                  hintText: 'https://raw.githubusercontent.com/user/repo/main/registry.json',
+                  hintText:
+                      'https://raw.githubusercontent.com/user/repo/main/registry.json',
                   border: OutlineInputBorder(),
                 ),
                 autofocus: true,
@@ -334,12 +358,18 @@ class _ProviderManagementPageState extends ConsumerState<ProviderManagementPage>
                       decoration: BoxDecoration(
                         color: Colors.red.withValues(alpha: 0.1),
                         borderRadius: BorderRadius.circular(6),
-                        border: Border.all(color: Colors.red.withValues(alpha: 0.3)),
+                        border: Border.all(
+                          color: Colors.red.withValues(alpha: 0.3),
+                        ),
                       ),
                       child: Row(
                         crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
-                          const Icon(Icons.error_outline, color: Colors.red, size: 18),
+                          const Icon(
+                            Icons.error_outline,
+                            color: Colors.red,
+                            size: 18,
+                          ),
                           const SizedBox(width: 8),
                           Expanded(
                             child: Text(
@@ -390,7 +420,10 @@ class _ProviderManagementPageState extends ConsumerState<ProviderManagementPage>
   // ─── Update registry ────────────────────────────────────
 
   void _confirmApplyUpdate(
-      BuildContext context, WidgetRef ref, RegistryInfo registry) {
+    BuildContext context,
+    WidgetRef ref,
+    RegistryInfo registry,
+  ) {
     showDialog(
       context: context,
       builder: (context) => AlertDialog(
@@ -416,11 +449,14 @@ class _ProviderManagementPageState extends ConsumerState<ProviderManagementPage>
   }
 
   Future<void> _applyUpdate(
-      BuildContext context, WidgetRef ref, RegistryInfo registry) async {
+    BuildContext context,
+    WidgetRef ref,
+    RegistryInfo registry,
+  ) async {
     if (!context.mounted) return;
-    ScaffoldMessenger.of(context).showSnackBar(
-      const SnackBar(content: Text('Checking for updates...')),
-    );
+    ScaffoldMessenger.of(
+      context,
+    ).showSnackBar(const SnackBar(content: Text('Checking for updates...')));
 
     final success = await updateRegistryNow(registry.id, ref);
 
@@ -428,20 +464,23 @@ class _ProviderManagementPageState extends ConsumerState<ProviderManagementPage>
     ScaffoldMessenger.of(context).hideCurrentSnackBar();
 
     if (success) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Registry updated')),
-      );
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(const SnackBar(content: Text('Registry updated')));
     } else {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Registry is up to date')),
-      );
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(const SnackBar(content: Text('Registry is up to date')));
     }
   }
 
   // ─── Remove registry ────────────────────────────────────
 
   void _confirmRemoveRegistry(
-      BuildContext context, WidgetRef ref, RegistryInfo registry) {
+    BuildContext context,
+    WidgetRef ref,
+    RegistryInfo registry,
+  ) {
     showDialog(
       context: context,
       builder: (context) => AlertDialog(

@@ -70,7 +70,10 @@ class BackgroundDownloadService {
   }
 
   /// Update the notification content.
-  static Future<void> updateNotification({required String title, required String content}) async {
+  static Future<void> updateNotification({
+    required String title,
+    required String content,
+  }) async {
     try {
       _service.invoke('updateNotification', {
         'title': title,

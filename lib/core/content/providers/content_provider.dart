@@ -111,6 +111,8 @@ class ContentNotifier extends StateNotifier<ContentState> {
   }
 }
 
-final contentProvider = StateNotifierProvider<ContentNotifier, ContentState>((ref) {
+final contentProvider = StateNotifierProvider<ContentNotifier, ContentState>((
+  ref,
+) {
   return ContentNotifier(ref);
 });

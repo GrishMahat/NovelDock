@@ -18,7 +18,8 @@ class LogEntry {
   });
 
   String get formatted {
-    final t = '${timestamp.hour.toString().padLeft(2, '0')}:${timestamp.minute.toString().padLeft(2, '0')}:${timestamp.second.toString().padLeft(2, '0')}';
+    final t =
+        '${timestamp.hour.toString().padLeft(2, '0')}:${timestamp.minute.toString().padLeft(2, '0')}:${timestamp.second.toString().padLeft(2, '0')}';
     final l = level.name.toUpperCase().padRight(7);
     return '$t [$tag] $l $message';
   }

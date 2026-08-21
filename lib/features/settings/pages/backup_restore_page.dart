@@ -31,14 +31,18 @@ class BackupRestorePage extends ConsumerWidget {
                 ListTile(
                   leading: const Icon(Icons.backup, color: AppTheme.kPrimary),
                   title: const Text('Export Library'),
-                  subtitle: const Text('Save your library and settings as a JSON file'),
+                  subtitle: const Text(
+                    'Save your library and settings as a JSON file',
+                  ),
                   onTap: () => _exportBackup(context, ref),
                 ),
                 const Divider(height: 1, indent: 16, endIndent: 16),
                 ListTile(
                   leading: const Icon(Icons.restore, color: AppTheme.kPrimary),
                   title: const Text('Import Library'),
-                  subtitle: const Text('Restore from a previously exported backup'),
+                  subtitle: const Text(
+                    'Restore from a previously exported backup',
+                  ),
                   onTap: () => _importBackup(context, ref),
                 ),
               ],
@@ -112,47 +116,67 @@ class BackupRestorePage extends ConsumerWidget {
       final backup = {
         'version': 1,
         'exportedAt': DateTime.now().toIso8601String(),
-        'novels': novels.map((n) => {
-          'id': n.id,
-          'providerId': n.providerId,
-          'url': n.url,
-          'title': n.title,
-          'author': n.author,
-          'coverUrl': n.coverUrl,
-          'description': n.description,
-          'genres': n.genres,
-          'status': n.status,
-          'addedAt': n.addedAt,
-        }).toList(),
-        'history': allHistory.map((h) => {
-          'novelId': h.novelId,
-          'chapterId': h.chapterId,
-          'readAt': h.readAt,
-          'scrollPosition': h.scrollPosition,
-          'progress': h.progress,
-        }).toList(),
-        'bookmarks': allBookmarks.map((b) => {
-          'novelId': b.novelId,
-          'chapterId': b.chapterId,
-          'position': b.position,
-          'note': b.note,
-          'createdAt': b.createdAt,
-        }).toList(),
-        'downloads': downloadEntries.map((d) => {
-          'novelId': d.novelId,
-          'chapterId': d.chapterId,
-          'status': d.status,
-          'progress': d.progress,
-          'error': d.error,
-        }).toList(),
+        'novels': novels
+            .map(
+              (n) => {
+                'id': n.id,
+                'providerId': n.providerId,
+                'url': n.url,
+                'title': n.title,
+                'author': n.author,
+                'coverUrl': n.coverUrl,
+                'description': n.description,
+                'genres': n.genres,
+                'status': n.status,
+                'addedAt': n.addedAt,
+              },
+            )
+            .toList(),
+        'history': allHistory
+            .map(
+              (h) => {
+                'novelId': h.novelId,
+                'chapterId': h.chapterId,
+                'readAt': h.readAt,
+                'scrollPosition': h.scrollPosition,
+                'progress': h.progress,
+              },
+            )
+            .toList(),
+        'bookmarks': allBookmarks
+            .map(
+              (b) => {
+                'novelId': b.novelId,
+                'chapterId': b.chapterId,
+                'position': b.position,
+                'note': b.note,
+                'createdAt': b.createdAt,
+              },
+            )
+            .toList(),
+        'downloads': downloadEntries
+            .map(
+              (d) => {
+                'novelId': d.novelId,
+                'chapterId': d.chapterId,
+                'status': d.status,
+                'progress': d.progress,
+                'error': d.error,
+              },
+            )
+            .toList(),
         'settings': settingsMap,
-        'providerCache': providerCache.map((p) => {
-          'id': p.id,
-          'name': p.name,
-          'version': p.version,
-          'enabled': p.enabled,
-          'lastUpdated': p.lastUpdated,
-        }).toList(),
+        'providerCache': providerCache
+            .map(
+              (p) => {
+                'id': p.id,
+                'name': p.name,
+                'version': p.version,
+                'enabled': p.enabled,
+                'lastUpdated': p.lastUpdated,
+              },
+            )
+            .toList(),
       };
 
       final jsonStr = const JsonEncoder.withIndent('  ').convert(backup);
@@ -163,10 +187,7 @@ class BackupRestorePage extends ConsumerWidget {
       await file.writeAsString(jsonStr);
 
       await SharePlus.instance.share(
-        ShareParams(
-          files: [XFile(file.path)],
-          text: 'NovelDock Backup',
-        ),
+        ShareParams(files: [XFile(file.path)], text: 'NovelDock Backup'),
       );
 
       if (context.mounted) {
@@ -179,9 +200,9 @@ class BackupRestorePage extends ConsumerWidget {
     } catch (e) {
       Log.e(_tag, 'Export failed', e);
       if (context.mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Export failed: $e')),
-        );
+        ScaffoldMessenger.of(
+          context,
+        ).showSnackBar(SnackBar(content: Text('Export failed: $e')));
       }
     }
   }
@@ -234,12 +255,16 @@ class BackupRestorePage extends ConsumerWidget {
       final historyList = data['history'] as List? ?? [];
       for (final h in historyList) {
         try {
-          await historyDao.addHistoryEntry(ReadingHistoryCompanion(
-            novelId: Value(h['novelId'] as int),
-            chapterId: Value(h['chapterId'] as int),
-            readAt: Value(h['readAt'] as int? ?? DateTime.now().millisecondsSinceEpoch),
-            scrollPosition: Value(h['scrollPosition'] as double?),
-          ));
+          await historyDao.addHistoryEntry(
+            ReadingHistoryCompanion(
+              novelId: Value(h['novelId'] as int),
+              chapterId: Value(h['chapterId'] as int),
+              readAt: Value(
+                h['readAt'] as int? ?? DateTime.now().millisecondsSinceEpoch,
+              ),
+              scrollPosition: Value(h['scrollPosition'] as double?),
+            ),
+          );
         } catch (e) {
           Log.w(_tag, 'Failed to import history: $e');
         }
@@ -248,13 +273,19 @@ class BackupRestorePage extends ConsumerWidget {
       final bookmarkList = data['bookmarks'] as List? ?? [];
       for (final b in bookmarkList) {
         try {
-          await bookmarkDao.addBookmark(BookmarksCompanion(
-            novelId: Value(b['novelId'] as int),
-            chapterId: Value(b['chapterId'] as int),
-            position: Value(b['position'] as String? ?? '0'),
-            note: b['note'] != null ? Value(b['note'] as String) : const Value.absent(),
-            createdAt: Value(b['createdAt'] as int? ?? DateTime.now().millisecondsSinceEpoch),
-          ));
+          await bookmarkDao.addBookmark(
+            BookmarksCompanion(
+              novelId: Value(b['novelId'] as int),
+              chapterId: Value(b['chapterId'] as int),
+              position: Value(b['position'] as String? ?? '0'),
+              note: b['note'] != null
+                  ? Value(b['note'] as String)
+                  : const Value.absent(),
+              createdAt: Value(
+                b['createdAt'] as int? ?? DateTime.now().millisecondsSinceEpoch,
+              ),
+            ),
+          );
         } catch (e) {
           Log.w(_tag, 'Failed to import bookmark: $e');
         }
@@ -279,9 +310,9 @@ class BackupRestorePage extends ConsumerWidget {
     } catch (e) {
       Log.e(_tag, 'Import failed', e);
       if (context.mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Import failed: $e')),
-        );
+        ScaffoldMessenger.of(
+          context,
+        ).showSnackBar(SnackBar(content: Text('Import failed: $e')));
       }
     }
   }

@@ -1,6 +1,5 @@
 import 'package:flutter/material.dart';
 
-
 /// Reusable loading overlay widget.
 class LoadingOverlay extends StatelessWidget {
   final String? message;
@@ -15,7 +14,12 @@ class LoadingOverlay extends StatelessWidget {
           const CircularProgressIndicator(),
           if (message != null) ...[
             const SizedBox(height: 16),
-            Text(message!, style: TextStyle(color: Theme.of(context).colorScheme.onSurfaceVariant)),
+            Text(
+              message!,
+              style: TextStyle(
+                color: Theme.of(context).colorScheme.onSurfaceVariant,
+              ),
+            ),
           ],
         ],
       ),
@@ -24,10 +28,12 @@ class LoadingOverlay extends StatelessWidget {
 }
 
 /// Inline loading indicator for lists.
-Widget buildListLoading() => const Center(child: Padding(
-  padding: EdgeInsets.all(32),
-  child: CircularProgressIndicator(),
-));
+Widget buildListLoading() => const Center(
+  child: Padding(
+    padding: EdgeInsets.all(32),
+    child: CircularProgressIndicator(),
+  ),
+);
 
 /// Inline loading indicator for small areas.
 Widget buildSmallLoading() => const SizedBox(

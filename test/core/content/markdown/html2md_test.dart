@@ -29,7 +29,9 @@ void main() {
     });
 
     test('converts link', () {
-      final md = Html2Md.convert('<p>Click <a href="https://example.com">here</a></p>');
+      final md = Html2Md.convert(
+        '<p>Click <a href="https://example.com">here</a></p>',
+      );
       expect(md, 'Click [here](https://example.com)');
     });
 
@@ -44,7 +46,9 @@ void main() {
     });
 
     test('converts code block', () {
-      final md = Html2Md.convert('<pre><code class="language-dart">void main() {}</code></pre>');
+      final md = Html2Md.convert(
+        '<pre><code class="language-dart">void main() {}</code></pre>',
+      );
       expect(md, '```dart\nvoid main() {}\n```');
     });
 
@@ -74,7 +78,9 @@ void main() {
     });
 
     test('converts nested inline formatting', () {
-      final md = Html2Md.convert('<p><strong>bold <em>and italic</em></strong></p>');
+      final md = Html2Md.convert(
+        '<p><strong>bold <em>and italic</em></strong></p>',
+      );
       expect(md, '**bold *and italic***');
     });
 
@@ -94,7 +100,9 @@ void main() {
     });
 
     test('converts nested list', () {
-      final md = Html2Md.convert('<ul><li>A</li><li>B<ul><li>B1</li></ul></li></ul>');
+      final md = Html2Md.convert(
+        '<ul><li>A</li><li>B<ul><li>B1</li></ul></li></ul>',
+      );
       expect(md, contains('- A'));
       expect(md, contains('- B'));
       expect(md, contains('- B1'));
@@ -111,23 +119,31 @@ void main() {
     });
 
     test('converts <em> inside <strong>', () {
-      final md = Html2Md.convert('<p><strong>bold <em>and italic</em></strong></p>');
+      final md = Html2Md.convert(
+        '<p><strong>bold <em>and italic</em></strong></p>',
+      );
       expect(md, '**bold *and italic***');
     });
 
     test('converts section and article tags', () {
-      final md = Html2Md.convert('<section><p>Hello</p></section><article><p>World</p></article>');
+      final md = Html2Md.convert(
+        '<section><p>Hello</p></section><article><p>World</p></article>',
+      );
       expect(md, 'Hello\n\nWorld');
     });
 
     test('converts table with header and data', () {
-      final md = Html2Md.convert('<table><tr><th>Name</th><th>Age</th></tr><tr><td>Alice</td><td>30</td></tr></table>');
+      final md = Html2Md.convert(
+        '<table><tr><th>Name</th><th>Age</th></tr><tr><td>Alice</td><td>30</td></tr></table>',
+      );
       expect(md, contains('Name | Age'));
       expect(md, contains('Alice | 30'));
     });
 
     test('strips nav, header, footer, aside, iframe', () {
-      final md = Html2Md.convert('<p>Content</p><nav>Nav</nav><header>Header</header><footer>Footer</footer><aside>Aside</aside><iframe src="x"></iframe>');
+      final md = Html2Md.convert(
+        '<p>Content</p><nav>Nav</nav><header>Header</header><footer>Footer</footer><aside>Aside</aside><iframe src="x"></iframe>',
+      );
       expect(md.trim(), 'Content');
     });
 
@@ -172,7 +188,9 @@ void main() {
     });
 
     test('escapes link text', () {
-      final md = Html2Md.convert('<p><a href="https://example.com">a [b]</a></p>');
+      final md = Html2Md.convert(
+        '<p><a href="https://example.com">a [b]</a></p>',
+      );
       expect(md, '[a \\[b\\]](https://example.com)');
     });
 

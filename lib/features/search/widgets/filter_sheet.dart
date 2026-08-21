@@ -151,11 +151,9 @@ class _FilterSheetState extends State<FilterSheet> {
                   // Small option lists (status, sort, ...) come first; large
                   // lists (e.g. 50+ genres) sink to the bottom so they do not
                   // push the quick filters out of view.
-                  for (final def in widget.defs
-                      .toList(growable: false)
-                        ..sort(
-                          (a, b) => _optionCount(a).compareTo(_optionCount(b)),
-                        ))
+                  for (final def in widget.defs.toList(
+                    growable: false,
+                  )..sort((a, b) => _optionCount(a).compareTo(_optionCount(b))))
                     _buildFilter(def),
                 ],
               ),
@@ -222,22 +220,26 @@ class _FilterSheetState extends State<FilterSheet> {
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             _header(d.name),
-            for (var i = 0; i < d.options.length; i++)
-              RadioListTile<int>(
-                title: Text(d.options[i]),
-                value: i,
-                dense: true,
-                groupValue: currentIndex,
-                onChanged: _isApplying
-                    ? null
-                    : (value) {
-                        if (value == null) return;
+            RadioGroup<int>(
+              groupValue: currentIndex,
+              onChanged: (value) {
+                if (_isApplying || value == null) return;
 
-                        setState(() {
-                          _values[d.id] = value;
-                        });
-                      },
+                setState(() {
+                  _values[d.id] = value;
+                });
+              },
+              child: Column(
+                children: [
+                  for (var i = 0; i < d.options.length; i++)
+                    RadioListTile<int>(
+                      title: Text(d.options[i]),
+                      value: i,
+                      dense: true,
+                    ),
+                ],
               ),
+            ),
           ],
         );
 
@@ -289,22 +291,26 @@ class _FilterSheetState extends State<FilterSheet> {
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             _header(d.name),
-            for (var i = 0; i < d.options.length; i++)
-              RadioListTile<int>(
-                title: Text(d.options[i]),
-                value: i,
-                dense: true,
-                groupValue: index,
-                onChanged: _isApplying
-                    ? null
-                    : (value) {
-                        if (value == null) return;
+            RadioGroup<int>(
+              groupValue: index,
+              onChanged: (value) {
+                if (_isApplying || value == null) return;
 
-                        setState(() {
-                          _values[d.id] = [value, ascending];
-                        });
-                      },
+                setState(() {
+                  _values[d.id] = [value, ascending];
+                });
+              },
+              child: Column(
+                children: [
+                  for (var i = 0; i < d.options.length; i++)
+                    RadioListTile<int>(
+                      title: Text(d.options[i]),
+                      value: i,
+                      dense: true,
+                    ),
+                ],
               ),
+            ),
             SwitchListTile(
               title: const Text('Ascending'),
               subtitle: const Text('Toggle sort direction'),

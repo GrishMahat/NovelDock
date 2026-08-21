@@ -168,7 +168,9 @@ Widget buildTocEntry({
                 Icons.folder,
                 size: 18,
                 color: isDisabled
-                    ? Theme.of(context).colorScheme.onSurfaceVariant.withValues(alpha: 0.4)
+                    ? Theme.of(
+                        context,
+                      ).colorScheme.onSurfaceVariant.withValues(alpha: 0.4)
                     : null,
               )
             : null,
@@ -180,7 +182,9 @@ Widget buildTocEntry({
             fontSize: depth == 0 ? 14 : 13,
             fontWeight: depth == 0 ? FontWeight.w500 : FontWeight.normal,
             color: isDisabled
-                ? Theme.of(context).colorScheme.onSurfaceVariant.withValues(alpha: 0.4)
+                ? Theme.of(
+                    context,
+                  ).colorScheme.onSurfaceVariant.withValues(alpha: 0.4)
                 : null,
           ),
         ),

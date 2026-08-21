@@ -107,7 +107,10 @@ void main() {
     });
 
     test('LinkNode stores url and children', () {
-      final node = LinkNode(url: 'https://x.com', children: [TextNode('click')]);
+      final node = LinkNode(
+        url: 'https://x.com',
+        children: [TextNode('click')],
+      );
       expect(node.url, 'https://x.com');
       expect((node.children[0] as TextNode).text, 'click');
     });

@@ -1,5 +1,4 @@
 import 'dart:async';
-import 'dart:math' as math;
 
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -63,8 +62,9 @@ void main() {
     final dur = controller.player.audioPlayer.duration;
     final pos = controller.player.audioPlayer.position;
     final estimatedTotal = controller.totalDuration;
-    final lastBoundaries =
-        controller.chunks.isNotEmpty ? controller.boundariesForTest[controller.chunks.length - 1] : null;
+    final lastBoundaries = controller.chunks.isNotEmpty
+        ? controller.boundariesForTest[controller.chunks.length - 1]
+        : null;
     String? lastBoundaryEnd;
     if (lastBoundaries != null && lastBoundaries.isNotEmpty) {
       final last = lastBoundaries.last;
@@ -73,8 +73,10 @@ void main() {
           'offset ${last.offset.inMilliseconds}ms dur ${last.duration.inMilliseconds}ms)';
     }
     debugPrint('[$label] events=$events');
-    debugPrint('[$label] player: pos=${pos.inMilliseconds}ms '
-        'dur=${dur?.inMilliseconds ?? -1}ms estTotal=${estimatedTotal.inMilliseconds}ms');
+    debugPrint(
+      '[$label] player: pos=${pos.inMilliseconds}ms '
+      'dur=${dur?.inMilliseconds ?? -1}ms estTotal=${estimatedTotal.inMilliseconds}ms',
+    );
     debugPrint('[$label] lastBoundaryEnd=$lastBoundaryEnd');
     debugPrint('[$label] wordCount=${lastBoundaries?.length}');
     await controller.stop();
@@ -82,25 +84,15 @@ void main() {
   }
 
   testWidgets('zh vs en boundary accuracy', (tester) async {
-    await runCase(
-      'en',
-      'en-US-BrianMultilingualNeural',
-      'en-US',
-      [
-        'The quick brown fox jumps over the lazy dog. '
-            'He then rested under a large oak tree.',
-        'The second paragraph begins here. It has two sentences.',
-      ],
-    );
-    await runCase(
-      'zh',
-      'zh-CN-XiaoxiaoNeural',
-      'zh-CN',
-      [
-        '清晨的阳光洒在古老的城墙上，空气中弥漫着淡淡的桂花香。'
-            '老人在城门边摆了一个小小的茶摊。',
-        '他每天都会在这里坐上整整一个上午。',
-      ],
-    );
+    await runCase('en', 'en-US-BrianMultilingualNeural', 'en-US', [
+      'The quick brown fox jumps over the lazy dog. '
+          'He then rested under a large oak tree.',
+      'The second paragraph begins here. It has two sentences.',
+    ]);
+    await runCase('zh', 'zh-CN-XiaoxiaoNeural', 'zh-CN', [
+      '清晨的阳光洒在古老的城墙上，空气中弥漫着淡淡的桂花香。'
+          '老人在城门边摆了一个小小的茶摊。',
+      '他每天都会在这里坐上整整一个上午。',
+    ]);
   });
 }

@@ -34,7 +34,10 @@ void main() {
       expect((p.children[0] as TextNode).text, 'This is ');
       expect(p.children[1], isA<BoldNode>());
       expect((p.children[1] as BoldNode).children[0], isA<TextNode>());
-      expect(((p.children[1] as BoldNode).children[0] as TextNode).text, 'bold');
+      expect(
+        ((p.children[1] as BoldNode).children[0] as TextNode).text,
+        'bold',
+      );
       expect(p.children[2], isA<TextNode>());
       expect((p.children[2] as TextNode).text, ' text');
     });
@@ -44,14 +47,20 @@ void main() {
       final p = doc.blocks[0] as ParagraphNode;
       expect(p.children.length, 3);
       expect(p.children[1], isA<ItalicNode>());
-      expect(((p.children[1] as ItalicNode).children[0] as TextNode).text, 'italic');
+      expect(
+        ((p.children[1] as ItalicNode).children[0] as TextNode).text,
+        'italic',
+      );
     });
 
     test('parses bold with underscores (__text__)', () {
       final doc = MDParser.parse('This is __bold__ text');
       final p = doc.blocks[0] as ParagraphNode;
       expect(p.children[1], isA<BoldNode>());
-      expect(((p.children[1] as BoldNode).children[0] as TextNode).text, 'bold');
+      expect(
+        ((p.children[1] as BoldNode).children[0] as TextNode).text,
+        'bold',
+      );
     });
 
     test('parses italic with underscores (_text_)', () {
@@ -169,16 +178,25 @@ void main() {
       final link = p.children[0] as LinkNode;
       expect(link.url, 'https://x.com');
       expect((link.children[0] as BoldNode).children[0], isA<TextNode>());
-      expect(((link.children[0] as BoldNode).children[0] as TextNode).text, 'bold link');
+      expect(
+        ((link.children[0] as BoldNode).children[0] as TextNode).text,
+        'bold link',
+      );
     });
 
     test('parses multiple paragraphs separated by blank line', () {
       final doc = MDParser.parse('First para.\n\nSecond para.');
       expect(doc.blocks.length, 2);
       expect((doc.blocks[0] as ParagraphNode).children[0], isA<TextNode>());
-      expect(((doc.blocks[0] as ParagraphNode).children[0] as TextNode).text, 'First para.');
+      expect(
+        ((doc.blocks[0] as ParagraphNode).children[0] as TextNode).text,
+        'First para.',
+      );
       expect((doc.blocks[1] as ParagraphNode).children[0], isA<TextNode>());
-      expect(((doc.blocks[1] as ParagraphNode).children[0] as TextNode).text, 'Second para.');
+      expect(
+        ((doc.blocks[1] as ParagraphNode).children[0] as TextNode).text,
+        'Second para.',
+      );
     });
 
     test('parses bold inside italic', () {

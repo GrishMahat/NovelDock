@@ -7,7 +7,9 @@ import 'md_ast.dart';
 TextStyle _buildTextStyle(ReaderSettings settings) {
   return TextStyle(
     fontSize: settings.fontSize,
-    fontFamily: settings.fontFamily.isEmpty ? kDefaultReaderFont : settings.fontFamily,
+    fontFamily: settings.fontFamily.isEmpty
+        ? kDefaultReaderFont
+        : settings.fontFamily,
     height: settings.lineHeight,
     color: settings.textColor,
   );
@@ -15,10 +17,14 @@ TextStyle _buildTextStyle(ReaderSettings settings) {
 
 TextAlign _textAlign(String alignment) {
   switch (alignment) {
-    case 'center': return TextAlign.center;
-    case 'right': return TextAlign.right;
-    case 'justify': return TextAlign.justify;
-    default: return TextAlign.left;
+    case 'center':
+      return TextAlign.center;
+    case 'right':
+      return TextAlign.right;
+    case 'justify':
+      return TextAlign.justify;
+    default:
+      return TextAlign.left;
   }
 }
 
@@ -74,7 +80,8 @@ Widget _buildBlock(
   final currentIndex = isParagraph
       ? (blockToParagraph?[blockIndex] ?? blockIndex)
       : blockIndex;
-  final isHighlighted = isCurrentChapter &&
+  final isHighlighted =
+      isCurrentChapter &&
       ttsState.isSpeaking &&
       currentIndex == ttsState.currentChunkIndex;
 
@@ -82,34 +89,34 @@ Widget _buildBlock(
     key: chunkKeys.putIfAbsent('$chapterId-$blockIndex', () => GlobalKey()),
     child: switch (block) {
       ParagraphNode() => _buildParagraph(
-          block,
-          textStyle: textStyle,
-          align: align,
-          settings: settings,
-          isHighlighted: isHighlighted,
-          ttsState: ttsState,
-        ),
+        block,
+        textStyle: textStyle,
+        align: align,
+        settings: settings,
+        isHighlighted: isHighlighted,
+        ttsState: ttsState,
+      ),
       HeadingNode() => _buildHeading(
-          block,
-          textStyle: textStyle,
-          settings: settings,
-        ),
+        block,
+        textStyle: textStyle,
+        settings: settings,
+      ),
       BlockquoteNode() => _buildBlockquote(
-          block,
-          textStyle: textStyle,
-          settings: settings,
-        ),
+        block,
+        textStyle: textStyle,
+        settings: settings,
+      ),
       ListNode() => _buildList(block, textStyle: textStyle, settings: settings),
       HorizontalRuleNode() => _buildHR(settings),
       CodeFenceNode() => _buildCodeFence(block, settings),
       ListItemNode() => _buildParagraph(
-          ParagraphNode(block.children),
-          textStyle: textStyle,
-          align: align,
-          settings: settings,
-          isHighlighted: isHighlighted,
-          ttsState: ttsState,
-        ),
+        ParagraphNode(block.children),
+        textStyle: textStyle,
+        align: align,
+        settings: settings,
+        isHighlighted: isHighlighted,
+        ttsState: ttsState,
+      ),
     },
   );
 }
@@ -126,7 +133,8 @@ Widget _buildParagraph(
     padding: EdgeInsets.only(bottom: settings.paragraphSpacing),
     child: Builder(
       builder: (context) {
-        if (isHighlighted && ttsState.highlightMode == TtsHighlightMode.sentence) {
+        if (isHighlighted &&
+            ttsState.highlightMode == TtsHighlightMode.sentence) {
           return _highlightedRichText(
             node.children,
             textStyle: textStyle,
@@ -135,7 +143,8 @@ Widget _buildParagraph(
             ttsState: ttsState,
           );
         }
-        if (isHighlighted && ttsState.highlightMode == TtsHighlightMode.paragraph) {
+        if (isHighlighted &&
+            ttsState.highlightMode == TtsHighlightMode.paragraph) {
           return Container(
             decoration: BoxDecoration(
               color: Colors.blue.withValues(alpha: 0.1),
@@ -165,7 +174,12 @@ Widget _buildHeading(
   required TextStyle textStyle,
   required ReaderSettings settings,
 }) {
-  final size = switch (node.level) { 1 => 1.6, 2 => 1.4, 3 => 1.2, _ => 1.15 };
+  final size = switch (node.level) {
+    1 => 1.6,
+    2 => 1.4,
+    3 => 1.2,
+    _ => 1.15,
+  };
   return Padding(
     padding: EdgeInsets.only(top: 16, bottom: 8),
     child: _richText(
@@ -260,7 +274,10 @@ Widget _buildList(
 Widget _buildHR(ReaderSettings settings) {
   return Padding(
     padding: const EdgeInsets.symmetric(vertical: 16),
-    child: Container(height: 1, color: settings.textColor.withValues(alpha: 0.2)),
+    child: Container(
+      height: 1,
+      color: settings.textColor.withValues(alpha: 0.2),
+    ),
   );
 }
 
@@ -302,7 +319,9 @@ Widget _buildInlineImage(ImageNode node, ReaderSettings settings) {
           child: Center(
             child: Text(
               '[${node.alt}]',
-              style: TextStyle(color: settings.textColor.withValues(alpha: 0.4)),
+              style: TextStyle(
+                color: settings.textColor.withValues(alpha: 0.4),
+              ),
             ),
           ),
         ),
@@ -327,50 +346,58 @@ Widget _richText(
   );
 }
 
-List<InlineSpan> _buildSpans(InlineNode node, TextStyle baseStyle, ReaderSettings settings) {
+List<InlineSpan> _buildSpans(
+  InlineNode node,
+  TextStyle baseStyle,
+  ReaderSettings settings,
+) {
   return switch (node) {
     TextNode() => [
-        if (settings.bionicReading)
-          ..._bionicSpans(node.text, baseStyle)
-        else
-          TextSpan(text: node.text, style: baseStyle),
-      ],
+      if (settings.bionicReading)
+        ..._bionicSpans(node.text, baseStyle)
+      else
+        TextSpan(text: node.text, style: baseStyle),
+    ],
     BoldNode() => [
-        TextSpan(
-          children: node.children.expand((n) => _buildSpans(n, baseStyle, settings)).toList(),
-          style: baseStyle.copyWith(fontWeight: FontWeight.bold),
-        ),
-      ],
+      TextSpan(
+        children: node.children
+            .expand((n) => _buildSpans(n, baseStyle, settings))
+            .toList(),
+        style: baseStyle.copyWith(fontWeight: FontWeight.bold),
+      ),
+    ],
     ItalicNode() => [
-        TextSpan(
-          children: node.children.expand((n) => _buildSpans(n, baseStyle, settings)).toList(),
-          style: baseStyle.copyWith(fontStyle: FontStyle.italic),
-        ),
-      ],
+      TextSpan(
+        children: node.children
+            .expand((n) => _buildSpans(n, baseStyle, settings))
+            .toList(),
+        style: baseStyle.copyWith(fontStyle: FontStyle.italic),
+      ),
+    ],
     LinkNode() => [
-        TextSpan(
-          children: node.children.expand((n) => _buildSpans(n, baseStyle, settings)).toList(),
-          style: baseStyle.copyWith(
-            color: Colors.blue,
-            decoration: TextDecoration.underline,
-          ),
+      TextSpan(
+        children: node.children
+            .expand((n) => _buildSpans(n, baseStyle, settings))
+            .toList(),
+        style: baseStyle.copyWith(
+          color: Colors.blue,
+          decoration: TextDecoration.underline,
         ),
-      ],
+      ),
+    ],
     CodeNode() => [
-        TextSpan(
-          text: node.text,
-          style: baseStyle.copyWith(
-            fontFamily: 'monospace',
-            backgroundColor: baseStyle.color?.withValues(alpha: 0.08),
-          ),
+      TextSpan(
+        text: node.text,
+        style: baseStyle.copyWith(
+          fontFamily: 'monospace',
+          backgroundColor: baseStyle.color?.withValues(alpha: 0.08),
         ),
-      ],
+      ),
+    ],
     ImageNode() => [
-        // Images inside inline context use widget span
-        WidgetSpan(
-          child: _buildInlineImage(node, settings),
-        ),
-      ],
+      // Images inside inline context use widget span
+      WidgetSpan(child: _buildInlineImage(node, settings)),
+    ],
   };
 }
 
@@ -384,14 +411,13 @@ List<TextSpan> _bionicSpans(String text, TextStyle style) {
       spans.add(TextSpan(text: word, style: style));
     } else {
       final boldLen = (word.length / 2).ceil();
-      spans.add(TextSpan(
-        text: word.substring(0, boldLen),
-        style: style.copyWith(fontWeight: FontWeight.bold),
-      ));
-      spans.add(TextSpan(
-        text: word.substring(boldLen),
-        style: style,
-      ));
+      spans.add(
+        TextSpan(
+          text: word.substring(0, boldLen),
+          style: style.copyWith(fontWeight: FontWeight.bold),
+        ),
+      );
+      spans.add(TextSpan(text: word.substring(boldLen), style: style));
     }
   }
   return spans;
@@ -432,79 +458,118 @@ Widget _highlightedRichText(
       continue;
     }
 
-    if (sentenceRange != null && _overlaps(spanStart, spanEnd, sentenceRange.$1, sentenceRange.$2)) {
-      final before = text.substring(0, (sentenceRange.$1 - spanStart).clamp(0, text.length));
+    if (sentenceRange != null &&
+        _overlaps(spanStart, spanEnd, sentenceRange.$1, sentenceRange.$2)) {
+      final before = text.substring(
+        0,
+        (sentenceRange.$1 - spanStart).clamp(0, text.length),
+      );
       final sentenceText = text.substring(
         (sentenceRange.$1 - spanStart).clamp(0, text.length),
         (sentenceRange.$2 - spanStart).clamp(0, text.length),
       );
-      final after = text.substring((sentenceRange.$2 - spanStart).clamp(0, text.length));
+      final after = text.substring(
+        (sentenceRange.$2 - spanStart).clamp(0, text.length),
+      );
 
-      if (before.isNotEmpty) highlighted.add(TextSpan(text: before, style: span.style));
+      if (before.isNotEmpty) {
+        highlighted.add(TextSpan(text: before, style: span.style));
+      }
       if (sentenceText.isNotEmpty) {
         if (wordRanges.isNotEmpty && wordIndex < wordRanges.length) {
           final (wStart, wEnd) = wordRanges[wordIndex];
-          final localWStart = (wStart - sentenceRange.$1).clamp(0, sentenceText.length);
-          final localWEnd = (wEnd - sentenceRange.$1).clamp(0, sentenceText.length);
+          final localWStart = (wStart - sentenceRange.$1).clamp(
+            0,
+            sentenceText.length,
+          );
+          final localWEnd = (wEnd - sentenceRange.$1).clamp(
+            0,
+            sentenceText.length,
+          );
 
           if (localWStart > 0) {
-            highlighted.add(TextSpan(
-              text: sentenceText.substring(0, localWStart),
-              style: span.style?.copyWith(
-                background: Paint()..color = Colors.blue.withValues(alpha: 0.22),
+            highlighted.add(
+              TextSpan(
+                text: sentenceText.substring(0, localWStart),
+                style: span.style?.copyWith(
+                  background: Paint()
+                    ..color = Colors.blue.withValues(alpha: 0.22),
+                ),
               ),
-            ));
+            );
           }
           if (localWEnd > localWStart) {
-            highlighted.add(TextSpan(
-              text: sentenceText.substring(localWStart, localWEnd),
-              style: span.style?.copyWith(
-                fontWeight: FontWeight.bold,
-                color: Colors.white,
-                background: Paint()..color = Colors.blue.withValues(alpha: 0.75),
+            highlighted.add(
+              TextSpan(
+                text: sentenceText.substring(localWStart, localWEnd),
+                style: span.style?.copyWith(
+                  fontWeight: FontWeight.bold,
+                  color: Colors.white,
+                  background: Paint()
+                    ..color = Colors.blue.withValues(alpha: 0.75),
+                ),
               ),
-            ));
+            );
           }
           if (localWEnd < sentenceText.length) {
-            highlighted.add(TextSpan(
-              text: sentenceText.substring(localWEnd),
-              style: span.style?.copyWith(
-                background: Paint()..color = Colors.blue.withValues(alpha: 0.22),
+            highlighted.add(
+              TextSpan(
+                text: sentenceText.substring(localWEnd),
+                style: span.style?.copyWith(
+                  background: Paint()
+                    ..color = Colors.blue.withValues(alpha: 0.22),
+                ),
               ),
-            ));
+            );
           }
         } else {
-          highlighted.add(TextSpan(
-            text: sentenceText,
-            style: span.style?.copyWith(
-              background: Paint()..color = Colors.blue.withValues(alpha: 0.22),
+          highlighted.add(
+            TextSpan(
+              text: sentenceText,
+              style: span.style?.copyWith(
+                background: Paint()
+                  ..color = Colors.blue.withValues(alpha: 0.22),
+              ),
             ),
-          ));
+          );
         }
       }
-      if (after.isNotEmpty) highlighted.add(TextSpan(text: after, style: span.style));
+      if (after.isNotEmpty) {
+        highlighted.add(TextSpan(text: after, style: span.style));
+      }
     } else {
       highlighted.add(span);
     }
   }
 
-  return RichText(text: TextSpan(children: highlighted), textAlign: align);
+  return RichText(
+    text: TextSpan(children: highlighted),
+    textAlign: align,
+  );
 }
 
 List<(int, int)> _extractWordRanges(String text) {
   final ranges = <(int, int)>[];
   int pos = 0;
   while (pos < text.length) {
-    while (pos < text.length && text[pos] == ' ') { pos++; }
+    while (pos < text.length && text[pos] == ' ') {
+      pos++;
+    }
     if (pos >= text.length) break;
     final start = pos;
-    while (pos < text.length && text[pos] != ' ') { pos++; }
+    while (pos < text.length && text[pos] != ' ') {
+      pos++;
+    }
     ranges.add((start, pos));
   }
   return ranges;
 }
 
-(int, int)? _findSentenceRange(String text, List<(int, int)> wordRanges, int wordIndex) {
+(int, int)? _findSentenceRange(
+  String text,
+  List<(int, int)> wordRanges,
+  int wordIndex,
+) {
   if (wordRanges.isEmpty || wordIndex >= wordRanges.length) return null;
   final (wStart, _) = wordRanges[wordIndex];
 

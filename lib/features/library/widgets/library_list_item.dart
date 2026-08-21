@@ -28,7 +28,10 @@ class LibraryListItem extends StatelessWidget {
       ),
       title: Text(novel.title, maxLines: 1, overflow: TextOverflow.ellipsis),
       subtitle: Text(
-        [novel.author, novel.status].where((s) => s != null && s.isNotEmpty).join(' · '),
+        [
+          novel.author,
+          novel.status,
+        ].where((s) => s != null && s.isNotEmpty).join(' · '),
         style: const TextStyle(fontSize: 12),
         maxLines: 1,
         overflow: TextOverflow.ellipsis,
@@ -50,10 +53,25 @@ class LibraryListItem extends StatelessWidget {
         width: width,
         height: height,
         fit: BoxFit.cover,
-        placeholder: (_, __) => Container(width: width, height: height, color: Theme.of(context).colorScheme.surfaceContainerHighest, child: const Icon(Icons.book, size: 32)),
-        errorWidget: (_, __, ___) => Container(width: width, height: height, color: Theme.of(context).colorScheme.surfaceContainerHighest, child: const Icon(Icons.book, size: 32)),
+        placeholder: (_, _) => Container(
+          width: width,
+          height: height,
+          color: Theme.of(context).colorScheme.surfaceContainerHighest,
+          child: const Icon(Icons.book, size: 32),
+        ),
+        errorWidget: (_, _, _) => Container(
+          width: width,
+          height: height,
+          color: Theme.of(context).colorScheme.surfaceContainerHighest,
+          child: const Icon(Icons.book, size: 32),
+        ),
       );
     }
-    return Container(width: width, height: height, color: Theme.of(context).colorScheme.surfaceContainerHighest, child: const Icon(Icons.book, size: 32));
+    return Container(
+      width: width,
+      height: height,
+      color: Theme.of(context).colorScheme.surfaceContainerHighest,
+      child: const Icon(Icons.book, size: 32),
+    );
   }
 }

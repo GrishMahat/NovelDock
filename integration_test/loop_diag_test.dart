@@ -1,4 +1,3 @@
-import 'dart:async';
 import 'dart:io';
 
 import 'package:flutter/material.dart';
@@ -12,8 +11,9 @@ void main() {
   JustAudioMediaKit.mpvProperties = const {'network-timeout': '0'};
   JustAudioMediaKit.ensureInitialized(linux: true, windows: true);
 
-  testWidgets('LoopMode.all keeps looping a concatenated playlist',
-      (tester) async {
+  testWidgets('LoopMode.all keeps looping a concatenated playlist', (
+    tester,
+  ) async {
     final dir = Directory.systemTemp.createTempSync('loopdiag');
     final paths = <String>[
       '/tmp/opencode/t0.wav',
@@ -30,21 +30,18 @@ void main() {
       dir.deleteSync(recursive: true);
     });
 
-    final source = ConcatenatingAudioSource(
-      children: [
-        for (final p in paths) AudioSource.uri(Uri.file(p)),
-      ],
-    );
-    await player.setAudioSource(source);
+    final sources = [for (final p in paths) AudioSource.uri(Uri.file(p))];
+    await player.setAudioSources(sources);
     await player.setLoopMode(LoopMode.all);
     player.play();
 
     final states = <String>[];
     final sub = player.playbackEventStream.listen((e) {
       states.add(
-          'i=${e.currentIndex} s=${e.processingState.name} '
-          'pos=${e.updatePosition.inMilliseconds}ms '
-          'dur=${e.duration?.inMilliseconds ?? -1}ms');
+        'i=${e.currentIndex} s=${e.processingState.name} '
+        'pos=${e.updatePosition.inMilliseconds}ms '
+        'dur=${e.duration?.inMilliseconds ?? -1}ms',
+      );
     });
     final posSub = player.positionStream.listen((d) {
       debugPrint('DIAG pos i=${player.currentIndex} ${d.inMilliseconds}ms');
@@ -55,9 +52,11 @@ void main() {
     await posSub.cancel();
 
     debugPrint('DIAG currentIndex=${player.currentIndex}');
-    debugPrint('DIAG playing=${player.playing} '
-        'state=${player.processingState.name} '
-        'loopMode=${player.loopMode.name}');
+    debugPrint(
+      'DIAG playing=${player.playing} '
+      'state=${player.processingState.name} '
+      'loopMode=${player.loopMode.name}',
+    );
     debugPrint('DIAG states tail:');
     for (final s in states.take(200)) {
       debugPrint('DIAG   $s');
