@@ -59,7 +59,7 @@ jobs:
       - name: Install Linux build dependencies
         run: |
           sudo apt-get update
-          sudo apt-get install -y ninja-build libgtk-3-dev liblzma-dev pkg-config cmake clang
+          sudo apt-get install -y ninja-build libgtk-3-dev liblzma-dev pkg-config cmake clang libmpv-dev
 
       - uses: subosito/flutter-action@v2
         with:
@@ -120,6 +120,15 @@ jobs:
               type: symlink
             - src: $STAGE/usr/share/applications/noveldock.desktop
               dst: /usr/share/applications/noveldock.desktop
+          overrides:
+            deb:
+              depends:
+                - libmpv2
+                - libgtk-3-0
+            rpm:
+              depends:
+                - mpv-libs
+                - gtk3
           EOF
 
           ./nfpm package -p deb -f nfpm.yaml -t "noveldock_${PKG_VERSION}_amd64.deb"
