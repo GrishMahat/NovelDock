@@ -297,7 +297,7 @@ class TtsPlaybackController {
     return _restartAt(_playhead);
   }
 
-  Future<void> skipTo(int chunkIndex) {
+  Future<void> skipTo(int chunkIndex, {bool keepEngine = false}) {
     if (_chunks.isEmpty) {
       return Future<void>.value();
     }
@@ -306,7 +306,7 @@ class TtsPlaybackController {
       return Future<void>.value();
     }
 
-    return _restartAt(chunkIndex);
+    return _restartAt(chunkIndex, keepEngine: keepEngine);
   }
 
   Future<void> skipForward() => skipTo(_playhead + 1);
@@ -700,6 +700,12 @@ class TtsPlaybackController {
 
       _stallCount = 0;
       _stallAtChunk = -1;
+
+      // Clear the cancelled/stopped flags BEFORE starting: _startPipeline
+      // refuses to run while they are set, and this operation itself set
+      // them above to tear the old pipeline down.
+      _cancelled = false;
+      _stopped = false;
 
       _resetChunkState(clearAudioCache: false);
 

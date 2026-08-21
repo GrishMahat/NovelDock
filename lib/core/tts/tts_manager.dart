@@ -371,6 +371,11 @@ class TtsManager extends StateNotifier<TtsManagerState> {
         currentText: _chunkTexts[paragraphIndex],
       );
 
+      // Playback reached what we optimistically skipped to.
+      if (_skipAnchor != null && paragraphIndex >= _skipAnchor!) {
+        _skipAnchor = null;
+      }
+
       _updateMedia();
     };
 
@@ -610,22 +615,53 @@ class TtsManager extends StateNotifier<TtsManagerState> {
     }
   }
 
+  /// Jumps to the first chunk of [paragraphIndex], preserving paused state:
+  /// a skip while paused re-positions silently instead of resuming audio.
+  /// Optimistic skip target while a burst of presses is catching up.
+  int? _skipAnchor;
+
+  /// Paragraph index skips accumulate against until playback catches up.
+  int get _skipBase => _skipAnchor ?? state.currentChunkIndex;
+
+  /// Jumps toward [target], keeping the visible paragraph in sync instantly
+  /// so rapid presses accumulate instead of repeating the same jump. The
+  /// engine session is kept alive between skips; playback catches up in the
+  /// background and clears [_skipAnchor] via onChunkStart.
+  Future<void> _applySkip(int target) async {
+    _skipAnchor = target;
+
+    final wasPaused = state.isPaused;
+
+    state = state.copyWith(
+      currentChunkIndex: target,
+      currentWordIndex: 0,
+      currentText: target < _chunkTexts.length ? _chunkTexts[target] : null,
+    );
+
+    final chunkIndex = _findFirstChunkOfParagraph(target);
+
+    if (chunkIndex < 0) return;
+
+    await _controller.skipTo(chunkIndex, keepEngine: true);
+
+    if (wasPaused) {
+      await _controller.pause();
+      state = state.copyWith(isPaused: true);
+    }
+  }
+
   Future<void> skipForward() async {
     if (!state.isSpeaking || _totalParagraphs <= 0) {
       return;
     }
 
-    final nextParagraph = state.currentChunkIndex + 1;
+    final target = _skipBase + 1;
 
-    if (nextParagraph >= _totalParagraphs) {
+    if (target >= _totalParagraphs) {
       return;
     }
 
-    final chunkIndex = _findFirstChunkOfParagraph(nextParagraph);
-
-    if (chunkIndex < 0) return;
-
-    await _controller.skipTo(chunkIndex);
+    await _applySkip(target);
   }
 
   Future<void> skipBackward() async {
@@ -638,17 +674,13 @@ class TtsManager extends StateNotifier<TtsManagerState> {
       return;
     }
 
-    final previousParagraph = state.currentChunkIndex - 1;
+    final target = _skipBase - 1;
 
-    if (previousParagraph < 0) {
+    if (target < 0) {
       return;
     }
 
-    final chunkIndex = _findFirstChunkOfParagraph(previousParagraph);
-
-    if (chunkIndex < 0) return;
-
-    await _controller.skipTo(chunkIndex);
+    await _applySkip(target);
   }
 
   Future<void> updateSpeed(double speed) async {
@@ -705,6 +737,8 @@ class TtsManager extends StateNotifier<TtsManagerState> {
   }
 
   void _clearSessionState() {
+    _skipAnchor = null;
+
     state = state.copyWith(
       isSpeaking: false,
       isPaused: false,
