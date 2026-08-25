@@ -11,6 +11,7 @@ import 'background_audio_handler.dart';
 import 'chunker.dart';
 import 'controller.dart';
 import 'engine/edge_tts_engine.dart';
+import 'engine/system_tts_engine.dart';
 import 'engine/tts_engine.dart';
 import 'tts_mpris.dart';
 import '../utils/logger.dart';
@@ -22,6 +23,9 @@ enum TtsHighlightMode { paragraph, sentence, word }
 class TtsManagerState {
   final bool isSpeaking;
   final bool isPaused;
+
+  /// Active synthesis engine id ('edge' or 'system').
+  final String engineId;
 
   /// Paragraph index being synthesized/played.
   final int currentChunkIndex;
@@ -49,6 +53,7 @@ class TtsManagerState {
   const TtsManagerState({
     this.isSpeaking = false,
     this.isPaused = false,
+    this.engineId = 'edge',
     this.currentChunkIndex = 0,
     this.currentWordIndex = 0,
     this.totalChunks = 0,
@@ -70,6 +75,7 @@ class TtsManagerState {
   TtsManagerState copyWith({
     bool? isSpeaking,
     bool? isPaused,
+    String? engineId,
     int? currentChunkIndex,
     int? currentWordIndex,
     int? totalChunks,
@@ -87,6 +93,7 @@ class TtsManagerState {
     return TtsManagerState(
       isSpeaking: isSpeaking ?? this.isSpeaking,
       isPaused: isPaused ?? this.isPaused,
+      engineId: engineId ?? this.engineId,
       currentChunkIndex: currentChunkIndex ?? this.currentChunkIndex,
       currentWordIndex: currentWordIndex ?? this.currentWordIndex,
       totalChunks: totalChunks ?? this.totalChunks,
@@ -107,8 +114,53 @@ class TtsManagerState {
 class TtsManager extends StateNotifier<TtsManagerState> {
   final Ref ref;
 
-  final EdgeTtsEngine _engine = EdgeTtsEngine();
+  TtsEngine _engine = EdgeTtsEngine();
   final TtsPlaybackController _controller = TtsPlaybackController();
+
+  /// The engine synthesis and voice discovery currently go through.
+  TtsEngine get activeEngine => _engine;
+
+  static TtsEngine _buildEngine(String id) {
+    if (id == 'system' && SystemTtsEngine.isSupported) {
+      return SystemTtsEngine();
+    }
+    return EdgeTtsEngine();
+  }
+
+  /// Switches the synthesis engine. Stops any active playback first and
+  /// resets the stored voice (voice ids are engine-specific).
+  Future<void> setTtsEngine(String id) async {
+    var target = id == 'system' ? 'system' : 'edge';
+    if (target == state.engineId && _engine.id == target) return;
+
+    if (state.isSpeaking || state.isPaused) {
+      await stop();
+    }
+
+    await _engine.close();
+
+    var next = _buildEngine(target);
+    try {
+      await next.init();
+    } catch (e) {
+      Log.e(_tag, 'Failed to init $target engine; falling back to edge', e);
+      next = EdgeTtsEngine();
+      await next.init();
+      target = 'edge';
+    }
+    _engine = next;
+
+    // Voice ids are engine-specific; clear so a valid default is picked.
+    state = state.copyWith(engineId: target, voice: '');
+
+    try {
+      final preferences = await SharedPreferences.getInstance();
+      await preferences.setString('tts_engine', target);
+      await preferences.setString('tts_voice', '');
+    } catch (e) {
+      Log.e(_tag, 'Failed to persist tts_engine', e);
+    }
+  }
 
   bool _notificationsInitialized = false;
   Future<void>? _notificationsInitFuture;
@@ -271,6 +323,25 @@ class TtsManager extends StateNotifier<TtsManagerState> {
 
       final modeIndex = rawMode.clamp(0, TtsHighlightMode.values.length - 1);
 
+      // Restore the saved engine (falling back when unsupported on this
+      // platform) before any voice/language value is consumed.
+      var engineId = preferences.getString('tts_engine') ?? 'edge';
+      if (engineId != _engine.id) {
+        if (engineId == 'system' && !SystemTtsEngine.isSupported) {
+          Log.w(_tag, 'System TTS unavailable here; using edge');
+          engineId = 'edge';
+        }
+        final previous = _engine;
+        _engine = _buildEngine(engineId);
+        try {
+          await _engine.init();
+        } catch (e) {
+          Log.e(_tag, 'Restored engine init failed; keeping edge', e);
+          _engine = previous;
+          engineId = _engine.id;
+        }
+      }
+
       // Do not overwrite a setting modified while the async load
       // was in progress.
       if (versionAtStart != _settingsMutationVersion) {
@@ -278,6 +349,7 @@ class TtsManager extends StateNotifier<TtsManagerState> {
       }
 
       state = state.copyWith(
+        engineId: engineId,
         speed: preferences.getDouble('tts_speed') ?? 1.0,
         pitch: preferences.getDouble('tts_pitch') ?? 1.0,
         voice: preferences.getString('tts_voice') ?? '',

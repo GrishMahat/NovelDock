@@ -77,6 +77,17 @@ class MainShell extends StatelessWidget {
       ],
     );
 
+    // Status bar icons must contrast with the app theme, not the system
+    // setting; without this, dark mode + light system skin = invisible icons.
+    final overlayStyle = Theme.of(context).brightness == Brightness.dark
+        ? SystemUiOverlayStyle.light
+        : SystemUiOverlayStyle.dark;
+
+    final annotatedShell = AnnotatedRegion<SystemUiOverlayStyle>(
+      value: overlayStyle,
+      child: shell,
+    );
+
     final bindings = <ShortcutActivator, VoidCallback>{
       // Tab switching
       const SingleActivator(LogicalKeyboardKey.digit1): () =>
@@ -128,7 +139,7 @@ class MainShell extends StatelessWidget {
     }
 
     return Scaffold(
-      body: shell,
+      body: annotatedShell,
       bottomNavigationBar: _isTabLocation(location)
           ? NavigationBar(
               selectedIndex: currentIndex,

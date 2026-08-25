@@ -1,29 +1,32 @@
 import 'package:flutter/material.dart';
 
 import '../../../core/tts/tts_manager.dart';
-import '../../../theme/app_theme.dart';
+import '../../../theme/tokens.dart';
 
-Widget section(String title) {
+Widget section(BuildContext context, String title) {
   return Padding(
-    padding: const EdgeInsets.only(bottom: 8),
+    padding: const EdgeInsets.only(bottom: Insets.sm),
     child: Text(
       title,
-      style: const TextStyle(
-        fontSize: 14,
-        fontWeight: FontWeight.w600,
-        color: AppTheme.kPrimary,
+      style: Theme.of(context).textTheme.labelLarge?.copyWith(
+        color: Theme.of(context).colorScheme.primary,
       ),
     ),
   );
 }
 
-Widget tile({required String title, String? subtitle, VoidCallback? onTap}) {
+Widget tile(
+  BuildContext context, {
+  required String title,
+  String? subtitle,
+  VoidCallback? onTap,
+}) {
   return ListTile(
     dense: true,
     contentPadding: EdgeInsets.zero,
     title: Text(title),
     subtitle: subtitle != null
-        ? Text(subtitle, style: const TextStyle(fontSize: 12))
+        ? Text(subtitle, style: Theme.of(context).textTheme.bodySmall)
         : null,
     trailing: const Icon(Icons.chevron_right, size: 20),
     onTap: onTap,
@@ -31,6 +34,7 @@ Widget tile({required String title, String? subtitle, VoidCallback? onTap}) {
 }
 
 Widget slider(
+  BuildContext context,
   String label,
   double value,
   double min,
@@ -39,19 +43,19 @@ Widget slider(
   ValueChanged<double> onChanged,
 ) {
   return Padding(
-    padding: const EdgeInsets.symmetric(vertical: 4),
+    padding: const EdgeInsets.symmetric(vertical: Insets.xs),
     child: Row(
       children: [
         SizedBox(
           width: 80,
-          child: Text(label, style: const TextStyle(fontSize: 13)),
+          child: Text(label, style: Theme.of(context).textTheme.bodyMedium),
         ),
         Expanded(
           child: Slider(value: value, min: min, max: max, onChanged: onChanged),
         ),
         SizedBox(
           width: 50,
-          child: Text(display, style: const TextStyle(fontSize: 12)),
+          child: Text(display, style: Theme.of(context).textTheme.bodySmall),
         ),
       ],
     ),
@@ -59,6 +63,7 @@ Widget slider(
 }
 
 Widget switchTile(
+  BuildContext context,
   String title,
   String? subtitle,
   bool value,
@@ -69,7 +74,7 @@ Widget switchTile(
     contentPadding: EdgeInsets.zero,
     title: Text(title),
     subtitle: subtitle != null
-        ? Text(subtitle, style: const TextStyle(fontSize: 11))
+        ? Text(subtitle, style: Theme.of(context).textTheme.bodySmall)
         : null,
     value: value,
     onChanged: onChanged,
@@ -101,11 +106,11 @@ Widget radioTts(
           ? Icons.radio_button_checked
           : Icons.radio_button_unchecked,
       color: value == groupValue
-          ? AppTheme.kPrimary
+          ? Theme.of(context).colorScheme.primary
           : Theme.of(context).colorScheme.onSurfaceVariant,
       size: 20,
     ),
-    title: Text(title, style: const TextStyle(fontSize: 14)),
+    title: Text(title, style: Theme.of(context).textTheme.bodyMedium),
     onTap: () => onChanged(value),
   );
 }

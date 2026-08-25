@@ -61,18 +61,15 @@ Widget _buildPdfView(String filePath, ReaderSettings settings) {
           const SizedBox(height: 16),
           Text(
             'PDF Document',
-            style: TextStyle(
-              fontSize: 18,
-              fontWeight: FontWeight.w600,
-              color: settings.textColor,
-            ),
+            style: Theme.of(
+              context,
+            ).textTheme.titleLarge?.copyWith(color: settings.textColor),
           ),
           const SizedBox(height: 8),
           Text(
             _fileNameOf(filePath),
-            style: TextStyle(
+            style: Theme.of(context).textTheme.bodySmall?.copyWith(
               color: settings.textColor.withValues(alpha: 0.5),
-              fontSize: 12,
             ),
           ),
           const SizedBox(height: 24),
@@ -173,9 +170,8 @@ Widget buildContinuousContent({
                   const SizedBox(height: 24),
                   Text(
                     'Chapter ${index + 1}',
-                    style: TextStyle(
+                    style: Theme.of(context).textTheme.bodySmall?.copyWith(
                       color: settings.textColor.withValues(alpha: 0.4),
-                      fontSize: 12,
                     ),
                   ),
                   const SizedBox(height: 8),
@@ -343,9 +339,8 @@ Widget buildPagedContent({
             ),
             Text(
               '${currentIndex + 1} / ${chapters.length}',
-              style: TextStyle(
+              style: Theme.of(context).textTheme.bodySmall?.copyWith(
                 color: settings.textColor.withValues(alpha: 0.7),
-                fontSize: 13,
               ),
             ),
             TextButton.icon(

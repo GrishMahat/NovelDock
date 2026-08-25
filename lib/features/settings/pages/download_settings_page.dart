@@ -7,7 +7,7 @@ import 'package:go_router/go_router.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:path_provider/path_provider.dart';
 
-import '../../../theme/app_theme.dart';
+import '../../../theme/tokens.dart';
 import '../../../core/utils/logger.dart';
 
 const _tag = 'DownloadSettings';
@@ -105,14 +105,14 @@ class DownloadSettingsPage extends ConsumerWidget {
       body: ListView(
         padding: const EdgeInsets.all(16),
         children: [
-          _section('Storage'),
+          _section(context, 'Storage'),
           ListTile(
             dense: true,
             contentPadding: EdgeInsets.zero,
             title: const Text('Download Path'),
             subtitle: Text(
               settings.downloadPath,
-              style: const TextStyle(fontSize: 12),
+              style: Theme.of(context).textTheme.bodySmall,
             ),
             trailing: const Icon(Icons.chevron_right),
             onTap: () async {
@@ -148,7 +148,7 @@ class DownloadSettingsPage extends ConsumerWidget {
             },
           ),
           const SizedBox(height: 16),
-          _section('Behavior'),
+          _section(context, 'Behavior'),
           SwitchListTile(
             dense: true,
             contentPadding: EdgeInsets.zero,
@@ -166,10 +166,10 @@ class DownloadSettingsPage extends ConsumerWidget {
             onChanged: (_) => notifier.toggleAutoDeleteRead(),
           ),
           const SizedBox(height: 16),
-          _section('Parallel Downloads'),
+          _section(context, 'Parallel Downloads'),
           _parallelDropdown(settings.parallelDownloads, notifier),
           const SizedBox(height: 16),
-          _section('Queue'),
+          _section(context, 'Queue'),
           SizedBox(
             width: double.infinity,
             child: FilledButton.icon(
@@ -179,7 +179,7 @@ class DownloadSettingsPage extends ConsumerWidget {
             ),
           ),
           const SizedBox(height: 24),
-          _section('Storage Info'),
+          _section(context, 'Storage Info'),
           _StorageInfoCard(downloadPath: settings.downloadPath),
         ],
       ),
@@ -193,27 +193,15 @@ class DownloadSettingsPage extends ConsumerWidget {
         children: [
           const SizedBox(
             width: 80,
-            child: Text('Limit', style: TextStyle(fontSize: 13)),
+            child: Text('Parallel'),
           ),
           Expanded(
             child: SegmentedButton<int>(
               segments: const [
-                ButtonSegment(
-                  value: 1,
-                  label: Text('1', style: TextStyle(fontSize: 12)),
-                ),
-                ButtonSegment(
-                  value: 2,
-                  label: Text('2', style: TextStyle(fontSize: 12)),
-                ),
-                ButtonSegment(
-                  value: 3,
-                  label: Text('3', style: TextStyle(fontSize: 12)),
-                ),
-                ButtonSegment(
-                  value: 5,
-                  label: Text('5', style: TextStyle(fontSize: 12)),
-                ),
+                ButtonSegment(value: 1, label: Text('1')),
+                ButtonSegment(value: 2, label: Text('2')),
+                ButtonSegment(value: 3, label: Text('3')),
+                ButtonSegment(value: 5, label: Text('5')),
               ],
               selected: {current},
               onSelectionChanged: (s) =>
@@ -225,15 +213,13 @@ class DownloadSettingsPage extends ConsumerWidget {
     );
   }
 
-  Widget _section(String title) {
+  Widget _section(BuildContext context, String title) {
     return Padding(
-      padding: const EdgeInsets.only(bottom: 8),
+      padding: const EdgeInsets.only(bottom: Insets.sm),
       child: Text(
         title,
-        style: const TextStyle(
-          fontSize: 14,
-          fontWeight: FontWeight.w600,
-          color: AppTheme.kPrimary,
+        style: Theme.of(context).textTheme.labelLarge?.copyWith(
+          color: Theme.of(context).colorScheme.primary,
         ),
       ),
     );
@@ -311,7 +297,7 @@ class _StorageInfoCardState extends State<_StorageInfoCard> {
                 Expanded(
                   child: Text(
                     widget.downloadPath,
-                    style: const TextStyle(fontSize: 12),
+                    style: Theme.of(context).textTheme.bodySmall,
                     overflow: TextOverflow.ellipsis,
                   ),
                 ),
@@ -320,8 +306,7 @@ class _StorageInfoCardState extends State<_StorageInfoCard> {
             const SizedBox(height: 8),
             Text(
               '$_fileCount files · ${_formatSize(_totalSize)}',
-              style: TextStyle(
-                fontSize: 12,
+              style: Theme.of(context).textTheme.bodySmall?.copyWith(
                 color: Theme.of(context).colorScheme.onSurfaceVariant,
               ),
             ),

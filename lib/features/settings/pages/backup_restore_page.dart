@@ -2,6 +2,8 @@ import 'dart:convert';
 import 'dart:io';
 
 import 'package:flutter/material.dart';
+
+import '../../../theme/tokens.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:file_picker/file_picker.dart';
 import 'package:path_provider/path_provider.dart';
@@ -10,7 +12,6 @@ import 'package:share_plus/share_plus.dart';
 import '../../../core/database/database.dart';
 import '../../../core/providers/database_providers.dart';
 import '../../../core/utils/logger.dart';
-import '../../../theme/app_theme.dart';
 import 'package:drift/drift.dart' show Value;
 
 const _tag = 'Backup';
@@ -29,7 +30,10 @@ class BackupRestorePage extends ConsumerWidget {
             child: Column(
               children: [
                 ListTile(
-                  leading: const Icon(Icons.backup, color: AppTheme.kPrimary),
+                  leading: Icon(
+                    Icons.backup,
+                    color: Theme.of(context).colorScheme.primary,
+                  ),
                   title: const Text('Export Library'),
                   subtitle: const Text(
                     'Save your library and settings as a JSON file',
@@ -38,7 +42,10 @@ class BackupRestorePage extends ConsumerWidget {
                 ),
                 const Divider(height: 1, indent: 16, endIndent: 16),
                 ListTile(
-                  leading: const Icon(Icons.restore, color: AppTheme.kPrimary),
+                  leading: Icon(
+                    Icons.restore,
+                    color: Theme.of(context).colorScheme.primary,
+                  ),
                   title: const Text('Import Library'),
                   subtitle: const Text(
                     'Restore from a previously exported backup',
@@ -60,18 +67,17 @@ class BackupRestorePage extends ConsumerWidget {
                     style: TextStyle(fontWeight: FontWeight.w600),
                   ),
                   const SizedBox(height: 8),
-                  _bullet('Novels in your library'),
-                  _bullet('Reading history'),
-                  _bullet('Bookmarks'),
-                  _bullet('Download queue state'),
-                  _bullet('App settings'),
-                  _bullet('Provider cache info'),
+                  _bullet(context, 'Novels in your library'),
+                  _bullet(context, 'Reading history'),
+                  _bullet(context, 'Bookmarks'),
+                  _bullet(context, 'Download queue state'),
+                  _bullet(context, 'App settings'),
+                  _bullet(context, 'Provider cache info'),
                   const SizedBox(height: 12),
                   Text(
                     'Provider JS files themselves are not included. '
                     'They will be re-downloaded from registries on restore.',
-                    style: TextStyle(
-                      fontSize: 12,
+                    style: Theme.of(context).textTheme.bodySmall?.copyWith(
                       color: Theme.of(context).colorScheme.onSurfaceVariant,
                     ),
                   ),
@@ -84,14 +90,15 @@ class BackupRestorePage extends ConsumerWidget {
     );
   }
 
-  Widget _bullet(String text) {
+  Widget _bullet(BuildContext context, String text) {
+    final scheme = Theme.of(context).colorScheme;
     return Padding(
       padding: const EdgeInsets.symmetric(vertical: 2),
       child: Row(
         children: [
-          const Icon(Icons.check, size: 16, color: AppTheme.kPrimary),
-          const SizedBox(width: 8),
-          Text(text, style: const TextStyle(fontSize: 14)),
+          Icon(Icons.check, size: 16, color: scheme.primary),
+          const SizedBox(width: Insets.sm),
+          Text(text, style: Theme.of(context).textTheme.bodyMedium),
         ],
       ),
     );

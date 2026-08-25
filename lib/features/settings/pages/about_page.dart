@@ -3,7 +3,6 @@ import 'package:flutter_svg/flutter_svg.dart';
 import 'package:package_info_plus/package_info_plus.dart';
 import 'package:url_launcher/url_launcher.dart';
 
-import '../../../theme/app_theme.dart';
 
 class AboutPage extends StatelessWidget {
   const AboutPage({super.key});
@@ -25,10 +24,10 @@ class AboutPage extends StatelessWidget {
             ),
           ),
           const SizedBox(height: 16),
-          const Center(
+          Center(
             child: Text(
               'NovelDock',
-              style: TextStyle(fontSize: 24, fontWeight: FontWeight.bold),
+              style: Theme.of(context).textTheme.headlineMedium,
             ),
           ),
           const SizedBox(height: 8),
@@ -48,7 +47,7 @@ class AboutPage extends StatelessWidget {
           ),
           const SizedBox(height: 32),
 
-          _buildSection('Links'),
+          _buildSection(context, 'Links'),
           ListTile(
             leading: const Icon(Icons.code),
             title: const Text('Source Code'),
@@ -66,7 +65,7 @@ class AboutPage extends StatelessWidget {
           ),
 
           const SizedBox(height: 16),
-          _buildSection('Credits'),
+          _buildSection(context, 'Credits'),
           Card(
             child: Padding(
               padding: EdgeInsets.all(16),
@@ -81,8 +80,7 @@ class AboutPage extends StatelessWidget {
                   Text(
                     'Multi-platform novel reader and downloader. '
                     'Supports reading from various novel websites via a plugin system.',
-                    style: TextStyle(
-                      fontSize: 13,
+                    style: Theme.of(context).textTheme.bodyMedium?.copyWith(
                       color: Theme.of(context).colorScheme.onSurfaceVariant,
                     ),
                   ),
@@ -97,8 +95,7 @@ class AboutPage extends StatelessWidget {
                     'NovelDock is an independent Flutter implementation with '
                     'its own architecture. Credit goes to the QuickNovel team '
                     'for the original concept.',
-                    style: TextStyle(
-                      fontSize: 13,
+                    style: Theme.of(context).textTheme.bodyMedium?.copyWith(
                       color: Theme.of(context).colorScheme.onSurfaceVariant,
                     ),
                   ),
@@ -108,7 +105,7 @@ class AboutPage extends StatelessWidget {
           ),
 
           const SizedBox(height: 16),
-          _buildSection('License'),
+          _buildSection(context, 'License'),
           Card(
             child: Padding(
               padding: EdgeInsets.all(16),
@@ -119,8 +116,7 @@ class AboutPage extends StatelessWidget {
                 'version 3 or later. This software is provided as-is, without '
                 'warranty of any kind. Content accessed through this app belongs '
                 'to the respective content providers.',
-                style: TextStyle(
-                  fontSize: 12,
+                style: Theme.of(context).textTheme.bodySmall?.copyWith(
                   color: Theme.of(context).colorScheme.onSurfaceVariant,
                 ),
               ),
@@ -131,15 +127,13 @@ class AboutPage extends StatelessWidget {
     );
   }
 
-  Widget _buildSection(String title) {
+  Widget _buildSection(BuildContext context, String title) {
     return Padding(
       padding: const EdgeInsets.only(bottom: 8),
       child: Text(
         title,
-        style: const TextStyle(
-          fontSize: 14,
-          fontWeight: FontWeight.w600,
-          color: AppTheme.kPrimary,
+        style: Theme.of(context).textTheme.labelLarge?.copyWith(
+          color: Theme.of(context).colorScheme.primary,
         ),
       ),
     );

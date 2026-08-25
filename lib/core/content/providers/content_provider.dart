@@ -1,3 +1,4 @@
+import 'package:drift/drift.dart' show Value;
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_riverpod/legacy.dart';
 
@@ -6,6 +7,8 @@ import '../../../core/providers/database_providers.dart';
 import '../../../core/utils/logger.dart';
 import '../../../core/utils/lru_cache.dart';
 import '../content_model.dart';
+import '../loaders/content_loader.dart';
+import '../loaders/downloaded_loader.dart';
 import '../loaders/loader_selector.dart';
 
 const _tag = 'ContentProvider';
@@ -57,8 +60,21 @@ class ContentNotifier extends StateNotifier<ContentState> {
         throw Exception('Chapter $chapterId not found in database');
       }
 
-      final loader = _selector.select(chapter);
-      final content = await loader.load(chapter, ref);
+      ContentLoader loader = _selector.select(chapter);
+
+      ChapterContent content;
+      try {
+        content = await loader.load(chapter, ref);
+      } on StaleDownloadException {
+        // The DB says this chapter is downloaded but its file is gone.
+        // Heal the flag and fall back to the remote source instead of
+        // surfacing an error for content that is still reachable online.
+        Log.w(_tag, 'Stale download for chapter $chapterId; refetching');
+        await chapterDao.markNotDownloaded(chapterId);
+        final healed = chapter.copyWith(downloadedPath: const Value(null));
+        loader = _selector.select(healed);
+        content = await loader.load(healed, ref);
+      }
 
       _cache[chapterId] = content;
 

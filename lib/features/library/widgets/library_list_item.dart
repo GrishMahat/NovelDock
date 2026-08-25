@@ -2,7 +2,6 @@ import 'package:cached_network_image/cached_network_image.dart';
 import 'package:flutter/material.dart';
 
 import '../../../core/database/database.dart';
-import '../../../theme/app_theme.dart';
 
 /// List item for library screen. Cover thumbnail + title + author + play button.
 class LibraryListItem extends StatelessWidget {
@@ -32,13 +31,13 @@ class LibraryListItem extends StatelessWidget {
           novel.author,
           novel.status,
         ].where((s) => s != null && s.isNotEmpty).join(' · '),
-        style: const TextStyle(fontSize: 12),
+        style: Theme.of(context).textTheme.bodySmall,
         maxLines: 1,
         overflow: TextOverflow.ellipsis,
       ),
       trailing: IconButton(
         icon: const Icon(Icons.play_circle_outline, size: 28),
-        color: AppTheme.kPrimary,
+        color: Theme.of(context).colorScheme.primary,
         onPressed: onPlay,
       ),
       onTap: onTap,

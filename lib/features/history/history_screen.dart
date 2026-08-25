@@ -383,11 +383,11 @@ class _HistoryTile extends ConsumerWidget {
                 title,
                 maxLines: 2,
                 overflow: TextOverflow.ellipsis,
-                style: const TextStyle(fontSize: 14),
+                style: Theme.of(context).textTheme.bodyMedium,
               ),
               subtitle: Text(
                 '$chapterName · $date $time',
-                style: const TextStyle(fontSize: 12),
+                style: Theme.of(context).textTheme.bodySmall,
               ),
               trailing: IconButton(
                 icon: const Icon(Icons.delete_outline, size: 20),

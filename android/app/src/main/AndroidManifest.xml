@@ -64,6 +64,7 @@
             android:name="id.flutter.flutter_background_service.BackgroundService"
             android:foregroundServiceType="dataSync"
             android:exported="false"
+            android:stopWithTask="true"
             tools:replace="android:exported"/>
         <receiver
             android:name="com.ryanheise.audioservice.MediaButtonReceiver"

@@ -4,7 +4,6 @@ import 'package:flutter_riverpod/legacy.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 import '../../../core/utils/logger.dart';
-import '../../../theme/app_theme.dart';
 
 const _tag = 'GeneralSettings';
 
@@ -97,7 +96,7 @@ class GeneralSettingsPage extends ConsumerWidget {
       appBar: AppBar(title: const Text('General Settings')),
       body: ListView(
         children: [
-          _buildSection('Startup Tab'),
+          _buildSection(context, 'Startup Tab'),
           RadioGroup<int>(
             groupValue: settings.startupTab,
             onChanged: (v) {
@@ -112,7 +111,7 @@ class GeneralSettingsPage extends ConsumerWidget {
             ),
           ),
           const Divider(),
-          _buildSection('Library Default View'),
+          _buildSection(context, 'Library Default View'),
           RadioGroup<String>(
             groupValue: settings.defaultDisplayMode,
             onChanged: (v) {
@@ -136,7 +135,7 @@ class GeneralSettingsPage extends ConsumerWidget {
             ),
           ),
           const Divider(),
-          _buildSection('Application Behavior'),
+          _buildSection(context, 'Application Behavior'),
           SwitchListTile(
             title: const Text('Confirm before exit'),
             subtitle: const Text('Prompt for confirmation before closing app'),
@@ -181,15 +180,13 @@ class GeneralSettingsPage extends ConsumerWidget {
     );
   }
 
-  Widget _buildSection(String title) {
+  Widget _buildSection(BuildContext context, String title) {
     return Padding(
       padding: const EdgeInsets.fromLTRB(16, 16, 16, 4),
       child: Text(
         title,
-        style: const TextStyle(
-          fontSize: 14,
-          fontWeight: FontWeight.w600,
-          color: AppTheme.kPrimary,
+        style: Theme.of(context).textTheme.labelLarge?.copyWith(
+          color: Theme.of(context).colorScheme.primary,
         ),
       ),
     );

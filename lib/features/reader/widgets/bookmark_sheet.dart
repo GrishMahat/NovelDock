@@ -1,7 +1,6 @@
 import 'package:flutter/material.dart';
 
 import '../../../core/database/database.dart';
-import '../../../theme/app_theme.dart';
 
 /// Shows a dialog asking the user for an optional bookmark note.
 /// Returns the note text, or null if cancelled.
@@ -21,7 +20,7 @@ Future<String?> showAddBookmarkDialog(
           Text(
             chapterName,
             style: TextStyle(
-              fontSize: 13,
+              fontSize: Theme.of(context).textTheme.bodySmall?.fontSize,
               color: Theme.of(context).colorScheme.onSurfaceVariant,
             ),
           ),
@@ -83,11 +82,11 @@ void showBookmarkSheet({
       expand: false,
       builder: (context, scrollController) => Column(
         children: [
-          const Padding(
-            padding: EdgeInsets.all(16),
+          Padding(
+            padding: const EdgeInsets.all(16),
             child: Text(
               'Bookmarks',
-              style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
+              style: Theme.of(context).textTheme.titleLarge,
             ),
           ),
           const Divider(height: 1),
@@ -119,7 +118,10 @@ void showBookmarkSheet({
                 final time = _formatTime(bm.createdAt);
 
                 return ListTile(
-                  leading: const Icon(Icons.bookmark, color: AppTheme.kPrimary),
+                  leading: Icon(
+                    Icons.bookmark,
+                    color: Theme.of(context).colorScheme.primary,
+                  ),
                   title: Text(
                     resolvedChapter.name,
                     maxLines: 1,
@@ -130,17 +132,19 @@ void showBookmarkSheet({
                     children: [
                       Text(
                         'Position: ${position.round()}% · $time',
-                        style: const TextStyle(fontSize: 12),
+                        style: Theme.of(context).textTheme.bodySmall,
                       ),
                       if (bm.note != null && bm.note!.isNotEmpty)
                         Text(
                           bm.note!,
                           maxLines: 1,
                           overflow: TextOverflow.ellipsis,
-                          style: TextStyle(
-                            fontSize: 11,
-                            color: AppTheme.kPrimary.withValues(alpha: 0.8),
-                          ),
+                          style: Theme.of(context).textTheme.labelSmall
+                              ?.copyWith(
+                                color: Theme.of(
+                                  context,
+                                ).colorScheme.primary.withValues(alpha: 0.8),
+                              ),
                         ),
                     ],
                   ),

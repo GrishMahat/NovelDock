@@ -111,11 +111,9 @@ class _ChapterSidebarState extends State<ChapterSidebar> {
                         'Chapters (${widget.chapters.length})',
                         maxLines: 1,
                         overflow: TextOverflow.ellipsis,
-                        style: TextStyle(
-                          fontSize: 14,
-                          fontWeight: FontWeight.w600,
-                          color: s.textColor,
-                        ),
+                        style: Theme.of(
+                          context,
+                        ).textTheme.labelLarge?.copyWith(color: s.textColor),
                       ),
                     ),
                     IconButton(
@@ -136,13 +134,15 @@ class _ChapterSidebarState extends State<ChapterSidebar> {
                 ),
                 child: TextField(
                   controller: _filterController,
-                  style: TextStyle(fontSize: 13, color: s.textColor),
+                  style: Theme.of(
+                    context,
+                  ).textTheme.bodySmall?.copyWith(color: s.textColor),
                   decoration: InputDecoration(
                     hintText: 'Filter chapters',
-                    hintStyle: TextStyle(
-                      fontSize: 13,
-                      color: s.textColor.withValues(alpha: 0.5),
-                    ),
+                    hintStyle: Theme.of(context).textTheme.bodySmall
+                        ?.copyWith(
+                          color: s.textColor.withValues(alpha: 0.5),
+                        ),
                     prefixIcon: Icon(
                       Icons.search,
                       size: 16,
@@ -192,30 +192,30 @@ class _ChapterSidebarState extends State<ChapterSidebar> {
                           child: Text(
                             '${index + 1}',
                             textAlign: TextAlign.center,
-                            style: TextStyle(
-                              fontSize: 11,
-                              fontWeight: isCurrent
-                                  ? FontWeight.w600
-                                  : FontWeight.w400,
-                              color: isCurrent
-                                  ? s.textColor
-                                  : s.textColor.withValues(alpha: 0.55),
-                            ),
+                            style: Theme.of(context).textTheme.labelSmall
+                                ?.copyWith(
+                                  fontWeight: isCurrent
+                                      ? FontWeight.w600
+                                      : FontWeight.w400,
+                                  color: isCurrent
+                                      ? s.textColor
+                                      : s.textColor.withValues(alpha: 0.55),
+                                ),
                           ),
                         ),
                         title: Text(
                           chapter.name,
                           maxLines: 1,
                           overflow: TextOverflow.ellipsis,
-                          style: TextStyle(
-                            fontSize: 13,
-                            fontWeight: isCurrent
-                                ? FontWeight.w600
-                                : FontWeight.w400,
-                            color: isCurrent
-                                ? s.textColor
-                                : s.textColor.withValues(alpha: 0.75),
-                          ),
+                          style: Theme.of(context).textTheme.titleSmall
+                              ?.copyWith(
+                                fontWeight: isCurrent
+                                    ? FontWeight.w600
+                                    : FontWeight.w400,
+                                color: isCurrent
+                                    ? s.textColor
+                                    : s.textColor.withValues(alpha: 0.75),
+                              ),
                         ),
                         onTap: () => widget.onJumpToChapter(index),
                       );

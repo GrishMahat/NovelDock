@@ -4,6 +4,8 @@ import 'package:drift/drift.dart' show Value;
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:shimmer/shimmer.dart';
+import 'package:wakelock_plus/wakelock_plus.dart';
 
 import '../../core/content/content_model.dart';
 import '../../core/content/markdown/md_ast.dart';
@@ -76,6 +78,12 @@ class _ReaderScreenState extends ConsumerState<ReaderScreen> {
     super.initState();
     SystemChrome.setEnabledSystemUIMode(SystemUiMode.immersiveSticky);
     SystemChrome.setPreferredOrientations([DeviceOrientation.portraitUp]);
+    // The book is open: keep the screen on until the reader closes.
+    try {
+      WakelockPlus.enable();
+    } catch (e) {
+      debugPrint('WakelockPlus unavailable: $e');
+    }
     _scrollController.addListener(_onScroll);
 
     _navigationNotifier = ref.read(
@@ -89,6 +97,11 @@ class _ReaderScreenState extends ConsumerState<ReaderScreen> {
     _saveReadingAnchor();
     _scrollController.dispose();
     _pageController.dispose();
+    try {
+      WakelockPlus.disable();
+    } catch (e) {
+      debugPrint('WakelockPlus unavailable: $e');
+    }
     // The reader forced portrait; give the rest of the app its freedom back.
     SystemChrome.setPreferredOrientations(DeviceOrientation.values);
     SystemChrome.setEnabledSystemUIMode(SystemUiMode.edgeToEdge);
@@ -791,9 +804,9 @@ class _ReaderScreenState extends ConsumerState<ReaderScreen> {
     final errorCache = _buildErrorMap(contentState);
 
     final readerBody = nav.isLoading
-        ? const Center(child: CircularProgressIndicator())
+        ? _ReaderLoadingSkeleton(settings: settings)
         : nav.error != null
-        ? _buildError()
+        ? _buildError(settings)
         : settings.scrollMode == 'paged'
         ? buildPagedContent(
             context: context,
@@ -1005,29 +1018,96 @@ class _ReaderScreenState extends ConsumerState<ReaderScreen> {
     ];
   }
 
-  Widget _buildError() {
+  Widget _buildError(ReaderSettings settings) {
     final nav = ref.read(readerNavigationProvider(widget.novelId));
     return Center(
-      child: Column(
-        mainAxisAlignment: MainAxisAlignment.center,
-        children: [
-          const Icon(Icons.error_outline, size: 48, color: AppTheme.kReaderError),
-          const SizedBox(height: 16),
-          Text(
-            nav.error!,
-            style: const TextStyle(color: AppTheme.kReaderTextDefault),
-            textAlign: TextAlign.center,
+      child: Padding(
+        padding: const EdgeInsets.all(Insets.xl),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            const Icon(
+              Icons.error_outline,
+              size: 48,
+              color: AppTheme.kReaderError,
+            ),
+            const SizedBox(height: Insets.lg),
+            Text(
+              nav.error!,
+              style: TextStyle(color: settings.textColor, height: 1.4),
+              textAlign: TextAlign.center,
+            ),
+            const SizedBox(height: Insets.lg),
+            FilledButton.icon(
+              style: FilledButton.styleFrom(
+                backgroundColor: settings.textColor.withValues(alpha: 0.12),
+                foregroundColor: settings.textColor,
+              ),
+              onPressed: () {
+                ref
+                    .read(readerNavigationProvider(widget.novelId).notifier)
+                    .loadChapters(widget.chapterId);
+              },
+              icon: const Icon(Icons.refresh, size: 18),
+              label: const Text('Retry'),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+/// Prose-shaped placeholder shown while the chapter list first loads.
+/// Shimmers in the active reader palette instead of the app scheme so it
+/// sits correctly on any reader background.
+class _ReaderLoadingSkeleton extends StatelessWidget {
+  final ReaderSettings settings;
+  const _ReaderLoadingSkeleton({required this.settings});
+
+  @override
+  Widget build(BuildContext context) {
+    final s = settings;
+    final lineHeight = s.fontSize * 0.72;
+    return Shimmer.fromColors(
+      baseColor: s.textColor.withValues(alpha: 0.08),
+      highlightColor: s.textColor.withValues(alpha: 0.18),
+      child: ListView.builder(
+        physics: const NeverScrollableScrollPhysics(),
+        padding: EdgeInsets.symmetric(
+          horizontal: s.paddingH,
+          vertical: s.paddingV,
+        ),
+        itemCount: 14,
+        itemBuilder: (_, paragraph) => Padding(
+          padding: EdgeInsets.only(bottom: s.paragraphSpacing),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              for (var line = 0; line < 4; line++)
+                Container(
+                  height: lineHeight,
+                  margin: EdgeInsets.only(bottom: lineHeight * 0.45),
+                  width: double.infinity,
+                  decoration: BoxDecoration(
+                    color: s.textColor.withValues(alpha: 0.14),
+                    borderRadius: BorderRadius.circular(lineHeight / 2),
+                  ),
+                ),
+              FractionallySizedBox(
+                widthFactor: 0.55 + ((paragraph * 37) % 30) / 100,
+                alignment: AlignmentDirectional.centerStart,
+                child: Container(
+                  height: lineHeight,
+                  decoration: BoxDecoration(
+                    color: s.textColor.withValues(alpha: 0.14),
+                    borderRadius: BorderRadius.circular(lineHeight / 2),
+                  ),
+                ),
+              ),
+            ],
           ),
-          const SizedBox(height: 16),
-          TextButton(
-            onPressed: () {
-              ref
-                  .read(readerNavigationProvider(widget.novelId).notifier)
-                  .loadChapters(widget.chapterId);
-            },
-            child: const Text('Retry'),
-          ),
-        ],
+        ),
       ),
     );
   }

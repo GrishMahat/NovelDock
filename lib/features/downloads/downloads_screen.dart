@@ -28,6 +28,8 @@ class _DownloadsScreenState extends ConsumerState<DownloadsScreen> {
     // anything still queued.
     WidgetsBinding.instance.addPostFrameCallback((_) {
       ref.read(downloadProvider.notifier).resumePendingDownloads();
+      // Heal download flags for files deleted outside the app.
+      ref.read(downloadProvider.notifier).reconcileDownloads();
     });
   }
 
@@ -79,6 +81,7 @@ class _DownloadsScreenState extends ConsumerState<DownloadsScreen> {
     final downloadDao = ref.watch(downloadDaoProvider);
     final dlSettings = ref.watch(downloadSettingsProvider);
     final dlNotifier = ref.read(downloadSettingsProvider.notifier);
+    final text = Theme.of(context).textTheme;
 
     return Scaffold(
       appBar: isDesktop
@@ -109,9 +112,9 @@ class _DownloadsScreenState extends ConsumerState<DownloadsScreen> {
           // ── Settings toggle ──
           ExpansionTile(
             leading: const Icon(Icons.settings, size: 20),
-            title: const Text(
+            title: Text(
               'Download Settings',
-              style: TextStyle(fontSize: 14),
+              style: Theme.of(context).textTheme.bodyMedium,
             ),
             initiallyExpanded: _showSettings,
             onExpansionChanged: (expanded) =>
@@ -125,10 +128,10 @@ class _DownloadsScreenState extends ConsumerState<DownloadsScreen> {
                     ListTile(
                       dense: true,
                       contentPadding: EdgeInsets.zero,
-                      title: const Text('Path', style: TextStyle(fontSize: 13)),
+                      title: Text('Path', style: text.bodySmall),
                       subtitle: Text(
                         dlSettings.downloadPath,
-                        style: const TextStyle(fontSize: 11),
+                        style: Theme.of(context).textTheme.labelSmall,
                         maxLines: 1,
                         overflow: TextOverflow.ellipsis,
                       ),
@@ -169,10 +172,7 @@ class _DownloadsScreenState extends ConsumerState<DownloadsScreen> {
                     SwitchListTile(
                       dense: true,
                       contentPadding: EdgeInsets.zero,
-                      title: const Text(
-                        'Wi-Fi Only',
-                        style: TextStyle(fontSize: 13),
-                      ),
+                      title: Text('Wi-Fi only', style: text.bodySmall),
                       value: dlSettings.wifiOnly,
                       onChanged: (_) => dlNotifier.toggleWifiOnly(),
                     ),
@@ -180,10 +180,7 @@ class _DownloadsScreenState extends ConsumerState<DownloadsScreen> {
                     ListTile(
                       dense: true,
                       contentPadding: EdgeInsets.zero,
-                      title: const Text(
-                        'Parallel Downloads',
-                        style: TextStyle(fontSize: 13),
-                      ),
+                      title: Text('Parallel downloads', style: text.bodySmall),
                       trailing: DropdownButton<int>(
                         value: dlSettings.parallelDownloads,
                         isDense: true,
@@ -232,9 +229,9 @@ class _DownloadsScreenState extends ConsumerState<DownloadsScreen> {
                           ).colorScheme.onSurfaceVariant.withValues(alpha: 0.5),
                         ),
                         const SizedBox(height: 16),
-                        const Text(
+                        Text(
                           'No downloads yet',
-                          style: TextStyle(fontSize: 16),
+                          style: Theme.of(context).textTheme.titleMedium,
                         ),
                         const SizedBox(height: 8),
                         Text(
@@ -300,7 +297,7 @@ class _DownloadTile extends ConsumerWidget {
                     novel?.title ?? 'Novel #${download.novelId}',
                     maxLines: 1,
                     overflow: TextOverflow.ellipsis,
-                    style: const TextStyle(fontSize: 12),
+                    style: Theme.of(context).textTheme.bodySmall,
                   ),
                   if (download.status == 'downloading' &&
                       download.progress != null)
@@ -314,8 +311,7 @@ class _DownloadTile extends ConsumerWidget {
                   if (download.status == 'failed' && download.error != null)
                     Text(
                       download.error!,
-                      style: TextStyle(
-                        fontSize: 11,
+                      style: Theme.of(context).textTheme.labelSmall?.copyWith(
                         color: Theme.of(context).colorScheme.error,
                       ),
                       maxLines: 1,

@@ -198,8 +198,7 @@ class _BrowseScreenState extends ConsumerState<BrowseScreen>
                       ),
                       child: Text(
                         '$installed',
-                        style: TextStyle(
-                          fontSize: 11,
+                        style: Theme.of(context).textTheme.labelSmall?.copyWith(
                           color: Theme.of(context).colorScheme.onPrimary,
                         ),
                       ),
@@ -251,9 +250,9 @@ class InstalledTab extends ConsumerWidget {
                   ).colorScheme.onSurfaceVariant.withValues(alpha: 0.5),
                 ),
                 const SizedBox(height: 16),
-                const Text(
+                Text(
                   'No sources installed',
-                  style: TextStyle(fontSize: 18, fontWeight: FontWeight.w600),
+                  style: Theme.of(context).textTheme.titleLarge,
                 ),
                 const SizedBox(height: 8),
                 Text(
@@ -353,18 +352,14 @@ class _SourceCard extends StatelessWidget {
                       provider.name,
                       maxLines: 1,
                       overflow: TextOverflow.ellipsis,
-                      style: const TextStyle(
-                        fontSize: 14,
-                        fontWeight: FontWeight.w600,
-                      ),
+                      style: Theme.of(context).textTheme.titleSmall,
                     ),
                     const SizedBox(height: 2),
                     Text(
                       provider.lang.toUpperCase(),
-                      style: TextStyle(
-                        fontSize: 12,
-                        color: scheme.onSurfaceVariant,
-                      ),
+                      style: Theme.of(
+                        context,
+                      ).textTheme.bodySmall?.copyWith(color: scheme.onSurfaceVariant),
                     ),
                   ],
                 ),
@@ -492,9 +487,7 @@ class CatalogTab extends ConsumerWidget {
       padding: const EdgeInsets.fromLTRB(0, Insets.lg, 0, Insets.sm),
       child: Text(
         title,
-        style: TextStyle(
-          fontSize: 13,
-          fontWeight: FontWeight.w600,
+        style: Theme.of(context).textTheme.titleSmall?.copyWith(
           color: Theme.of(context).colorScheme.primary,
         ),
       ),
@@ -530,7 +523,7 @@ class _ExtensionTile extends StatelessWidget {
           children: [
             Text(
               '${provider.lang.toUpperCase()} · v${provider.version}',
-              style: const TextStyle(fontSize: 12),
+              style: Theme.of(context).textTheme.bodySmall,
             ),
             if (provider.nsfw) ...[
               const SizedBox(width: Insets.xs),
@@ -610,15 +603,11 @@ void _showProviderInfo(
                     children: [
                       Text(
                         provider.name,
-                        style: const TextStyle(
-                          fontSize: 18,
-                          fontWeight: FontWeight.w600,
-                        ),
+                        style: Theme.of(context).textTheme.titleLarge,
                       ),
                       Text(
                         provider.baseUrl,
-                        style: TextStyle(
-                          fontSize: 12,
+                        style: Theme.of(context).textTheme.bodySmall?.copyWith(
                           color: Theme.of(context).colorScheme.onSurfaceVariant,
                         ),
                       ),
@@ -701,7 +690,7 @@ Widget _infoTile(
       size: 20,
       color: Theme.of(context).colorScheme.onSurfaceVariant,
     ),
-    title: Text(label, style: const TextStyle(fontSize: 12)),
+    title: Text(label, style: Theme.of(context).textTheme.bodySmall),
     subtitle: Text(value),
     dense: true,
   );

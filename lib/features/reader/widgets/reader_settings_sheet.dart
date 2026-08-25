@@ -4,6 +4,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../../theme/app_theme.dart';
+import '../../../theme/tokens.dart';
 import '../../settings/pages/reader/reader_settings_state.dart';
 
 /// Inline reader settings bottom sheet, shown from reader controls.
@@ -41,11 +42,11 @@ class _ReaderSettingsSheetState extends ConsumerState<ReaderSettingsSheet> {
 
     return Column(
       children: [
-        const Padding(
-          padding: EdgeInsets.all(16),
+        Padding(
+          padding: const EdgeInsets.all(16),
           child: Text(
             'Reader Settings',
-            style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
+            style: Theme.of(context).textTheme.titleLarge,
           ),
         ),
         const Divider(height: 1),
@@ -257,11 +258,11 @@ class _ReaderSettingsSheetState extends ConsumerState<ReaderSettingsSheet> {
         expand: false,
         builder: (context, scrollController) => Column(
           children: [
-            const Padding(
-              padding: EdgeInsets.all(16),
+            Padding(
+              padding: const EdgeInsets.all(16),
               child: Text(
                 'Select Font',
-                style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
+                style: Theme.of(context).textTheme.titleLarge,
               ),
             ),
             const Divider(height: 1),
@@ -277,13 +278,16 @@ class _ReaderSettingsSheetState extends ConsumerState<ReaderSettingsSheet> {
                     return ListTile(
                       leading: Icon(
                         isDefault ? Icons.check_circle : Icons.circle_outlined,
-                        color: isDefault ? AppTheme.kPrimary : null,
+                        color: isDefault
+                            ? Theme.of(context).colorScheme.primary
+                            : null,
                       ),
                       title: Text(
                         kDefaultReaderFont,
-                        style: const TextStyle(
+                        style: Theme.of(
+                          context,
+                        ).textTheme.bodyLarge?.copyWith(
                           fontFamily: kDefaultReaderFont,
-                          fontSize: 16,
                         ),
                       ),
                       subtitle: const Text('Bundled default'),
@@ -299,11 +303,15 @@ class _ReaderSettingsSheetState extends ConsumerState<ReaderSettingsSheet> {
                   return ListTile(
                     leading: Icon(
                       isSelected ? Icons.check_circle : Icons.circle_outlined,
-                      color: isSelected ? AppTheme.kPrimary : null,
+                      color: isSelected
+                          ? Theme.of(context).colorScheme.primary
+                          : null,
                     ),
                     title: Text(
                       font,
-                      style: TextStyle(fontFamily: font, fontSize: 16),
+                      style: Theme.of(
+                        context,
+                      ).textTheme.bodyLarge?.copyWith(fontFamily: font),
                     ),
                     onTap: () {
                       notifier.updateFontFamily(font);
@@ -320,12 +328,10 @@ class _ReaderSettingsSheetState extends ConsumerState<ReaderSettingsSheet> {
   }
 
   Widget _section(String title) => Padding(
-    padding: const EdgeInsets.only(bottom: 8),
+    padding: const EdgeInsets.only(bottom: Insets.sm),
     child: Text(
       title,
-      style: TextStyle(
-        fontSize: 14,
-        fontWeight: FontWeight.w600,
+      style: Theme.of(context).textTheme.labelLarge?.copyWith(
         color: Theme.of(context).colorScheme.onSurfaceVariant,
       ),
     ),
@@ -345,7 +351,7 @@ class _ReaderSettingsSheetState extends ConsumerState<ReaderSettingsSheet> {
         children: [
           SizedBox(
             width: 80,
-            child: Text(label, style: const TextStyle(fontSize: 13)),
+            child: Text(label, style: Theme.of(context).textTheme.bodyMedium),
           ),
           Expanded(
             child: Slider(
@@ -357,7 +363,7 @@ class _ReaderSettingsSheetState extends ConsumerState<ReaderSettingsSheet> {
           ),
           SizedBox(
             width: 40,
-            child: Text(display, style: const TextStyle(fontSize: 12)),
+            child: Text(display, style: Theme.of(context).textTheme.bodySmall),
           ),
         ],
       ),
@@ -370,9 +376,9 @@ class _ReaderSettingsSheetState extends ConsumerState<ReaderSettingsSheet> {
   ) {
     return Row(
       children: [
-        const SizedBox(
+        SizedBox(
           width: 80,
-          child: Text('Align', style: TextStyle(fontSize: 13)),
+          child: Text('Align', style: Theme.of(context).textTheme.bodyMedium),
         ),
         Expanded(
           child: SegmentedButton<String>(
@@ -495,10 +501,10 @@ class _ReaderSettingsSheetState extends ConsumerState<ReaderSettingsSheet> {
           const SizedBox(height: 4),
           Text(
             label,
-            style: TextStyle(
-              fontSize: 10,
-              color: isSelected ? AppTheme.kPrimary : null,
-              fontWeight: isSelected ? FontWeight.bold : FontWeight.normal,
+            style: Theme.of(context).textTheme.labelSmall?.copyWith(
+              color: isSelected
+                  ? Theme.of(context).colorScheme.primary
+                  : null,
             ),
           ),
         ],

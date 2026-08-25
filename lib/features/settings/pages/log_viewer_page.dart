@@ -134,7 +134,7 @@ class _LogViewerPageState extends ConsumerState<LogViewerPage> {
                     child: FilterChip(
                       label: Text(
                         level.name,
-                        style: const TextStyle(fontSize: 11),
+                        style: Theme.of(context).textTheme.labelSmall,
                       ),
                       selected: selected,
                       onSelected: (_) => setState(() {
@@ -174,7 +174,7 @@ class _LogViewerPageState extends ConsumerState<LogViewerPage> {
                   borderRadius: BorderRadius.circular(8),
                 ),
               ),
-              style: const TextStyle(fontSize: 12),
+              style: Theme.of(context).textTheme.bodySmall,
               onChanged: (v) => setState(() => _filterText = v),
             ),
           ),
@@ -185,8 +185,7 @@ class _LogViewerPageState extends ConsumerState<LogViewerPage> {
               children: [
                 Text(
                   '${filtered.length} / ${entries.length} entries',
-                  style: TextStyle(
-                    fontSize: 11,
+                  style: Theme.of(context).textTheme.labelSmall?.copyWith(
                     color: Theme.of(context).colorScheme.onSurfaceVariant,
                   ),
                 ),
@@ -194,8 +193,7 @@ class _LogViewerPageState extends ConsumerState<LogViewerPage> {
                 if (entries.isNotEmpty)
                   Text(
                     entries.last.formatted.split(' ').first,
-                    style: TextStyle(
-                      fontSize: 10,
+                    style: Theme.of(context).textTheme.labelSmall?.copyWith(
                       color: Theme.of(context).colorScheme.onSurfaceVariant,
                     ),
                   ),
@@ -233,7 +231,8 @@ class _LogViewerPageState extends ConsumerState<LogViewerPage> {
                         child: Text(
                           entry.formatted,
                           style: TextStyle(
-                           fontSize: 11,
+                            fontSize:
+                                Theme.of(context).textTheme.labelSmall?.fontSize,
                             fontFamily: 'monospace',
                             color: color,
                             height: 1.3,

@@ -4,6 +4,7 @@ import 'dart:io';
 import 'package:drift/drift.dart' show Value;
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_riverpod/legacy.dart';
+import 'package:connectivity_plus/connectivity_plus.dart';
 import 'package:path_provider/path_provider.dart';
 import 'package:path/path.dart' as p;
 
@@ -60,6 +61,10 @@ class NovelDownloadProgress {
 class DownloadNotifier extends StateNotifier<Map<int, NovelDownloadProgress>> {
   final Ref ref;
   bool _isProcessing = false;
+
+  /// The task currently being downloaded, if any. Closing its tile deletes
+  /// its row; the pipeline checks row existence before touching disk or DB.
+  int? _currentTaskId;
 
   DownloadNotifier(this.ref) : super({});
 
@@ -122,7 +127,11 @@ class DownloadNotifier extends StateNotifier<Map<int, NovelDownloadProgress>> {
     }
   }
 
-  /// Process the download queue
+  /// Process the download queue until it is empty.
+  ///
+  /// Workers pull tasks by atomically claiming them, so tasks enqueued while
+  /// the pool is running are picked up instead of waiting for the next
+  /// external trigger (the old snapshot-once loop could strand them).
   Future<void> _processQueue() async {
     if (_isProcessing) return;
     _isProcessing = true;
@@ -131,22 +140,112 @@ class DownloadNotifier extends StateNotifier<Map<int, NovelDownloadProgress>> {
     BackgroundDownloadService.start();
 
     try {
-      final downloadDao = ref.read(downloadDaoProvider);
-      final pending = await downloadDao.getPendingDownloads();
+      final settings = ref.read(downloadSettingsProvider);
 
-      if (pending.isEmpty) {
-        _isProcessing = false;
-        BackgroundDownloadService.stop();
+      // Honor the Wi-Fi only setting; tasks stay queued until it lifts.
+      if (settings.wifiOnly && !await _onWifi()) {
+        Log.i(_tag, 'Wi-Fi only is on and no Wi-Fi; queue deferred');
         return;
       }
 
-      for (final task in pending) {
-        await _downloadTask(task);
-      }
+      final workers = List.generate(
+        settings.parallelDownloads.clamp(1, 5),
+        (_) => _worker(),
+      );
+      await Future.wait(workers);
     } finally {
       _isProcessing = false;
-      BackgroundDownloadService.stop();
+
+      // New tasks may have been enqueued while the pool ran (or a cancelled
+      // task left siblings behind). Keep draining instead of stranding them.
+      final downloadDao = ref.read(downloadDaoProvider);
+      final pending = await downloadDao.getPendingDownloads();
+      if (pending.isNotEmpty) {
+        unawaited(_processQueue());
+      } else {
+        _currentTaskId = null;
+        BackgroundDownloadService.stop();
+      }
     }
+  }
+
+  /// Pulls claimable tasks until the queue runs dry.
+  Future<void> _worker() async {
+    final downloadDao = ref.read(downloadDaoProvider);
+
+    while (true) {
+      final task = await downloadDao.claimNextQueued();
+      if (task == null) break;
+
+      _currentTaskId = task.id;
+      try {
+        await _downloadTask(task);
+      } finally {
+        if (_currentTaskId == task.id) _currentTaskId = null;
+      }
+    }
+  }
+
+  /// True when Wi-Fi only is off, or a non-metered connection exists.
+  Future<bool> _onWifi() async {
+    try {
+      final results = await Connectivity().checkConnectivity();
+      return results.contains(ConnectivityResult.wifi) ||
+          results.contains(ConnectivityResult.ethernet);
+    } catch (e) {
+      Log.w(_tag, 'Connectivity check failed: $e');
+      return true; // fail open rather than stall the queue silently
+    }
+  }
+
+  /// Requeues tasks stuck in 'downloading' from a previous session and
+  /// restarts processing. Called when the Downloads screen opens.
+  Future<void> resumePendingDownloads() async {
+    final downloadDao = ref.read(downloadDaoProvider);
+    await downloadDao.requeueStaleDownloading();
+
+    final pending = await downloadDao.getPendingDownloads();
+    for (final novelId in pending.map((t) => t.novelId).toSet()) {
+      _updateProgress(novelId);
+    }
+
+    unawaited(_processQueue());
+  }
+
+  /// Re-queues one failed (or stale) task and kicks processing.
+  Future<void> retryTask(int taskId) async {
+    final downloadDao = ref.read(downloadDaoProvider);
+    await downloadDao.updateDownloadStatus(
+      taskId,
+      'queued',
+      progress: 0,
+      error: null,
+    );
+    unawaited(_processQueue());
+  }
+
+  /// Removes one task. If it is the in-flight download, its remaining work
+  /// (file write, status updates) is skipped by the pipeline's checkpoints.
+  Future<void> cancelTask(int taskId) async {
+    await ref.read(downloadDaoProvider).removeDownload(taskId);
+    unawaited(_processQueue());
+  }
+
+  /// Re-queues every failed task of a novel and kicks processing.
+  Future<void> retryFailed(int novelId) async {
+    final downloadDao = ref.read(downloadDaoProvider);
+    final downloads = await downloadDao.getAllDownloads();
+    for (final d in downloads.where(
+      (d) => d.novelId == novelId && d.status == 'failed',
+    )) {
+      await downloadDao.updateDownloadStatus(
+        d.id,
+        'queued',
+        progress: 0,
+        error: null,
+      );
+    }
+    unawaited(_processQueue());
   }
 
   /// Download a single task
@@ -155,7 +254,9 @@ class DownloadNotifier extends StateNotifier<Map<int, NovelDownloadProgress>> {
     final chapterDao = ref.read(chapterDaoProvider);
 
     try {
-      // Mark as downloading
+      // Row deleted while we waited on a worker slot: user cancelled it.
+      if (await downloadDao.getDownloadById(task.id) == null) return;
+
       await downloadDao.updateDownloadStatus(
         task.id,
         'downloading',
@@ -276,6 +377,13 @@ class DownloadNotifier extends StateNotifier<Map<int, NovelDownloadProgress>> {
         return;
       }
 
+      // Cancelled while the network request ran? Do not touch disk or DB.
+      final stillQueued = await downloadDao.getDownloadById(task.id);
+      if (stillQueued == null) {
+        Log.i(_tag, 'Task ${task.id} cancelled before save');
+        return;
+      }
+
       // Save as Markdown
       final dir = await _getDownloadDir(novel);
       final fileName = '${task.chapterId}.md';
@@ -375,7 +483,7 @@ class DownloadNotifier extends StateNotifier<Map<int, NovelDownloadProgress>> {
       // Also update background service notification
       BackgroundDownloadService.updateNotification(
         title: 'Downloading: $title',
-        content: '$completed/$allChapters.length chapters',
+        content: '$completed/${allChapters.length} chapters',
       );
     } else if (completed > 0 && !isDownloading) {
       final novelDao = ref.read(novelDaoProvider);
@@ -387,7 +495,8 @@ class DownloadNotifier extends StateNotifier<Map<int, NovelDownloadProgress>> {
     }
   }
 
-  /// Cancel all downloads for a novel
+  /// Cancel all downloads for a novel. Deleted rows are the cancel signal;
+  /// in-flight tasks notice and skip their remaining work.
   Future<void> cancelDownloads(int novelId) async {
     final downloadDao = ref.read(downloadDaoProvider);
     final downloads = await downloadDao.getAllDownloads();
@@ -424,6 +533,75 @@ class DownloadNotifier extends StateNotifier<Map<int, NovelDownloadProgress>> {
     }
 
     _updateProgress(novelId);
+  }
+
+  /// Reconciles download state between the database and the filesystem.
+  ///
+  /// - Chapters flagged downloaded whose .md file has vanished (deleted
+  ///   externally, cleared app storage) get their flag cleared so the UI
+  ///   stops claiming content that no longer exists.
+  /// - Numeric `<chapterId>.md/.epub/.html` files with no matching DB row
+  ///   are orphaned leftovers; they are deleted.
+  ///
+  /// Safe to call repeatedly. Returns the number of repaired entries.
+  Future<int> reconcileDownloads({int? novelId}) async {
+    var repairs = 0;
+    final chapterDao = ref.read(chapterDaoProvider);
+    final novelDao = ref.read(novelDaoProvider);
+
+    final List<Novel> novels;
+    if (novelId == null) {
+      novels = await novelDao.getAllNovels();
+    } else {
+      final single = await novelDao.getNovelById(novelId);
+      novels = single == null ? [] : [single];
+    }
+
+    // ── Stale flags: DB says downloaded, file missing ──
+    final stale = <int>[];
+    for (final novel in novels) {
+      final chapters = await chapterDao.getDownloadedChapters(novel.id);
+      for (final chapter in chapters) {
+        final path = chapter.downloadedPath;
+        if (path == null || path.isEmpty) continue;
+        if (!File(path).existsSync()) stale.add(chapter.id);
+      }
+    }
+    for (final id in stale) {
+      await chapterDao.markNotDownloaded(id);
+      repairs++;
+    }
+    if (stale.isNotEmpty) {
+      Log.i(_tag, 'Cleared ${stale.length} stale download flags');
+    }
+
+    // ── Orphan files: on disk, but unknown to the database ──
+    for (final novel in novels) {
+      try {
+        final dir = await _getDownloadDir(novel);
+        final chapters = await chapterDao.getChaptersForNovel(novel.id);
+        final knownIds = {
+          for (final c in chapters)
+            if (c.downloaded) c.id,
+        };
+        await for (final entry in dir.list()) {
+          if (entry is! File) continue;
+          final name = p.basename(entry.path);
+          final match = RegExp(r'^(\d+)\.(md|epub|html)$').firstMatch(name);
+          if (match == null) continue;
+          if (!knownIds.contains(int.parse(match.group(1)!))) {
+            try {
+              await entry.delete();
+              repairs++;
+            } catch (_) {}
+          }
+        }
+      } catch (_) {
+        // Directory missing or unreadable: nothing to clean.
+      }
+    }
+
+    return repairs;
   }
 
   /// Check if a chapter is downloaded

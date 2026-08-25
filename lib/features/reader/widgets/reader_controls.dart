@@ -75,6 +75,7 @@ Widget buildReaderTopBar({
   required VoidCallback onBack,
   required VoidCallback onAddBookmark,
   required VoidCallback onShowBookmarks,
+  String? positionLabel,
 }) {
   final s = settings;
   return Positioned(
@@ -109,15 +110,38 @@ Widget buildReaderTopBar({
                       ),
                       const SizedBox(width: Insets.xs),
                       Expanded(
-                        child: Text(
-                          chapterName,
-                          style: TextStyle(
-                            color: s.textColor,
-                            fontSize: 15,
-                            fontWeight: FontWeight.w500,
-                          ),
-                          maxLines: 1,
-                          overflow: TextOverflow.ellipsis,
+                        child: Row(
+                          children: [
+                            Flexible(
+                              child: Text(
+                                chapterName,
+                                style: TextStyle(
+                                  color: s.textColor,
+                                  fontSize:
+                                      Theme.of(
+                                        context,
+                                      ).textTheme.titleMedium?.fontSize,
+                                  fontWeight: FontWeight.w500,
+                                ),
+                                maxLines: 1,
+                                overflow: TextOverflow.ellipsis,
+                              ),
+                            ),
+                            if (positionLabel != null) ...[
+                              const SizedBox(width: Insets.sm),
+                              Text(
+                                positionLabel,
+                                style: TextStyle(
+                                  color: s.textColor.withValues(alpha: 0.6),
+                                  fontSize:
+                                      Theme.of(
+                                        context,
+                                      ).textTheme.bodySmall?.fontSize,
+                                  fontWeight: FontWeight.w500,
+                                ),
+                              ),
+                            ],
+                          ],
                         ),
                       ),
                       IconButton(

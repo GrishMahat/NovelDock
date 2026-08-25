@@ -3,7 +3,6 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_riverpod/legacy.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
-import '../../../theme/app_theme.dart';
 
 /// Translation settings
 class TranslationSettings {
@@ -113,7 +112,7 @@ class TranslationSettingsPage extends ConsumerWidget {
       body: ListView(
         padding: const EdgeInsets.all(16),
         children: [
-          _buildSection('Language'),
+          _buildSection(context, 'Language'),
           ListTile(
             dense: true,
             contentPadding: EdgeInsets.zero,
@@ -132,7 +131,7 @@ class TranslationSettingsPage extends ConsumerWidget {
           ),
 
           const SizedBox(height: 16),
-          _buildSection('Mode'),
+          _buildSection(context, 'Mode'),
           SwitchListTile(
             dense: true,
             contentPadding: EdgeInsets.zero,
@@ -153,7 +152,7 @@ class TranslationSettingsPage extends ConsumerWidget {
           ),
 
           const SizedBox(height: 16),
-          _buildSection('About'),
+          _buildSection(context, 'About'),
           Card(
             child: Padding(
               padding: EdgeInsets.all(16),
@@ -169,8 +168,7 @@ class TranslationSettingsPage extends ConsumerWidget {
                     'Offline mode uses Google ML Kit for on-device translation. '
                     'Online mode uses Google Translate API (no key required). '
                     'Offline translations are cached locally.',
-                    style: TextStyle(
-                      fontSize: 13,
+                    style: Theme.of(context).textTheme.bodyMedium?.copyWith(
                       color: Theme.of(context).colorScheme.onSurfaceVariant,
                     ),
                   ),
@@ -190,15 +188,13 @@ class TranslationSettingsPage extends ConsumerWidget {
     return code;
   }
 
-  Widget _buildSection(String title) {
+  Widget _buildSection(BuildContext context, String title) {
     return Padding(
       padding: const EdgeInsets.only(bottom: 8),
       child: Text(
         title,
-        style: const TextStyle(
-          fontSize: 14,
-          fontWeight: FontWeight.w600,
-          color: AppTheme.kPrimary,
+        style: Theme.of(context).textTheme.labelLarge?.copyWith(
+          color: Theme.of(context).colorScheme.primary,
         ),
       ),
     );
@@ -228,10 +224,7 @@ class TranslationSettingsPage extends ConsumerWidget {
               padding: const EdgeInsets.all(16),
               child: Text(
                 isSource ? 'Source Language' : 'Target Language',
-                style: const TextStyle(
-                  fontSize: 18,
-                  fontWeight: FontWeight.bold,
-                ),
+                style: Theme.of(context).textTheme.titleLarge,
               ),
             ),
             const Divider(height: 1),
@@ -245,10 +238,12 @@ class TranslationSettingsPage extends ConsumerWidget {
                   return ListTile(
                     leading: Icon(
                       isSelected ? Icons.check_circle : Icons.circle_outlined,
-                      color: isSelected ? AppTheme.kPrimary : null,
+                      color: isSelected
+                          ? Theme.of(context).colorScheme.primary
+                          : null,
                     ),
                     title: Text(name),
-                    subtitle: Text(code, style: const TextStyle(fontSize: 12)),
+                    subtitle: Text(code, style: Theme.of(ctx).textTheme.bodySmall),
                     onTap: () {
                       if (isSource) {
                         notifier.updateFromLanguage(code);

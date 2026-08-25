@@ -48,6 +48,11 @@ class _NovelDetailScreenState extends ConsumerState<NovelDetailScreen> {
   void initState() {
     super.initState();
     _watchNovel();
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      // Verify this novel's downloads still exist on disk before the UI
+      // claims them.
+      ref.read(downloadProvider.notifier).reconcileDownloads(novelId: widget.novelId);
+    });
   }
 
   void _watchNovel() {
@@ -648,10 +653,9 @@ class _NovelDetailScreenState extends ConsumerState<NovelDetailScreen> {
                                   ),
                                   child: Text(
                                     g.trim(),
-                                    style: const TextStyle(
-                                      fontSize: 12,
-                                      fontWeight: FontWeight.w500,
-                                    ),
+                                    style: Theme.of(
+                                      context,
+                                    ).textTheme.labelMedium,
                                   ),
                                 ),
                               )
@@ -696,7 +700,10 @@ class _NovelDetailScreenState extends ConsumerState<NovelDetailScreen> {
                             maxLines: 1,
                             overflow: TextOverflow.ellipsis,
                             style: TextStyle(
-                              fontSize: 14,
+                              fontSize:
+                                  Theme.of(
+                                    context,
+                                  ).textTheme.bodyMedium?.fontSize,
                               fontWeight: chapter.read
                                   ? FontWeight.normal
                                   : FontWeight.w600,
@@ -710,7 +717,8 @@ class _NovelDetailScreenState extends ConsumerState<NovelDetailScreen> {
                           subtitle: Text(
                             'Available',
                             style: TextStyle(
-                              fontSize: 11,
+                              fontSize:
+                                  Theme.of(context).textTheme.labelSmall?.fontSize,
                               color: Theme.of(
                                 context,
                               ).colorScheme.onSurfaceVariant,
@@ -818,7 +826,7 @@ class _ExpandableDescriptionState extends State<_ExpandableDescription> {
             maxLines: _expanded ? null : 2,
             overflow: _expanded ? null : TextOverflow.ellipsis,
             style: TextStyle(
-              fontSize: 13,
+              fontSize: Theme.of(context).textTheme.bodySmall?.fontSize,
               height: 1.4,
               color: Theme.of(
                 context,

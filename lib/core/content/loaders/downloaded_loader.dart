@@ -9,6 +9,16 @@ import 'content_loader.dart';
 
 const _tag = 'DownloadedLoader';
 
+/// Thrown when the database claims a chapter is downloaded but its file is
+/// gone (deleted externally, storage cleared, moved app data, ...).
+class StaleDownloadException implements Exception {
+  final String path;
+  const StaleDownloadException(this.path);
+
+  @override
+  String toString() => 'Downloaded file not found: $path';
+}
+
 class DownloadedLoader extends ContentLoader {
   @override
   Future<ChapterContent> load(Chapter chapter, Ref ref) async {
@@ -21,7 +31,7 @@ class DownloadedLoader extends ContentLoader {
 
     final file = File(path);
     if (!await file.exists()) {
-      throw Exception('Downloaded file not found: $path');
+      throw StaleDownloadException(path);
     }
 
     final content = await file.readAsString();

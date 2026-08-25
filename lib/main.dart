@@ -31,15 +31,39 @@ void main() async {
     'cache': 'no',
     'cache-on-disk': 'no',
   };
-  try {
-    JustAudioMediaKit.ensureInitialized(linux: true, windows: true);
-    debugPrint('JustAudioMediaKit initialized successfully');
-  } catch (e) {
-    debugPrint('JustAudioMediaKit init failed: $e');
-    debugPrint('TTS may not work without media_kit native libs');
+
+  // Desktop only: window sizing must happen before the first frame.
+  // Everything else below runs after the first frame so cold start on
+  // Android is not blocked by plugin initialization.
+  if (!Platform.isAndroid && !Platform.isIOS) {
+    try {
+      JustAudioMediaKit.ensureInitialized(linux: true, windows: true);
+    } catch (e) {
+      debugPrint('JustAudioMediaKit init failed: $e');
+    }
+    await WindowStateManager.init();
   }
 
-  // Initialize notification channels
+  // Initialize log buffer (captures all Log calls in-memory)
+  initLogBuffer();
+
+  runApp(const ProviderScope(child: NovelDockApp()));
+
+  // ── Deferred initialization (post first frame) ──
+  WidgetsBinding.instance.addPostFrameCallback((_) async {
+    try {
+      JustAudioMediaKit.ensureInitialized(linux: true, windows: true);
+    } catch (e) {
+      debugPrint('JustAudioMediaKit init failed: $e');
+    }
+
+    await _initNotifications();
+
+    await BackgroundDownloadService.init();
+  });
+}
+
+Future<void> _initNotifications() async {
   const androidSettings = AndroidInitializationSettings('@mipmap/ic_launcher');
   const linuxSettings = LinuxInitializationSettings(defaultActionName: 'Open');
   const initSettings = InitializationSettings(
@@ -48,46 +72,43 @@ void main() async {
   );
   await flutterLocalNotificationsPlugin.initialize(settings: initSettings);
 
-  // Create notification channels (Android only)
-  if (Platform.isAndroid) {
-    final androidPlugin = flutterLocalNotificationsPlugin
-        .resolvePlatformSpecificImplementation<
-          AndroidFlutterLocalNotificationsPlugin
-        >();
-    await androidPlugin?.createNotificationChannel(
-      const AndroidNotificationChannel(
-        'downloads',
-        'Downloads',
-        description: 'Download progress notifications',
-        importance: Importance.low,
-      ),
-    );
-    await androidPlugin?.createNotificationChannel(
-      const AndroidNotificationChannel(
-        'tts',
-        'Text-to-Speech',
-        description: 'TTS playback notifications',
-        importance: Importance.low,
-      ),
-    );
-    await androidPlugin?.createNotificationChannel(
-      const AndroidNotificationChannel(
-        'updates',
-        'Updates',
-        description: 'Registry and provider update notifications',
-        importance: Importance.low,
-      ),
-    );
-  }
+  if (!Platform.isAndroid) return;
 
-  // Initialize background download service (Android foreground service)
-  BackgroundDownloadService.init();
+  final androidPlugin = flutterLocalNotificationsPlugin
+      .resolvePlatformSpecificImplementation<
+        AndroidFlutterLocalNotificationsPlugin
+      >();
 
-  // Desktop: min window size + remember last window bounds
-  await WindowStateManager.init();
+  // Android 13+ requires a runtime permission request before ANY
+  // notification (TTS, downloads) becomes visible.
+  await androidPlugin?.requestNotificationsPermission();
 
-  // Initialize log buffer (captures all Log calls in-memory)
-  initLogBuffer();
+  // Channel ids must match what the notification senders use:
+  // audio_service posts to dev.grish.noveldock.tts (see initAudioService).
+  await androidPlugin?.createNotificationChannel(
+    const AndroidNotificationChannel(
+      'downloads',
+      'Downloads',
+      description: 'Download progress notifications',
+      importance: Importance.low,
+    ),
+  );
+  await androidPlugin?.createNotificationChannel(
+    const AndroidNotificationChannel(
+      'dev.grish.noveldock.tts',
+      'Text-to-Speech',
+      description: 'TTS playback notifications',
+      importance: Importance.low,
+    ),
+  );
+  await androidPlugin?.createNotificationChannel(
+    const AndroidNotificationChannel(
+      'updates',
+      'Updates',
+      description: 'Registry and provider update notifications',
+      importance: Importance.low,
+    ),
+  );
 
-  runApp(const ProviderScope(child: NovelDockApp()));
+  await BackgroundDownloadService.init();
 }

@@ -45,8 +45,9 @@ class _GeneralTab extends ConsumerWidget {
       padding: const EdgeInsets.all(16),
       children: [
         // ── Font ──
-        section('Font'),
+        section(context, 'Font'),
         tile(
+          context,
           title: 'Font Family',
           subtitle: settings.fontFamily.isEmpty
               ? kDefaultReaderFont
@@ -54,6 +55,7 @@ class _GeneralTab extends ConsumerWidget {
           onTap: () => _showFontPicker(context, settings, notifier),
         ),
         slider(
+        context,
           'Size',
           settings.fontSize,
           10,
@@ -62,6 +64,7 @@ class _GeneralTab extends ConsumerWidget {
           (v) => notifier.updateFontSize(v),
         ),
         slider(
+        context,
           'Line Height',
           settings.lineHeight,
           1.0,
@@ -72,8 +75,9 @@ class _GeneralTab extends ConsumerWidget {
 
         const SizedBox(height: 16),
         // ── Layout ──
-        section('Layout'),
+        section(context, 'Layout'),
         slider(
+        context,
           'H Padding',
           settings.paddingH,
           0,
@@ -82,6 +86,7 @@ class _GeneralTab extends ConsumerWidget {
           (v) => notifier.updatePaddingH(v),
         ),
         slider(
+        context,
           'V Padding',
           settings.paddingV,
           0,
@@ -90,6 +95,7 @@ class _GeneralTab extends ConsumerWidget {
           (v) => notifier.updatePaddingV(v),
         ),
         slider(
+        context,
           'Paragraph Gap',
           settings.paragraphSpacing,
           0,
@@ -100,25 +106,28 @@ class _GeneralTab extends ConsumerWidget {
 
         const SizedBox(height: 16),
         // ── Text ──
-        section('Text'),
-        _alignmentRow(settings, notifier),
+        section(context, 'Text'),
+        _alignmentRow(context, settings, notifier),
 
         const SizedBox(height: 16),
         // ── Display ──
-        section('Display'),
+        section(context, 'Display'),
         switchTile(
+        context,
           'Bionic Reading',
           'Bold first half of each word',
           settings.bionicReading,
           (_) => notifier.toggleBionicReading(),
         ),
         switchTile(
+        context,
           'Selectable Text',
           null,
           settings.selectableText,
           (_) => notifier.toggleSelectableText(),
         ),
         switchTile(
+        context,
           'Show Time',
           null,
           settings.showTime,
@@ -126,12 +135,14 @@ class _GeneralTab extends ConsumerWidget {
         ),
         if (!Platform.isLinux && !Platform.isMacOS && !Platform.isWindows) ...[
           switchTile(
+        context,
             'Show Battery',
             null,
             settings.showBattery,
             (_) => notifier.toggleShowBattery(),
           ),
           switchTile(
+        context,
             'Keep Screen On',
             null,
             settings.keepScreenOn,
@@ -141,7 +152,7 @@ class _GeneralTab extends ConsumerWidget {
 
         const SizedBox(height: 16),
         // ── Scroll ──
-        section('Scroll'),
+        section(context, 'Scroll'),
         RadioGroup<String>(
           groupValue: settings.scrollMode,
           onChanged: (v) => notifier.updateScrollMode(v!),
@@ -159,7 +170,7 @@ class _GeneralTab extends ConsumerWidget {
 
         if (!Platform.isLinux && !Platform.isMacOS && !Platform.isWindows) ...[
           const SizedBox(height: 16),
-          section('Orientation'),
+          section(context, 'Orientation'),
           RadioGroup<String>(
             groupValue: settings.orientation,
             onChanged: (v) => notifier.updateOrientation(v!),
@@ -183,23 +194,26 @@ class _GeneralTab extends ConsumerWidget {
 
         const SizedBox(height: 16),
         // ── Theme ──
-        section('Theme'),
+        section(context, 'Theme'),
         _themeRow(context, settings, notifier),
 
         const SizedBox(height: 16),
         // ── Tap Zones ──
-        section('Tap Zones'),
+        section(context, 'Tap Zones'),
         _tapZoneRow(
+          context,
           'Left',
           settings.leftTapAction,
           (v) => notifier.updateLeftTapAction(v!),
         ),
         _tapZoneRow(
+          context,
           'Center',
           settings.centerTapAction,
           (v) => notifier.updateCenterTapAction(v!),
         ),
         _tapZoneRow(
+          context,
           'Right',
           settings.rightTapAction,
           (v) => notifier.updateRightTapAction(v!),
@@ -225,11 +239,11 @@ class _GeneralTab extends ConsumerWidget {
           expand: false,
           builder: (ctx, scrollController) => Column(
             children: [
-              const Padding(
-                padding: EdgeInsets.all(16),
+              Padding(
+                padding: const EdgeInsets.all(16),
                 child: Text(
                   'Select Font',
-                  style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
+                  style: Theme.of(ctx).textTheme.titleLarge,
                 ),
               ),
               const Divider(height: 1),
@@ -247,13 +261,14 @@ class _GeneralTab extends ConsumerWidget {
                           isDefault
                               ? Icons.check_circle
                               : Icons.circle_outlined,
-                          color: isDefault ? AppTheme.kPrimary : null,
+                          color: isDefault
+                              ? Theme.of(ctx).colorScheme.primary
+                              : null,
                         ),
                         title: Text(
                           kDefaultReaderFont,
-                          style: const TextStyle(
+                          style: Theme.of(ctx).textTheme.bodyLarge?.copyWith(
                             fontFamily: kDefaultReaderFont,
-                            fontSize: 16,
                           ),
                         ),
                         subtitle: const Text('Bundled default'),
@@ -384,10 +399,8 @@ class _GeneralTab extends ConsumerWidget {
           const SizedBox(height: 4),
           Text(
             label,
-            style: TextStyle(
-              fontSize: 10,
-              color: isSelected ? AppTheme.kPrimary : null,
-              fontWeight: isSelected ? FontWeight.bold : FontWeight.normal,
+            style: Theme.of(context).textTheme.labelSmall?.copyWith(
+              color: isSelected ? Theme.of(context).colorScheme.primary : null,
             ),
           ),
         ],
@@ -396,14 +409,15 @@ class _GeneralTab extends ConsumerWidget {
   }
 
   Widget _alignmentRow(
+    BuildContext context,
     ReaderSettings settings,
     ReaderSettingsNotifier notifier,
   ) {
     return Row(
       children: [
-        const SizedBox(
+        SizedBox(
           width: 80,
-          child: Text('Align', style: TextStyle(fontSize: 13)),
+          child: Text('Align', style: Theme.of(context).textTheme.bodyMedium),
         ),
         Expanded(
           child: SegmentedButton<String>(
@@ -434,6 +448,7 @@ class _GeneralTab extends ConsumerWidget {
   }
 
   Widget _tapZoneRow(
+    BuildContext context,
     String label,
     String value,
     ValueChanged<String?> onChanged,
@@ -444,27 +459,15 @@ class _GeneralTab extends ConsumerWidget {
         children: [
           SizedBox(
             width: 80,
-            child: Text(label, style: const TextStyle(fontSize: 13)),
+            child: Text(label, style: Theme.of(context).textTheme.bodyMedium),
           ),
           Expanded(
             child: SegmentedButton<String>(
               segments: const [
-                ButtonSegment(
-                  value: 'previous',
-                  label: Text('Prev', style: TextStyle(fontSize: 11)),
-                ),
-                ButtonSegment(
-                  value: 'menu',
-                  label: Text('Menu', style: TextStyle(fontSize: 11)),
-                ),
-                ButtonSegment(
-                  value: 'next',
-                  label: Text('Next', style: TextStyle(fontSize: 11)),
-                ),
-                ButtonSegment(
-                  value: 'none',
-                  label: Text('Off', style: TextStyle(fontSize: 11)),
-                ),
+                ButtonSegment(value: 'previous', label: Text('Prev')),
+                ButtonSegment(value: 'menu', label: Text('Menu')),
+                ButtonSegment(value: 'next', label: Text('Next')),
+                ButtonSegment(value: 'none', label: Text('Off')),
               ],
               selected: {value},
               onSelectionChanged: (s) => onChanged(s.first),

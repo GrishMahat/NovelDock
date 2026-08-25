@@ -4,13 +4,12 @@ import 'dart:typed_data';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
-import '../../../../core/tts/engine/edge_tts_engine.dart';
+import '../../../../core/tts/engine/system_tts_engine.dart';
 import '../../../../core/tts/engine/tts_engine.dart';
 import '../../../../core/tts/tts_manager.dart';
 import '../../../../core/tts/tts_player.dart';
 import '../../../../core/tts/tts_stream_source.dart';
 import '../../../../core/utils/logger.dart';
-import '../../../../theme/app_theme.dart';
 import '../reader_helpers.dart';
 
 class TtsTab extends ConsumerWidget {
@@ -30,7 +29,10 @@ class TtsTab extends ConsumerWidget {
             padding: const EdgeInsets.all(12),
             child: Row(
               children: [
-                Icon(Icons.record_voice_over, color: AppTheme.kPrimary),
+                Icon(
+                  Icons.record_voice_over,
+                  color: Theme.of(context).colorScheme.primary,
+                ),
                 const SizedBox(width: 12),
                 Expanded(
                   child: Column(
@@ -42,8 +44,7 @@ class TtsTab extends ConsumerWidget {
                       ),
                       Text(
                         'Neural voices, works on all platforms',
-                        style: TextStyle(
-                          fontSize: 12,
+                        style: Theme.of(context).textTheme.bodySmall?.copyWith(
                           color: Theme.of(context).colorScheme.onSurfaceVariant,
                         ),
                       ),
@@ -57,10 +58,44 @@ class TtsTab extends ConsumerWidget {
 
         const SizedBox(height: 16),
 
+        // ── Engine ──
+        if (SystemTtsEngine.isSupported) ...[
+          section(context, 'Voice engine'),
+          SegmentedButton<String>(
+            segments: const [
+              ButtonSegment(
+                value: 'edge',
+                label: Text('Microsoft'),
+                icon: Icon(Icons.cloud_outlined),
+              ),
+              ButtonSegment(
+                value: 'system',
+                label: Text('On device'),
+                icon: Icon(Icons.phone_android),
+              ),
+            ],
+            selected: {ttsState.engineId},
+            onSelectionChanged: (selection) {
+              unawaited(ttsNotifier.setTtsEngine(selection.first));
+            },
+          ),
+          Text(
+            ttsState.engineId == 'system'
+                ? 'Uses the voices installed on this device.'
+                : 'Streams natural voices from Microsoft servers.',
+            style: Theme.of(context).textTheme.bodySmall?.copyWith(
+              color: Theme.of(context).colorScheme.onSurfaceVariant,
+            ),
+          ),
+        ],
+
+        const SizedBox(height: 16),
+
         // ── Playback ──
-        section('Playback'),
+        section(context, 'Playback'),
 
         slider(
+        context,
           'Speed',
           ttsState.speed,
           0.5,
@@ -72,6 +107,7 @@ class TtsTab extends ConsumerWidget {
         ),
 
         slider(
+        context,
           'Pitch',
           ttsState.pitch,
           0.5,
@@ -85,24 +121,28 @@ class TtsTab extends ConsumerWidget {
         const SizedBox(height: 16),
 
         // ── Voice ──
-        section('Voice'),
+        section(context, 'Voice'),
 
         tile(
+          context,
           title: 'Language',
           subtitle: _languageName(ttsState.language),
           onTap: () => _showLanguagePicker(context, ref),
         ),
 
         tile(
+          context,
           title: 'Voice',
-          subtitle: ttsState.voice.isEmpty ? 'Default (Brian)' : ttsState.voice,
+          subtitle: ttsState.voice.isEmpty
+              ? (ttsState.engineId == 'system' ? 'Device default' : 'Default (Brian)')
+              : ttsState.voice,
           onTap: () => _showVoicePicker(context, ref),
         ),
 
         const SizedBox(height: 16),
 
         // ── Highlight ──
-        section('Read-along Highlight'),
+        section(context, 'Read-along Highlight'),
 
         radioTts(
           context,
@@ -200,11 +240,11 @@ class TtsTab extends ConsumerWidget {
           builder: (ctx, scrollController) {
             return Column(
               children: [
-                const Padding(
-                  padding: EdgeInsets.all(16),
+                Padding(
+                  padding: const EdgeInsets.all(16),
                   child: Text(
                     'Select Language',
-                    style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
+                    style: Theme.of(ctx).textTheme.titleLarge,
                   ),
                 ),
                 const Divider(height: 1),
@@ -222,13 +262,12 @@ class TtsTab extends ConsumerWidget {
                           isSelected
                               ? Icons.check_circle
                               : Icons.circle_outlined,
-                          color: isSelected ? AppTheme.kPrimary : null,
+                          color: isSelected
+                              ? Theme.of(ctx).colorScheme.primary
+                              : null,
                         ),
                         title: Text(name),
-                        subtitle: Text(
-                          code,
-                          style: const TextStyle(fontSize: 12),
-                        ),
+                        subtitle: Text(code, style: Theme.of(ctx).textTheme.bodySmall),
                         onTap: () {
                           unawaited(notifier.updateLanguage(code));
 
@@ -263,6 +302,7 @@ class TtsTab extends ConsumerWidget {
           voices: voices,
           current: current,
           notifier: notifier,
+          engine: notifier.activeEngine,
         );
       },
     );
@@ -273,11 +313,13 @@ class _VoicePickerSheet extends StatefulWidget {
   final List<TtsEngineVoice> voices;
   final String current;
   final TtsManager notifier;
+  final TtsEngine engine;
 
   const _VoicePickerSheet({
     required this.voices,
     required this.current,
     required this.notifier,
+    required this.engine,
   });
 
   @override
@@ -286,8 +328,6 @@ class _VoicePickerSheet extends StatefulWidget {
 
 class _VoicePickerSheetState extends State<_VoicePickerSheet> {
   final TextEditingController _searchController = TextEditingController();
-
-  final EdgeTtsEngine _engine = EdgeTtsEngine();
 
   final TtsPlayer _samplePlayer = TtsPlayer();
 
@@ -312,8 +352,6 @@ class _VoicePickerSheetState extends State<_VoicePickerSheet> {
     _searchController.dispose();
 
     unawaited(_samplePlayer.dispose());
-
-    unawaited(_engine.close());
 
     super.dispose();
   }
@@ -361,7 +399,7 @@ class _VoicePickerSheetState extends State<_VoicePickerSheet> {
     try {
       final audio = BytesBuilder();
 
-      await for (final event in _engine.synthesize(
+      await for (final event in widget.engine.synthesize(
         'Hello! This is a sample of the '
         '${voice.name} voice. '
         'You can use this voice for '
@@ -472,11 +510,11 @@ class _VoicePickerSheetState extends State<_VoicePickerSheet> {
       builder: (ctx, scrollController) {
         return Column(
           children: [
-            const Padding(
-              padding: EdgeInsets.fromLTRB(16, 16, 16, 8),
+            Padding(
+              padding: const EdgeInsets.fromLTRB(16, 16, 16, 8),
               child: Text(
                 'Select Voice',
-                style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
+                style: Theme.of(ctx).textTheme.titleLarge,
               ),
             ),
 
@@ -524,8 +562,7 @@ class _VoicePickerSheetState extends State<_VoicePickerSheet> {
                 alignment: Alignment.centerLeft,
                 child: Text(
                   '${filtered.length} voices',
-                  style: TextStyle(
-                    fontSize: 11,
+                  style: Theme.of(context).textTheme.labelSmall?.copyWith(
                     color: Theme.of(context).colorScheme.onSurfaceVariant,
                   ),
                 ),
@@ -540,7 +577,9 @@ class _VoicePickerSheetState extends State<_VoicePickerSheet> {
                 _selectedVoice.isEmpty
                     ? Icons.check_circle
                     : Icons.circle_outlined,
-                color: _selectedVoice.isEmpty ? AppTheme.kPrimary : null,
+                color: _selectedVoice.isEmpty
+                    ? Theme.of(context).colorScheme.primary
+                    : null,
               ),
               title: const Text('Default (Brian)'),
               onTap: () {
@@ -583,7 +622,9 @@ class _VoicePickerSheetState extends State<_VoicePickerSheet> {
                             isSelected
                                 ? Icons.check_circle
                                 : Icons.circle_outlined,
-                            color: isSelected ? AppTheme.kPrimary : null,
+                            color: isSelected
+                                ? Theme.of(context).colorScheme.primary
+                                : null,
                           ),
                           title: Text(
                             voice.name,
@@ -597,7 +638,7 @@ class _VoicePickerSheetState extends State<_VoicePickerSheet> {
                                   voice.gender!.isNotEmpty)
                                 voice.gender!,
                             ].join(' · '),
-                            style: const TextStyle(fontSize: 11),
+                            style: Theme.of(context).textTheme.labelSmall,
                           ),
                           trailing: IconButton(
                             icon: Icon(
@@ -605,7 +646,7 @@ class _VoicePickerSheetState extends State<_VoicePickerSheet> {
                                   ? Icons.stop_circle
                                   : Icons.play_circle_outline,
                               color: isPlaying
-                                  ? AppTheme.kPrimary
+                                  ? Theme.of(context).colorScheme.primary
                                   : Theme.of(
                                       context,
                                     ).colorScheme.onSurfaceVariant,

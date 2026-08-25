@@ -4,7 +4,6 @@ import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 import 'package:package_info_plus/package_info_plus.dart';
 
-import '../../theme/app_theme.dart';
 import '../../theme/tokens.dart';
 import '../../widgets/max_width_box.dart';
 import 'pages/about_page.dart';
@@ -113,6 +112,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
 
   Widget _buildDesktop(BuildContext context) {
     final scheme = Theme.of(context).colorScheme;
+    final textTheme = Theme.of(context).textTheme;
     return Scaffold(
       body: Row(
         crossAxisAlignment: CrossAxisAlignment.stretch,
@@ -138,9 +138,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
                     ),
                     child: Text(
                       'Settings',
-                      style: TextStyle(
-                        fontSize: 18,
-                        fontWeight: FontWeight.w600,
+                      style: textTheme.titleLarge?.copyWith(
                         color: scheme.onSurface,
                       ),
                     ),
@@ -165,7 +163,8 @@ class _SettingsScreenState extends State<SettingsScreen> {
                       title: Text(
                         _tiles[i].title,
                         style: TextStyle(
-                          fontSize: 14,
+                          fontSize:
+                              textTheme.bodyMedium?.fontSize,
                           fontWeight: i == _selectedIndex
                               ? FontWeight.w600
                               : FontWeight.w400,
@@ -176,8 +175,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
                       ),
                       subtitle: Text(
                         _tiles[i].subtitle,
-                        style: TextStyle(
-                          fontSize: 11,
+                        style: textTheme.labelSmall?.copyWith(
                           color: scheme.onSurfaceVariant.withValues(alpha: 0.8),
                         ),
                       ),
@@ -195,14 +193,15 @@ class _SettingsScreenState extends State<SettingsScreen> {
                       size: 20,
                       color: scheme.onSurfaceVariant,
                     ),
-                    title: const Text(
+                    title: Text(
                       'Download queue',
-                      style: TextStyle(fontSize: 14, color: AppTheme.kPrimary),
+                      style: textTheme.labelLarge?.copyWith(
+                        color: scheme.primary,
+                      ),
                     ),
                     subtitle: Text(
                       'Active downloads',
-                      style: TextStyle(
-                        fontSize: 11,
+                      style: textTheme.labelSmall?.copyWith(
                         color: scheme.onSurfaceVariant.withValues(alpha: 0.8),
                       ),
                     ),
@@ -324,10 +323,8 @@ class _SettingsScreenState extends State<SettingsScreen> {
           padding: const EdgeInsets.fromLTRB(16, 24, 16, 4),
           child: Text(
             title,
-            style: const TextStyle(
-              fontSize: 14,
-              fontWeight: FontWeight.w600,
-              color: AppTheme.kPrimary,
+            style: Theme.of(context).textTheme.labelLarge?.copyWith(
+              color: Theme.of(context).colorScheme.primary,
             ),
           ),
         ),
@@ -365,7 +362,7 @@ class _SettingsTile extends StatelessWidget {
         color: Theme.of(context).colorScheme.onSurfaceVariant,
       ),
       title: Text(title),
-      subtitle: Text(subtitle, style: const TextStyle(fontSize: 12)),
+      subtitle: Text(subtitle, style: Theme.of(context).textTheme.bodySmall),
       trailing: const Icon(Icons.chevron_right),
       onTap: onTap,
     );

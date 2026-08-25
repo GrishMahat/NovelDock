@@ -95,9 +95,9 @@ class _ProviderManagementPageState
             ).colorScheme.onSurfaceVariant.withValues(alpha: 0.5),
           ),
           const SizedBox(height: 16),
-          const Text(
+          Text(
             'No registries added',
-            style: TextStyle(fontSize: 18, fontWeight: FontWeight.w600),
+            style: Theme.of(context).textTheme.titleLarge,
           ),
           const SizedBox(height: 8),
           Text(
@@ -156,10 +156,9 @@ class _ProviderManagementPageState
                           Flexible(
                             child: Text(
                               registry.name ?? registry.id,
-                              style: const TextStyle(
-                                fontSize: 15,
-                                fontWeight: FontWeight.w600,
-                              ),
+                              style: Theme.of(
+                                context,
+                              ).textTheme.titleMedium,
                               overflow: TextOverflow.ellipsis,
                             ),
                           ),
@@ -178,11 +177,11 @@ class _ProviderManagementPageState
                               ),
                               child: Text(
                                 status.toUpperCase(),
-                                style: TextStyle(
-                                  fontSize: 9,
-                                  fontWeight: FontWeight.bold,
-                                  color: _registryStatusColor(status),
-                                ),
+                                style: Theme.of(context).textTheme.labelSmall
+                                    ?.copyWith(
+                                      letterSpacing: 0.5,
+                                      color: _registryStatusColor(status),
+                                    ),
                               ),
                             ),
                           ],
@@ -194,11 +193,11 @@ class _ProviderManagementPageState
                           padding: const EdgeInsets.only(top: 2),
                           child: Text(
                             registry.description!,
-                            style: TextStyle(
-                              fontSize: 12,
-                              color: Theme.of(
-                                context,
-                              ).colorScheme.onSurfaceVariant,
+                            style: Theme.of(context).textTheme.bodySmall
+                                ?.copyWith(
+                                  color: Theme.of(
+                                    context,
+                                  ).colorScheme.onSurfaceVariant,
                             ),
                             maxLines: 1,
                             overflow: TextOverflow.ellipsis,
@@ -236,8 +235,7 @@ class _ProviderManagementPageState
               padding: const EdgeInsets.only(left: 4, top: 4),
               child: Text(
                 registry.url,
-                style: TextStyle(
-                  fontSize: 11,
+                style: Theme.of(context).textTheme.labelSmall?.copyWith(
                   color: Theme.of(context).colorScheme.onSurfaceVariant,
                 ),
                 maxLines: 1,
@@ -321,9 +319,9 @@ class _ProviderManagementPageState
             mainAxisSize: MainAxisSize.min,
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              const Text(
+              Text(
                 'Enter the raw URL to a registry.json file:',
-                style: TextStyle(fontSize: 13),
+                style: Theme.of(context).textTheme.bodyMedium,
               ),
               const SizedBox(height: 16),
               TextField(
@@ -378,7 +376,9 @@ class _ProviderManagementPageState
                           Expanded(
                             child: Text(
                               error,
-                              style: TextStyle(fontSize: 12, color: scheme.error),
+                              style: Theme.of(
+                                context,
+                              ).textTheme.bodySmall?.copyWith(color: scheme.error),
                             ),
                           ),
                         ],

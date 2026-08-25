@@ -45,7 +45,7 @@ void showTranslateDialog(BuildContext context, WidgetRef ref) {
                   ),
                   child: Text(
                     translatedText!,
-                    style: const TextStyle(fontSize: 14),
+                    style: Theme.of(context).textTheme.bodyMedium,
                   ),
                 ),
               ],

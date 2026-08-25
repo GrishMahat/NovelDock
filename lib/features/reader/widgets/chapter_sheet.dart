@@ -2,7 +2,6 @@ import 'package:epubx_kuebiko/epubx_kuebiko.dart';
 import 'package:flutter/material.dart';
 
 import '../../../core/database/database.dart';
-import '../../../theme/app_theme.dart';
 
 /// Shows a draggable bottom sheet listing all chapters.
 void showChapterListSheet({
@@ -21,11 +20,11 @@ void showChapterListSheet({
       expand: false,
       builder: (context, scrollController) => Column(
         children: [
-          const Padding(
-            padding: EdgeInsets.all(16),
+          Padding(
+            padding: const EdgeInsets.all(16),
             child: Text(
               'Chapters',
-              style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
+              style: Theme.of(context).textTheme.titleLarge,
             ),
           ),
           const Divider(height: 1),
@@ -40,13 +39,18 @@ void showChapterListSheet({
                   leading: CircleAvatar(
                     radius: 16,
                     backgroundColor: isCurrent
-                        ? AppTheme.kPrimary.withValues(alpha: 0.2)
+                        ? Theme.of(
+                            context,
+                          ).colorScheme.primary.withValues(alpha: 0.2)
                         : Theme.of(context).colorScheme.surfaceContainerHighest,
                     child: Text(
                       '${index + 1}',
-                      style: TextStyle(
-                        fontSize: 12,
-                        color: isCurrent ? AppTheme.kPrimary : null,
+                      style: Theme.of(
+                        context,
+                      ).textTheme.labelMedium?.copyWith(
+                        color: isCurrent
+                            ? Theme.of(context).colorScheme.primary
+                            : null,
                       ),
                     ),
                   ),
@@ -91,11 +95,11 @@ void showEpubTocSheet({
       expand: false,
       builder: (context, scrollController) => Column(
         children: [
-          const Padding(
-            padding: EdgeInsets.all(16),
+          Padding(
+            padding: const EdgeInsets.all(16),
             child: Text(
               'Table of Contents',
-              style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
+              style: Theme.of(context).textTheme.titleLarge,
             ),
           ),
           const Divider(height: 1),
