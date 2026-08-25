@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 
 import '../../../core/providers/filters.dart';
+import '../../../theme/tokens.dart';
 
 /// Generic bottom-sheet filter UI rendered from provider-declared [FilterDef]s.
 class FilterSheet extends StatefulWidget {
@@ -111,28 +112,19 @@ class _FilterSheetState extends State<FilterSheet> {
       builder: (context, scrollController) {
         return Column(
           children: [
-            const SizedBox(height: 8),
-            Container(
-              width: 36,
-              height: 4,
-              decoration: BoxDecoration(
-                color: Theme.of(
-                  context,
-                ).colorScheme.onSurfaceVariant.withValues(alpha: 0.45),
-                borderRadius: BorderRadius.circular(2),
-              ),
-            ),
             Padding(
-              padding: const EdgeInsets.fromLTRB(16, 8, 8, 4),
+              padding: const EdgeInsets.fromLTRB(
+                Insets.lg,
+                Insets.sm,
+                Insets.sm,
+                Insets.xs,
+              ),
               child: Row(
                 children: [
-                  const Expanded(
+                  Expanded(
                     child: Text(
                       'Filters',
-                      style: TextStyle(
-                        fontSize: 18,
-                        fontWeight: FontWeight.w600,
-                      ),
+                      style: Theme.of(context).textTheme.titleLarge,
                     ),
                   ),
                   TextButton(
@@ -331,12 +323,15 @@ class _FilterSheetState extends State<FilterSheet> {
 
   Widget _header(String title) {
     return Padding(
-      padding: const EdgeInsets.fromLTRB(16, 16, 16, 4),
+      padding: const EdgeInsets.fromLTRB(
+        Insets.lg,
+        Insets.lg,
+        Insets.lg,
+        Insets.xs,
+      ),
       child: Text(
         title,
-        style: TextStyle(
-          fontSize: 13,
-          fontWeight: FontWeight.w600,
+        style: Theme.of(context).textTheme.titleSmall?.copyWith(
           color: Theme.of(context).colorScheme.primary,
         ),
       ),
@@ -422,28 +417,19 @@ class _SearchSourcesSheetState extends State<SearchSourcesSheet> {
       builder: (context, scrollController) {
         return Column(
           children: [
-            const SizedBox(height: 8),
-            Container(
-              width: 36,
-              height: 4,
-              decoration: BoxDecoration(
-                color: Theme.of(
-                  context,
-                ).colorScheme.onSurfaceVariant.withValues(alpha: 0.45),
-                borderRadius: BorderRadius.circular(2),
-              ),
-            ),
             Padding(
-              padding: const EdgeInsets.fromLTRB(16, 8, 8, 4),
+              padding: const EdgeInsets.fromLTRB(
+                Insets.lg,
+                Insets.sm,
+                Insets.sm,
+                Insets.xs,
+              ),
               child: Row(
                 children: [
-                  const Expanded(
+                  Expanded(
                     child: Text(
                       'Search sources',
-                      style: TextStyle(
-                        fontSize: 18,
-                        fontWeight: FontWeight.w600,
-                      ),
+                      style: Theme.of(context).textTheme.titleLarge,
                     ),
                   ),
                   if (allSelected)

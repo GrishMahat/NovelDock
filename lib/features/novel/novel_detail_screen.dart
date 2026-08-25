@@ -89,9 +89,6 @@ class _NovelDetailScreenState extends ConsumerState<NovelDetailScreen> {
       showModalBottomSheet(
         context: context,
         isScrollControlled: true,
-        shape: const RoundedRectangleBorder(
-          borderRadius: BorderRadius.vertical(top: Radius.circular(16)),
-        ),
         builder: (ctx) => DownloadRangeSheet(
           totalChapters: chapters.length,
           minChapter: minChapter,
@@ -146,7 +143,6 @@ class _NovelDetailScreenState extends ConsumerState<NovelDetailScreen> {
   void _showCoverViewer(String url) {
     showDialog(
       context: context,
-      barrierColor: Colors.black87,
       builder: (context) => Dialog.fullscreen(
         backgroundColor: Colors.transparent,
         child: Stack(
@@ -591,11 +587,6 @@ class _NovelDetailScreenState extends ConsumerState<NovelDetailScreen> {
                           onTap: () async {
                             final status = await showModalBottomSheet<String>(
                               context: context,
-                              shape: const RoundedRectangleBorder(
-                                borderRadius: BorderRadius.vertical(
-                                  top: Radius.circular(16),
-                                ),
-                              ),
                               builder: (ctx) => const StatusPickerSheet(),
                             );
                             if (status == null) return;

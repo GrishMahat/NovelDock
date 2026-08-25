@@ -12,6 +12,7 @@ import '../../widgets/header_search_field.dart';
 import '../../widgets/max_width_box.dart';
 import '../../widgets/page_header.dart';
 import '../../widgets/shimmer_list.dart';
+import '../novel/widgets/status_picker_sheet.dart';
 import 'widgets/library_grid_item.dart';
 
 class LibraryScreen extends ConsumerStatefulWidget {
@@ -111,6 +112,7 @@ class _LibraryScreenState extends ConsumerState<LibraryScreen>
           IconButton(
             icon: Icon(_displayMode.icon),
             onPressed: () => setState(() => _displayMode = _displayMode.next),
+            tooltip: 'Display mode',
           ),
         ],
         bottom: TabBar(
@@ -415,51 +417,20 @@ class _LibraryScreenState extends ConsumerState<LibraryScreen>
 
   void _showStatusMenu(Novel novel) {
     final libraryDao = ref.read(libraryDaoProvider);
-    showModalBottomSheet(
+    final inLibrary = novel.status != null && novel.status!.isNotEmpty;
+    showModalBottomSheet<String>(
       context: context,
-      builder: (ctx) => Column(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          Padding(
-            padding: const EdgeInsets.all(16),
-            child: Text(
-              novel.title,
-              style: const TextStyle(fontWeight: FontWeight.bold),
-            ),
-          ),
-          const Divider(height: 1),
-          for (final s in [
-            'Reading',
-            'On Hold',
-            'Plan to Read',
-            'Completed',
-            'Dropped',
-          ])
-            ListTile(
-              leading: const Icon(Icons.library_books),
-              title: Text(s),
-              onTap: () {
-                libraryDao.updateStatus(novel.id, s);
-                Navigator.pop(ctx);
-              },
-            ),
-          const Divider(),
-          ListTile(
-            leading: Icon(
-              Icons.remove_circle,
-              color: Theme.of(context).colorScheme.error,
-            ),
-            title: Text(
-              'None',
-              style: TextStyle(color: Theme.of(context).colorScheme.error),
-            ),
-            onTap: () {
-              libraryDao.removeFromLibrary(novel.id);
-              Navigator.pop(ctx);
-            },
-          ),
-        ],
+      builder: (ctx) => StatusPickerSheet(
+        title: inLibrary ? 'Set status' : 'Add to library',
+        initialStatus: novel.status,
       ),
-    );
+    ).then((result) {
+      if (result == null || !mounted) return;
+      if (result == 'None') {
+        libraryDao.removeFromLibrary(novel.id);
+      } else if (result != novel.status) {
+        libraryDao.updateStatus(novel.id, result);
+      }
+    });
   }
 }

@@ -33,6 +33,13 @@ class AppTheme {
   static const Color kReaderBgDefault = Color(0xFF121212);
   static const Color kReaderTextDefault = Color(0xFFCCCCCC);
 
+  /// Error accent legible on every reader background (light and dark).
+  static const Color kReaderError = Color(0xFFE57373);
+
+  /// Link + TTS-highlight accent for reader prose; tuned to stay legible
+  /// across all [kReaderBgColors] backgrounds.
+  static const Color kReaderAccent = Color(0xFF7FA8E0);
+
   /// Theme for a reader background/text color pair.
   static ThemeData readerTheme(Color bg, Color text) {
     return ThemeData(

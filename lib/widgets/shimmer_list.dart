@@ -1,6 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:shimmer/shimmer.dart';
 
+import '../theme/tokens.dart';
+
 class ShimmerGrid extends StatelessWidget {
   final int itemCount;
   final int crossAxisCount;
@@ -28,7 +30,6 @@ class ShimmerGrid extends StatelessWidget {
         aspectRatio: aspectRatio,
       ),
       physics: const NeverScrollableScrollPhysics(),
-      shrinkWrap: true,
     );
   }
 }
@@ -44,7 +45,31 @@ class ShimmerList extends StatelessWidget {
       itemBuilder: (context, index) =>
           _ShimmerTile(key: ValueKey('shimmer_tile_$index')),
       physics: const NeverScrollableScrollPhysics(),
-      shrinkWrap: true,
+    );
+  }
+}
+
+/// Single shimmering placeholder block with a fixed height. Used by the
+/// reader for not-yet-loaded chapter bodies.
+class ShimmerBlock extends StatelessWidget {
+  final double height;
+  final double? width;
+
+  const ShimmerBlock({super.key, required this.height, this.width});
+
+  @override
+  Widget build(BuildContext context) {
+    return Shimmer.fromColors(
+      baseColor: Theme.of(context).colorScheme.surfaceContainerHighest,
+      highlightColor: Theme.of(context).colorScheme.surfaceContainerLow,
+      child: Container(
+        height: height,
+        width: width,
+        decoration: BoxDecoration(
+          color: Theme.of(context).colorScheme.surfaceContainerHighest,
+          borderRadius: BorderRadius.all(Radii.sm),
+        ),
+      ),
     );
   }
 }

@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 
 import '../core/providers/engine.dart';
+import '../theme/tokens.dart';
 import 'cover_image.dart';
 
 /// Reusable novel result card in a grid.
@@ -18,6 +19,8 @@ class NovelGridCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final text = Theme.of(context).textTheme;
+    final scheme = Theme.of(context).colorScheme;
     return Card(
       clipBehavior: Clip.antiAlias,
       child: InkWell(
@@ -33,16 +36,13 @@ class NovelGridCard extends StatelessWidget {
               ),
             ),
             Padding(
-              padding: const EdgeInsets.all(6),
+              padding: const EdgeInsets.all(Insets.sm),
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
                   Text(
                     item.title,
-                    style: const TextStyle(
-                      fontSize: 11,
-                      fontWeight: FontWeight.w500,
-                    ),
+                    style: text.labelMedium,
                     maxLines: 2,
                     overflow: TextOverflow.ellipsis,
                   ),
@@ -50,9 +50,8 @@ class NovelGridCard extends StatelessWidget {
                     const SizedBox(height: 2),
                     Text(
                       item.providerId!,
-                      style: TextStyle(
-                        fontSize: 10,
-                        color: Theme.of(context).colorScheme.primary,
+                      style: text.labelSmall?.copyWith(
+                        color: scheme.primary,
                       ),
                       maxLines: 1,
                       overflow: TextOverflow.ellipsis,
@@ -83,9 +82,10 @@ class NovelListTile extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final text = Theme.of(context).textTheme;
     return ListTile(
       leading: ClipRRect(
-        borderRadius: BorderRadius.circular(4),
+        borderRadius: BorderRadius.all(Radii.sm),
         child: CoverImage(
           imageUrl: item.cover,
           width: 48,
@@ -100,7 +100,7 @@ class NovelListTile extends StatelessWidget {
               if (item.author != null) item.author!,
               if (item.latestChapter != null) 'Ch. ${item.latestChapter}',
             ].join(' · '),
-        style: const TextStyle(fontSize: 12),
+        style: text.bodySmall,
         maxLines: 1,
         overflow: TextOverflow.ellipsis,
       ),
@@ -110,7 +110,7 @@ class NovelListTile extends StatelessWidget {
               children: [
                 const Icon(Icons.star, size: 14, color: Colors.amber),
                 const SizedBox(width: 2),
-                Text('${item.rating}', style: const TextStyle(fontSize: 12)),
+                Text('${item.rating}', style: text.labelMedium),
               ],
             )
           : null,
@@ -128,14 +128,19 @@ class NovelCompactTile extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final text = Theme.of(context).textTheme;
+    final scheme = Theme.of(context).colorScheme;
     return InkWell(
       onTap: onTap,
       child: Padding(
-        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+        padding: const EdgeInsets.symmetric(
+          horizontal: Insets.md,
+          vertical: Insets.sm,
+        ),
         child: Row(
           children: [
             ClipRRect(
-              borderRadius: BorderRadius.circular(3),
+              borderRadius: BorderRadius.all(Radii.sm),
               child: CoverImage(
                 imageUrl: item.cover,
                 width: 28,
@@ -143,7 +148,7 @@ class NovelCompactTile extends StatelessWidget {
                 imageHeaders: item.coverHeaders,
               ),
             ),
-            const SizedBox(width: 10),
+            const SizedBox(width: Insets.sm),
             Expanded(
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
@@ -152,16 +157,15 @@ class NovelCompactTile extends StatelessWidget {
                     item.title,
                     maxLines: 1,
                     overflow: TextOverflow.ellipsis,
-                    style: const TextStyle(fontSize: 13),
+                    style: text.bodyMedium,
                   ),
                   if (item.author != null)
                     Text(
                       item.author!,
                       maxLines: 1,
                       overflow: TextOverflow.ellipsis,
-                      style: TextStyle(
-                        fontSize: 11,
-                        color: Theme.of(context).colorScheme.onSurfaceVariant,
+                      style: text.bodySmall?.copyWith(
+                        color: scheme.onSurfaceVariant,
                       ),
                     ),
                 ],

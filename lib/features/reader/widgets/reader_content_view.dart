@@ -7,6 +7,8 @@ import '../../../core/content/markdown/md_parser.dart';
 import '../../../core/content/markdown/md_renderer.dart';
 import '../../../core/tts/tts_manager.dart';
 import '../../../core/database/database.dart';
+import '../../../theme/app_theme.dart';
+import '../../../widgets/shimmer_list.dart';
 import '../../settings/pages/reader/reader_settings_state.dart';
 
 Widget buildChapterContent({
@@ -138,7 +140,12 @@ Widget buildContinuousContent({
             child: Center(child: CircularProgressIndicator()),
           );
         }
-        return const SizedBox(height: 300);
+        // Organic-looking placeholder heights instead of a flat void.
+        final placeholderHeight = 240.0 + ((chapterId * 37) % 5) * 32.0;
+        return Padding(
+          padding: const EdgeInsets.symmetric(vertical: 32),
+          child: ShimmerBlock(height: placeholderHeight),
+        );
       }
 
       if (chapterError != null) {
@@ -225,7 +232,11 @@ Widget _buildChapterError(String error, ReaderSettings settings) {
     child: Column(
       mainAxisAlignment: MainAxisAlignment.center,
       children: [
-        const Icon(Icons.error_outline, size: 48, color: Colors.red),
+        const Icon(
+          Icons.error_outline,
+          size: 48,
+          color: AppTheme.kReaderError,
+        ),
         const SizedBox(height: 16),
         Text(
           error,

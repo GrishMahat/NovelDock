@@ -4,6 +4,8 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../../core/providers/models.dart';
 import '../../../core/utils/logger.dart';
+import '../../../theme/app_theme.dart';
+import '../../../theme/tokens.dart';
 import '../../../widgets/shimmer_list.dart';
 import '../providers/provider_management_providers.dart';
 
@@ -249,15 +251,16 @@ class _ProviderManagementPageState
   }
 
   Color _registryStatusColor(String? status) {
+    final scheme = Theme.of(context).colorScheme;
     switch (status) {
       case 'active':
-        return Colors.green;
+        return Theme.of(context).extension<AppColors>()!.ongoing;
       case 'unmaintained':
-        return Colors.orange;
+        return Theme.of(context).extension<AppColors>()!.onHold;
       case 'deprecated':
-        return Colors.red;
+        return scheme.error;
       default:
-        return Theme.of(context).colorScheme.onSurfaceVariant;
+        return scheme.onSurfaceVariant;
     }
   }
 
@@ -293,8 +296,8 @@ class _ProviderManagementPageState
     } else {
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
-          content: Text(error, style: const TextStyle(fontSize: 13)),
-          backgroundColor: Colors.red,
+          content: Text(error),
+          backgroundColor: Theme.of(context).colorScheme.error,
           duration: const Duration(seconds: 6),
         ),
       );
@@ -350,34 +353,32 @@ class _ProviderManagementPageState
               ValueListenableBuilder(
                 valueListenable: errorMsg,
                 builder: (context, error, _) {
+                  final scheme = Theme.of(context).colorScheme;
                   if (error == null) return const SizedBox.shrink();
                   return Padding(
-                    padding: const EdgeInsets.only(top: 12),
+                    padding: const EdgeInsets.only(top: Insets.md),
                     child: Container(
-                      padding: const EdgeInsets.all(10),
+                      padding: const EdgeInsets.all(Insets.sm),
                       decoration: BoxDecoration(
-                        color: Colors.red.withValues(alpha: 0.1),
+                        color: scheme.error.withValues(alpha: 0.1),
                         borderRadius: BorderRadius.circular(6),
                         border: Border.all(
-                          color: Colors.red.withValues(alpha: 0.3),
+                          color: scheme.error.withValues(alpha: 0.3),
                         ),
                       ),
                       child: Row(
                         crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
-                          const Icon(
+                          Icon(
                             Icons.error_outline,
-                            color: Colors.red,
+                            color: scheme.error,
                             size: 18,
                           ),
-                          const SizedBox(width: 8),
+                          const SizedBox(width: Insets.sm),
                           Expanded(
                             child: Text(
                               error,
-                              style: const TextStyle(
-                                fontSize: 12,
-                                color: Colors.red,
-                              ),
+                              style: TextStyle(fontSize: 12, color: scheme.error),
                             ),
                           ),
                         ],
@@ -494,7 +495,9 @@ class _ProviderManagementPageState
             child: const Text('Cancel'),
           ),
           FilledButton(
-            style: FilledButton.styleFrom(backgroundColor: Colors.red),
+            style: FilledButton.styleFrom(
+              backgroundColor: Theme.of(context).colorScheme.error,
+            ),
             onPressed: () {
               removeRegistry(registry.id, ref);
               Navigator.pop(context);

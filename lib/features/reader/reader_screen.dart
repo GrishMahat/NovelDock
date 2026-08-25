@@ -51,6 +51,7 @@ class _ReaderScreenState extends ConsumerState<ReaderScreen> {
   final Map<String, GlobalKey> _chunkKeys = {};
   double? _ttsScrollCeiling;
   int _settingsVersion = 0;
+  double _lastScrollPixels = 0.0;
 
   /// Anchor autosave: last saved block index + throttle timestamp.
   int _lastSavedAnchorBlock = -1;
@@ -88,6 +89,8 @@ class _ReaderScreenState extends ConsumerState<ReaderScreen> {
     _saveReadingAnchor();
     _scrollController.dispose();
     _pageController.dispose();
+    // The reader forced portrait; give the rest of the app its freedom back.
+    SystemChrome.setPreferredOrientations(DeviceOrientation.values);
     SystemChrome.setEnabledSystemUIMode(SystemUiMode.edgeToEdge);
     super.dispose();
   }
@@ -142,6 +145,16 @@ class _ReaderScreenState extends ConsumerState<ReaderScreen> {
 
     final progress = pos.pixels / pos.maxScrollExtent;
     setState(() => _scrollProgress = progress.clamp(0.0, 1.0));
+
+    // Reading started: get the chrome out of the way.
+    final scrollDelta = (pos.pixels - _lastScrollPixels).abs();
+    _lastScrollPixels = pos.pixels;
+    if (_showControls && scrollDelta > 28) {
+      final tts = ref.read(ttsManagerProvider);
+      if (!tts.isSpeaking && !tts.isPaused) {
+        setState(() => _showControls = false);
+      }
+    }
 
     final nav = ref.read(readerNavigationProvider(widget.novelId));
     final chapter = nav.currentChapter;
@@ -235,14 +248,14 @@ class _ReaderScreenState extends ConsumerState<ReaderScreen> {
     }
   }
 
-  /// Scrolls the saved content block into view once it exists in the tree.
+  /// Scrolls the saved content block into view.
   ///
-  /// ListView.builder only materializes visible items, so the target chunk
-  /// does not exist while we sit at the top. We probe downward in viewport
-  /// steps, letting batches build, until the target appears and we snap to
-  /// it. If the target never appears (stale anchor, changed parsing), we
-  /// land on the nearest already-built chunk of the same chapter instead of
-  /// stranding the viewport in blank space.
+  /// Continuous mode merges every chapter into one lazy list padded with
+  /// fixed-height placeholders, so blind scrolling wanders into blank
+  /// territory. Instead: measure the average real height of built blocks,
+  /// jump to the estimated offset of the target, let the cache extent
+  /// materialize around it, then snap precisely. A couple of refinement
+  /// hops converge because paragraph heights are fairly uniform.
   void _restoreAnchor(int block) {
     final nav = ref.read(readerNavigationProvider(widget.novelId));
     final chapter = nav.currentChapter;
@@ -251,11 +264,26 @@ class _ReaderScreenState extends ConsumerState<ReaderScreen> {
     final prefix = '${chapter.id}-';
     final key = '$prefix$block';
 
-    var probe = 0.0;
-    var stagnantFrames = 0;
-    var lastMaxExtent = -1.0;
+    var attempts = 0;
+    var lastOffset = -1.0;
+    var stableFrames = 0;
 
-    /// Largest already-built block index of this chapter.
+    /// Average rendered height of this chapter's built blocks.
+    double avgBuiltHeight() {
+      var total = 0.0;
+      var count = 0;
+      for (final k in _chunkKeys.keys) {
+        if (!k.startsWith(prefix)) continue;
+        final box =
+            _chunkKeys[k]?.currentContext?.findRenderObject() as RenderBox?;
+        if (box == null || !box.hasSize || box.size.height <= 0) continue;
+        total += box.size.height;
+        count++;
+      }
+      return count == 0 ? 0.0 : total / count;
+    }
+
+    /// Largest built block index of this chapter.
     int builtUpTo() {
       var maxBuilt = -1;
       for (final k in _chunkKeys.keys) {
@@ -270,7 +298,6 @@ class _ReaderScreenState extends ConsumerState<ReaderScreen> {
       final maxBuilt = builtUpTo();
       if (maxBuilt < 0) return;
 
-      // Prefer the closest built chunk at or below the target.
       for (var i = block.clamp(0, maxBuilt); i >= 0; i--) {
         final context = _chunkKeys['$prefix$i']?.currentContext;
         if (context != null) {
@@ -284,14 +311,15 @@ class _ReaderScreenState extends ConsumerState<ReaderScreen> {
       }
     }
 
-    void step(int attempt) {
+    void step() {
       if (!mounted) return;
 
       if (!_scrollController.hasClients) {
-        _retryFrame(step, attempt);
+        _retryFrame(step);
         return;
       }
 
+      // Target built? Snap precisely and stop.
       final context = _chunkKeys[key]?.currentContext;
       if (context != null) {
         Scrollable.ensureVisible(
@@ -302,35 +330,56 @@ class _ReaderScreenState extends ConsumerState<ReaderScreen> {
         return;
       }
 
-      // Target unreachable (never built): settle nearby instead of
-      // wandering into blank space.
-      if (attempt > 300 || stagnantFrames > 10) {
+      // Give up gracefully: settle on the closest built block.
+      if (attempts++ > 90) {
         landOnNearest();
         return;
       }
 
-      final maxExtent = _scrollController.position.maxScrollExtent;
-      if (maxExtent <= lastMaxExtent) {
-        stagnantFrames++;
-      } else {
-        stagnantFrames = 0;
-        lastMaxExtent = maxExtent;
+      final avg = avgBuiltHeight();
+      if (avg <= 0) {
+        // Nothing measured yet; wait for the first batches to build.
+        _retryFrame(step);
+        return;
       }
 
-      // Advance the probe by two viewport heights per frame.
-      final viewport = _scrollController.position.viewportDimension;
-      probe = (probe + viewport * 2).clamp(0.0, maxExtent);
+      final maxExtent = _scrollController.position.maxScrollExtent;
+      final estimate = (avg * block).clamp(0.0, maxExtent);
 
-      if (maxExtent > 0) _scrollController.jumpTo(probe);
+      if ((estimate - lastOffset).abs() < 24) {
+        // Estimate stopped moving but the target still isn't built:
+        // it likely does not exist (stale anchor). Settle nearby.
+        if (++stableFrames >= 3) {
+          landOnNearest();
+          return;
+        }
+      } else {
+        stableFrames = 0;
+      }
+      lastOffset = estimate;
 
-      _retryFrame(step, attempt + 1);
+      _scrollController.jumpTo(estimate);
+      _retryFrame(step);
     }
 
-    WidgetsBinding.instance.addPostFrameCallback((_) => step(0));
+    WidgetsBinding.instance.addPostFrameCallback((_) => step());
   }
 
-  void _retryFrame(void Function(int attempt) step, int attempt) {
-    WidgetsBinding.instance.addPostFrameCallback((_) => step(attempt));
+  void _retryFrame(void Function() step) {
+    WidgetsBinding.instance.addPostFrameCallback((_) => step());
+  }
+
+  void _scrollByPages(double pages) {
+    if (!_scrollController.hasClients) return;
+    final target =
+        (_scrollController.offset +
+                pages * _scrollController.position.viewportDimension * 0.85)
+            .clamp(0.0, _scrollController.position.maxScrollExtent);
+    _scrollController.animateTo(
+      target,
+      duration: const Duration(milliseconds: 220),
+      curve: Curves.easeOutCubic,
+    );
   }
 
   void _goToPreviousChapter() {
@@ -798,6 +847,22 @@ class _ReaderScreenState extends ConsumerState<ReaderScreen> {
                 SingleActivator(LogicalKeyboardKey.space): () {
                   setState(() => _showControls = !_showControls);
                 },
+                SingleActivator(LogicalKeyboardKey.pageUp): () =>
+                    _scrollByPages(-1),
+                SingleActivator(LogicalKeyboardKey.pageDown): () =>
+                    _scrollByPages(1),
+                SingleActivator(LogicalKeyboardKey.home): () {
+                  if (_scrollController.hasClients) {
+                    _scrollController.jumpTo(0);
+                  }
+                },
+                SingleActivator(LogicalKeyboardKey.end): () {
+                  if (_scrollController.hasClients) {
+                    _scrollController.jumpTo(
+                      _scrollController.position.maxScrollExtent,
+                    );
+                  }
+                },
                 SingleActivator(LogicalKeyboardKey.keyL, control: true):
                     _toggleSliderPinned,
               },
@@ -822,6 +887,9 @@ class _ReaderScreenState extends ConsumerState<ReaderScreen> {
                             ttsState,
                             ttsActive,
                             currentChapter,
+                            nav.chapters.isEmpty
+                                ? null
+                                : '${nav.currentIndex + 1} / ${nav.chapters.length}',
                           ),
                         ],
                       ),
@@ -884,6 +952,9 @@ class _ReaderScreenState extends ConsumerState<ReaderScreen> {
                     ttsState,
                     ttsActive,
                     currentChapter,
+                    nav.chapters.isEmpty
+                        ? null
+                        : '${nav.currentIndex + 1} / ${nav.chapters.length}',
                   ),
                 ],
               ),
@@ -896,6 +967,7 @@ class _ReaderScreenState extends ConsumerState<ReaderScreen> {
     TtsManagerState ttsState,
     bool ttsActive,
     Chapter? currentChapter,
+    String? positionLabel,
   ) {
     return [
       if (_showControls && !ttsActive)
@@ -903,6 +975,7 @@ class _ReaderScreenState extends ConsumerState<ReaderScreen> {
           context: context,
           settings: settings,
           chapterName: currentChapter?.name ?? 'Chapter',
+          positionLabel: positionLabel,
           onBack: () => Navigator.pop(context),
           onAddBookmark: _addBookmark,
           onShowBookmarks: _showBookmarks,
@@ -938,7 +1011,7 @@ class _ReaderScreenState extends ConsumerState<ReaderScreen> {
       child: Column(
         mainAxisAlignment: MainAxisAlignment.center,
         children: [
-          const Icon(Icons.error_outline, size: 48, color: Colors.red),
+          const Icon(Icons.error_outline, size: 48, color: AppTheme.kReaderError),
           const SizedBox(height: 16),
           Text(
             nav.error!,

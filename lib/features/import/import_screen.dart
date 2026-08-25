@@ -13,6 +13,8 @@ import '../../core/config/app_config.dart';
 import '../../core/database/database.dart';
 import '../../core/providers/database_providers.dart';
 import '../../core/utils/logger.dart';
+import '../../theme/app_theme.dart';
+import '../../theme/tokens.dart';
 
 const _tag = 'Import';
 
@@ -114,7 +116,7 @@ class _ImportScreenState extends ConsumerState<ImportScreen> {
                 mainAxisAlignment: MainAxisAlignment.center,
                 children: [
                   CircularProgressIndicator(),
-                  SizedBox(height: 16),
+                  SizedBox(height: Insets.lg),
                   Text('Importing...'),
                 ],
               )
@@ -128,26 +130,29 @@ class _ImportScreenState extends ConsumerState<ImportScreen> {
                       context,
                     ).colorScheme.onSurfaceVariant.withValues(alpha: 0.5),
                   ),
-                  const SizedBox(height: 16),
-                  const Text(
+                  const SizedBox(height: Insets.lg),
+                  Text(
                     'Import EPUB or PDF',
-                    style: TextStyle(fontSize: 18, fontWeight: FontWeight.w600),
+                    style: Theme.of(context).textTheme.headlineSmall,
                   ),
-                  const SizedBox(height: 8),
+                  const SizedBox(height: Insets.sm),
                   Text(
                     'Select a file from your device\nto add to your library.',
                     textAlign: TextAlign.center,
-                    style: TextStyle(
+                    style: Theme.of(context).textTheme.bodyMedium?.copyWith(
                       color: Theme.of(context).colorScheme.onSurfaceVariant,
                     ),
                   ),
                   if (_importedFile != null) ...[
-                    const SizedBox(height: 16),
+                    const SizedBox(height: Insets.lg),
                     Card(
                       child: ListTile(
-                        leading: const Icon(
+                        leading: Icon(
                           Icons.check_circle,
-                          color: Colors.green,
+                          color:
+                              Theme.of(
+                                context,
+                              ).extension<AppColors>()!.ongoing,
                         ),
                         title: Text('Imported: $_importedFile'),
                         subtitle: const Text('Added to library'),
@@ -155,15 +160,18 @@ class _ImportScreenState extends ConsumerState<ImportScreen> {
                     ),
                   ],
                   if (_error != null) ...[
-                    const SizedBox(height: 16),
+                    const SizedBox(height: Insets.lg),
                     Card(
                       child: ListTile(
-                        leading: const Icon(Icons.error, color: Colors.red),
+                        leading: Icon(
+                          Icons.error,
+                          color: Theme.of(context).colorScheme.error,
+                        ),
                         title: Text('Error: $_error'),
                       ),
                     ),
                   ],
-                  const SizedBox(height: 24),
+                  const SizedBox(height: Insets.xl),
                   FilledButton.icon(
                     onPressed: _isImporting ? null : _pickFile,
                     icon: const Icon(Icons.file_open),

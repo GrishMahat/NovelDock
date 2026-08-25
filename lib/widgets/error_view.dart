@@ -1,5 +1,7 @@
 import 'package:flutter/material.dart';
 
+import '../theme/tokens.dart';
+
 /// Reusable error state widget shown when something fails.
 class ErrorView extends StatelessWidget {
   final String message;
@@ -15,36 +17,32 @@ class ErrorView extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final scheme = Theme.of(context).colorScheme;
     return Center(
       child: Padding(
-        padding: const EdgeInsets.all(32),
+        padding: const EdgeInsets.all(Insets.xxl),
         child: Column(
           mainAxisAlignment: MainAxisAlignment.center,
           children: [
-            Icon(
-              Icons.error_outline,
-              size: 64,
-              color: Colors.red.withValues(alpha: 0.5),
-            ),
-            const SizedBox(height: 16),
+            Icon(Icons.error_outline, size: 64, color: scheme.error),
+            const SizedBox(height: Insets.lg),
             Text(
               message,
-              style: const TextStyle(fontSize: 16),
+              style: Theme.of(context).textTheme.titleMedium,
               textAlign: TextAlign.center,
             ),
             if (details != null) ...[
-              const SizedBox(height: 8),
+              const SizedBox(height: Insets.sm),
               Text(
                 details!,
-                style: TextStyle(
-                  color: Theme.of(context).colorScheme.onSurfaceVariant,
-                  fontSize: 13,
+                style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                  color: scheme.onSurfaceVariant,
                 ),
                 textAlign: TextAlign.center,
               ),
             ],
             if (onRetry != null) ...[
-              const SizedBox(height: 24),
+              const SizedBox(height: Insets.xl),
               FilledButton.icon(
                 onPressed: onRetry,
                 icon: const Icon(Icons.refresh, size: 18),

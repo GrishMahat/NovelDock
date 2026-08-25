@@ -1,5 +1,7 @@
 import 'package:flutter/material.dart';
 
+import '../theme/tokens.dart';
+
 /// Reusable empty state widget shown when a list/section has no data.
 class EmptyState extends StatelessWidget {
   final IconData icon;
@@ -15,38 +17,36 @@ class EmptyState extends StatelessWidget {
   });
   @override
   Widget build(BuildContext context) {
+    final scheme = Theme.of(context).colorScheme;
     return Center(
       child: Padding(
-        padding: const EdgeInsets.all(32),
+        padding: const EdgeInsets.all(Insets.xxl),
         child: Column(
           mainAxisAlignment: MainAxisAlignment.center,
           children: [
             Icon(
               icon,
               size: 64,
-              color: Theme.of(
-                context,
-              ).colorScheme.onSurfaceVariant.withValues(alpha: 0.5),
+              color: scheme.onSurfaceVariant.withValues(alpha: 0.5),
             ),
-            const SizedBox(height: 16),
+            const SizedBox(height: Insets.lg),
             Text(
               title,
-              style: TextStyle(
-                fontSize: 16,
-                color: Theme.of(context).colorScheme.surface,
-              ),
+              style: Theme.of(context).textTheme.titleMedium,
+              textAlign: TextAlign.center,
             ),
             if (subtitle != null) ...[
-              const SizedBox(height: 8),
+              const SizedBox(height: Insets.sm),
               Text(
                 subtitle!,
-                style: TextStyle(
-                  color: Theme.of(context).colorScheme.onSurfaceVariant,
+                style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                  color: scheme.onSurfaceVariant,
                 ),
                 textAlign: TextAlign.center,
               ),
             ],
-            if (action != null) ...[const SizedBox(height: 24), action!],
+            if (action != null)
+              ...[const SizedBox(height: Insets.xl), action!],
           ],
         ),
       ),

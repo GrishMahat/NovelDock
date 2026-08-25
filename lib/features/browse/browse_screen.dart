@@ -311,9 +311,7 @@ class InstalledTab extends ConsumerWidget {
   Widget _sectionHeader(BuildContext context, String title) {
     return Text(
       title,
-      style: TextStyle(
-        fontSize: 13,
-        fontWeight: FontWeight.w600,
+      style: Theme.of(context).textTheme.titleSmall?.copyWith(
         color: Theme.of(context).colorScheme.primary,
       ),
     );
@@ -535,19 +533,18 @@ class _ExtensionTile extends StatelessWidget {
               style: const TextStyle(fontSize: 12),
             ),
             if (provider.nsfw) ...[
-              const SizedBox(width: 6),
+              const SizedBox(width: Insets.xs),
               Container(
                 padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 1),
                 decoration: BoxDecoration(
-                  color: Colors.red.withValues(alpha: 0.2),
+                  color: Theme.of(context).colorScheme.error.withValues(alpha: 0.2),
                   borderRadius: BorderRadius.circular(3),
                 ),
-                child: const Text(
+                child: Text(
                   '18+',
-                  style: TextStyle(
-                    fontSize: 10,
-                    fontWeight: FontWeight.bold,
-                    color: Colors.red,
+                  style: Theme.of(context).textTheme.labelSmall?.copyWith(
+                    color: Theme.of(context).colorScheme.error,
+                    letterSpacing: 0,
                   ),
                 ),
               ),

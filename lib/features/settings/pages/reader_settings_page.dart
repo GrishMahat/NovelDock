@@ -184,7 +184,7 @@ class _GeneralTab extends ConsumerWidget {
         const SizedBox(height: 16),
         // ── Theme ──
         section('Theme'),
-        _themeRow(settings, notifier),
+        _themeRow(context, settings, notifier),
 
         const SizedBox(height: 16),
         // ── Tap Zones ──
@@ -269,11 +269,17 @@ class _GeneralTab extends ConsumerWidget {
                     return ListTile(
                       leading: Icon(
                         isSelected ? Icons.check_circle : Icons.circle_outlined,
-                        color: isSelected ? AppTheme.kPrimary : null,
+                        color: isSelected
+                            ? Theme.of(context).colorScheme.primary
+                            : null,
                       ),
                       title: Text(
                         font,
-                        style: TextStyle(fontFamily: font, fontSize: 16),
+                        style: TextStyle(
+                          fontFamily: font,
+                          fontSize:
+                              Theme.of(context).textTheme.bodyLarge?.fontSize,
+                        ),
                       ),
                       onTap: () {
                         notifier.updateFontFamily(font);
@@ -290,12 +296,16 @@ class _GeneralTab extends ConsumerWidget {
     });
   }
 
-  Widget _themeRow(ReaderSettings settings, ReaderSettingsNotifier notifier) {
+  Widget _themeRow(
+    BuildContext context,
+    ReaderSettings settings,
+    ReaderSettingsNotifier notifier,
+  ) {
     return Wrap(
       spacing: 12,
       runSpacing: 8,
       children: [
-        _themeCircle(
+        _themeCircle(context,
           'Dark',
           'dark',
           AppTheme.kReaderBgDefault,
@@ -303,7 +313,7 @@ class _GeneralTab extends ConsumerWidget {
           settings,
           notifier,
         ),
-        _themeCircle(
+        _themeCircle(context,
           'Light',
           'light',
           AppTheme.kReaderBgColors['light']!,
@@ -311,7 +321,7 @@ class _GeneralTab extends ConsumerWidget {
           settings,
           notifier,
         ),
-        _themeCircle(
+        _themeCircle(context,
           'Sepia',
           'sepia',
           AppTheme.kReaderBgColors['sepia']!,
@@ -319,7 +329,7 @@ class _GeneralTab extends ConsumerWidget {
           settings,
           notifier,
         ),
-        _themeCircle(
+        _themeCircle(context,
           'Green',
           'green',
           AppTheme.kReaderBgColors['green']!,
@@ -327,7 +337,7 @@ class _GeneralTab extends ConsumerWidget {
           settings,
           notifier,
         ),
-        _themeCircle(
+        _themeCircle(context,
           'Blue',
           'blue',
           AppTheme.kReaderBgColors['blue']!,
@@ -340,6 +350,7 @@ class _GeneralTab extends ConsumerWidget {
   }
 
   Widget _themeCircle(
+    BuildContext context,
     String label,
     String themeKey,
     Color bg,
@@ -361,20 +372,13 @@ class _GeneralTab extends ConsumerWidget {
               shape: BoxShape.circle,
               border: Border.all(
                 color: isSelected
-                    ? AppTheme.kPrimary
-                    : Colors.grey.withValues(alpha: 0.3),
+                    ? Theme.of(context).colorScheme.primary
+                    : Theme.of(context).colorScheme.outlineVariant,
                 width: isSelected ? 3 : 1,
               ),
             ),
             child: Center(
-              child: Text(
-                'Aa',
-                style: TextStyle(
-                  color: text,
-                  fontSize: 12,
-                  fontWeight: FontWeight.bold,
-                ),
-              ),
+              child: Text('Aa', style: Theme.of(context).textTheme.labelMedium?.copyWith(color: text)),
             ),
           ),
           const SizedBox(height: 4),

@@ -1,95 +1,117 @@
 import 'package:flutter/material.dart';
 
+import '../../../theme/app_theme.dart';
+import '../../../theme/tokens.dart';
+
+/// Unified sheet for picking a library status. Returns the chosen status
+/// string, 'None' to remove from library, or null if dismissed.
 class StatusPickerSheet extends StatefulWidget {
-  const StatusPickerSheet({super.key});
+  final String title;
+  final String? initialStatus;
+
+  const StatusPickerSheet({
+    super.key,
+    this.title = 'Library status',
+    this.initialStatus,
+  });
 
   @override
   State<StatusPickerSheet> createState() => _StatusPickerSheetState();
 }
 
 class _StatusPickerSheetState extends State<StatusPickerSheet> {
-  String _selected = 'Reading';
-
   static const _options = [
-    'Reading',
-    'On Hold',
-    'Plan to Read',
-    'Completed',
-    'Dropped',
+    ('Reading', Icons.auto_stories),
+    ('On Hold', Icons.pause_circle_outline),
+    ('Plan to Read', Icons.bookmark_border),
+    ('Completed', Icons.check_circle_outline),
+    ('Dropped', Icons.remove_circle_outline),
   ];
+
+  late String? _selected = widget.initialStatus;
+  bool _removeRequested = false;
 
   @override
   Widget build(BuildContext context) {
-    return Padding(
-      padding: EdgeInsets.only(
-        bottom: MediaQuery.of(context).viewInsets.bottom,
-      ),
+    final scheme = Theme.of(context).colorScheme;
+    final appColors = Theme.of(context).extension<AppColors>()!;
+    Color? optionColor(String status) => switch (status.toLowerCase()) {
+      'reading' => appColors.ongoing,
+      'on hold' => appColors.onHold,
+      'completed' => appColors.completed,
+      'dropped' => appColors.dropped,
+      _ => scheme.onSurfaceVariant,
+    };
+
+    return SafeArea(
       child: Column(
         mainAxisSize: MainAxisSize.min,
+        crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
-          const SizedBox(height: 12),
-          Container(
-            width: 32,
-            height: 4,
-            decoration: BoxDecoration(
-              color: Colors.grey[400],
-              borderRadius: BorderRadius.circular(2),
+          Padding(
+            padding: const EdgeInsets.fromLTRB(
+              Insets.xl,
+              Insets.xs,
+              Insets.xl,
+              Insets.sm,
+            ),
+            child: Text(
+              widget.title,
+              style: Theme.of(context).textTheme.titleMedium,
             ),
           ),
-          const SizedBox(height: 16),
-          const Text(
-            'Add to Library',
-            style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
-          ),
-          const SizedBox(height: 8),
-          ..._options.map(
-            (s) => ListTile(
-              title: Text(s),
-              trailing: _selected == s
+          for (final (status, icon) in _options)
+            ListTile(
+              leading: Icon(icon, color: optionColor(status)),
+              title: Text(status),
+              selected: !_removeRequested && _selected == status,
+              trailing:
+                  !_removeRequested && _selected == status
                   ? const Icon(Icons.check, size: 20)
                   : null,
-              onTap: () => setState(() => _selected = s),
+              onTap: () => setState(() {
+                _selected = status;
+                _removeRequested = false;
+              }),
             ),
-          ),
-          const Divider(),
           ListTile(
-            leading: Icon(Icons.remove_circle, color: Colors.red.shade400),
-            title: Text('None', style: TextStyle(color: Colors.red.shade400)),
-            trailing: _selected == 'None'
-                ? Icon(Icons.check, size: 20, color: Colors.red.shade400)
+            leading: Icon(Icons.delete_outline, color: scheme.error),
+            title: Text(
+              'Remove from library',
+              style: TextStyle(color: scheme.error),
+            ),
+            trailing: _removeRequested
+                ? const Icon(Icons.check, size: 20)
                 : null,
-            onTap: () => setState(() => _selected = 'None'),
+            onTap: () => setState(() => _removeRequested = true),
           ),
-          const SizedBox(height: 8),
-          Row(
-            children: [
-              Expanded(
-                child: Padding(
-                  padding: const EdgeInsets.only(
-                    left: 16,
-                    right: 4,
-                    bottom: 16,
-                  ),
+          Padding(
+            padding: EdgeInsets.only(
+              left: Insets.lg,
+              right: Insets.lg,
+              top: Insets.sm,
+              bottom: MediaQuery.paddingOf(context).bottom + Insets.lg,
+            ),
+            child: Row(
+              children: [
+                Expanded(
                   child: OutlinedButton(
                     onPressed: () => Navigator.pop(context),
                     child: const Text('Cancel'),
                   ),
                 ),
-              ),
-              Expanded(
-                child: Padding(
-                  padding: const EdgeInsets.only(
-                    left: 4,
-                    right: 16,
-                    bottom: 16,
-                  ),
+                const SizedBox(width: Insets.md),
+                Expanded(
                   child: FilledButton(
-                    onPressed: () => Navigator.pop(context, _selected),
-                    child: const Text('OK'),
+                    onPressed: () => Navigator.pop(
+                      context,
+                      _removeRequested ? 'None' : _selected,
+                    ),
+                    child: const Text('Save'),
                   ),
                 ),
-              ),
-            ],
+              ],
+            ),
           ),
         ],
       ),

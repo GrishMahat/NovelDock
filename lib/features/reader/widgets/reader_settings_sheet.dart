@@ -483,20 +483,13 @@ class _ReaderSettingsSheetState extends ConsumerState<ReaderSettingsSheet> {
               shape: BoxShape.circle,
               border: Border.all(
                 color: isSelected
-                    ? AppTheme.kPrimary
-                    : Colors.grey.withValues(alpha: 0.3),
+                    ? Theme.of(context).colorScheme.primary
+                    : Theme.of(context).colorScheme.outlineVariant,
                 width: isSelected ? 3 : 1,
               ),
             ),
             child: Center(
-              child: Text(
-                'Aa',
-                style: TextStyle(
-                  color: text,
-                  fontSize: 12,
-                  fontWeight: FontWeight.bold,
-                ),
-              ),
+              child: Text('Aa', style: Theme.of(context).textTheme.labelMedium?.copyWith(color: text)),
             ),
           ),
           const SizedBox(height: 4),

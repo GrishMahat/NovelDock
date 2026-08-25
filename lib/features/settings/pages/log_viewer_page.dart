@@ -4,6 +4,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../../core/utils/log_buffer.dart';
 import '../../../core/utils/logger.dart';
+import '../../../theme/app_theme.dart';
 
 class LogViewerPage extends ConsumerStatefulWidget {
   const LogViewerPage({super.key});
@@ -81,6 +82,8 @@ class _LogViewerPageState extends ConsumerState<LogViewerPage> {
     });
 
     final filtered = _filter(entries);
+    final scheme = Theme.of(context).colorScheme;
+    final appColors = Theme.of(context).extension<AppColors>()!;
 
     return Scaffold(
       appBar: AppBar(
@@ -121,10 +124,10 @@ class _LogViewerPageState extends ConsumerState<LogViewerPage> {
                 ...LogLevel.values.map((level) {
                   final selected = _levelFilter == level;
                   final color = switch (level) {
-                    LogLevel.debug => Colors.grey,
-                    LogLevel.info => Colors.blue,
-                    LogLevel.warning => Colors.orange,
-                    LogLevel.error => Colors.red,
+                    LogLevel.debug => scheme.onSurfaceVariant,
+                    LogLevel.info => scheme.primary,
+                    LogLevel.warning => appColors.onHold,
+                    LogLevel.error => scheme.error,
                   };
                   return Padding(
                     padding: const EdgeInsets.only(right: 4),
@@ -217,10 +220,10 @@ class _LogViewerPageState extends ConsumerState<LogViewerPage> {
                     itemBuilder: (context, index) {
                       final entry = filtered[index];
                       final color = switch (entry.level) {
-                        LogLevel.debug => Colors.grey,
+                        LogLevel.debug => scheme.onSurfaceVariant,
                         LogLevel.info => null,
-                        LogLevel.warning => Colors.orange.shade300,
-                        LogLevel.error => Colors.red.shade300,
+                        LogLevel.warning => appColors.onHold,
+                        LogLevel.error => appColors.dropped,
                       };
                       return Padding(
                         padding: const EdgeInsets.symmetric(
@@ -230,7 +233,7 @@ class _LogViewerPageState extends ConsumerState<LogViewerPage> {
                         child: Text(
                           entry.formatted,
                           style: TextStyle(
-                            fontSize: 11,
+                           fontSize: 11,
                             fontFamily: 'monospace',
                             color: color,
                             height: 1.3,

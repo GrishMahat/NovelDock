@@ -2,7 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../core/tts/tts_manager.dart';
-import '../theme/app_theme.dart';
+import '../theme/tokens.dart';
 
 /// Persistent mini player bar shown at the top when TTS is active.
 class TtsMiniPlayer extends ConsumerWidget {
@@ -17,18 +17,16 @@ class TtsMiniPlayer extends ConsumerWidget {
     }
 
     final ttsNotifier = ref.read(ttsManagerProvider.notifier);
+    final scheme = Theme.of(context).colorScheme;
     final progress = ttsState.totalLines > 0
         ? ttsState.currentLineIndex / ttsState.totalLines
         : 0.0;
 
     return Container(
       decoration: BoxDecoration(
-        color: Theme.of(context).colorScheme.surfaceContainerHighest,
+        color: scheme.surfaceContainerHighest,
         border: Border(
-          bottom: BorderSide(
-            color: Theme.of(context).colorScheme.outlineVariant,
-            width: 1,
-          ),
+          bottom: BorderSide(color: scheme.outlineVariant, width: 1),
         ),
       ),
       child: SafeArea(
@@ -37,36 +35,41 @@ class TtsMiniPlayer extends ConsumerWidget {
           mainAxisSize: MainAxisSize.min,
           children: [
             Padding(
-              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+              padding: const EdgeInsets.symmetric(
+                horizontal: Insets.md,
+                vertical: Insets.xs,
+              ),
               child: Row(
                 children: [
                   // Pause/Play
                   IconButton(
                     icon: Icon(
                       ttsState.isPaused ? Icons.play_arrow : Icons.pause,
-                      color: AppTheme.kPrimary,
+                      color: scheme.primary,
                       size: 28,
                     ),
                     onPressed: () => ttsNotifier.togglePause(),
+                    tooltip: ttsState.isPaused ? 'Play' : 'Pause',
                     padding: EdgeInsets.zero,
-                    constraints: const BoxConstraints(minWidth: 36),
+                    constraints: const BoxConstraints(minWidth: 44),
                   ),
-                  const SizedBox(width: 4),
                   // Skip back
                   IconButton(
                     icon: const Icon(Icons.skip_previous, size: 22),
                     onPressed: () => ttsNotifier.skipBackward(),
+                    tooltip: 'Previous line',
                     padding: EdgeInsets.zero,
-                    constraints: const BoxConstraints(minWidth: 32),
+                    constraints: const BoxConstraints(minWidth: 44),
                   ),
                   // Skip forward
                   IconButton(
                     icon: const Icon(Icons.skip_next, size: 22),
                     onPressed: () => ttsNotifier.skipForward(),
+                    tooltip: 'Next line',
                     padding: EdgeInsets.zero,
-                    constraints: const BoxConstraints(minWidth: 32),
+                    constraints: const BoxConstraints(minWidth: 44),
                   ),
-                  const SizedBox(width: 8),
+                  const SizedBox(width: Insets.sm),
                   // Current line info
                   Expanded(
                     child: Column(
@@ -79,23 +82,12 @@ class TtsMiniPlayer extends ConsumerWidget {
                               : 'Playing...',
                           maxLines: 1,
                           overflow: TextOverflow.ellipsis,
-                          style: TextStyle(
-                            fontSize: 12,
-                            color: Theme.of(
-                              context,
-                            ).colorScheme.onSurfaceVariant,
-                          ),
+                          style: Theme.of(context).textTheme.bodySmall,
                         ),
-                        const SizedBox(height: 2),
                         Text(
                           '${ttsState.currentLineIndex + 1} / ${ttsState.totalLines}',
-                          style: TextStyle(
-                            fontSize: 10,
-                            color: Theme.of(context)
-                                .colorScheme
-                                .onSurfaceVariant
-                                .withValues(alpha: 0.7),
-                          ),
+                          style: Theme.of(context).textTheme.labelSmall
+                              ?.copyWith(color: scheme.onSurfaceVariant),
                         ),
                       ],
                     ),
@@ -104,8 +96,9 @@ class TtsMiniPlayer extends ConsumerWidget {
                   IconButton(
                     icon: const Icon(Icons.close, size: 20),
                     onPressed: () => ttsNotifier.stop(),
+                    tooltip: 'Stop',
                     padding: EdgeInsets.zero,
-                    constraints: const BoxConstraints(minWidth: 32),
+                    constraints: const BoxConstraints(minWidth: 44),
                   ),
                 ],
               ),
@@ -113,10 +106,8 @@ class TtsMiniPlayer extends ConsumerWidget {
             // Progress bar
             LinearProgressIndicator(
               value: progress,
-              backgroundColor: Colors.white12,
-              valueColor: const AlwaysStoppedAnimation<Color>(
-                AppTheme.kPrimary,
-              ),
+              backgroundColor: scheme.outlineVariant,
+              valueColor: AlwaysStoppedAnimation<Color>(scheme.primary),
               minHeight: 2,
             ),
           ],

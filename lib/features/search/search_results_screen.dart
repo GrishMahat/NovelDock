@@ -351,27 +351,25 @@ class _SearchRows extends ConsumerWidget {
     }
 
     if (allFailed && !hasAnyResults) {
+      final scheme = Theme.of(context).colorScheme;
       return Center(
         child: Padding(
-          padding: const EdgeInsets.all(24),
+          padding: const EdgeInsets.all(Insets.xl),
           child: Column(
             mainAxisSize: MainAxisSize.min,
             children: [
-              const Icon(Icons.error_outline, size: 64, color: Colors.red),
-              const SizedBox(height: 16),
-              const Text(
-                'Search failed',
-                style: TextStyle(fontSize: 18, fontWeight: FontWeight.w600),
-              ),
-              const SizedBox(height: 8),
+              Icon(Icons.error_outline, size: 64, color: scheme.error),
+              const SizedBox(height: Insets.lg),
+              Text('Search failed', style: Theme.of(context).textTheme.headlineSmall),
+              const SizedBox(height: Insets.sm),
               Text(
                 'None of the selected sources returned results.',
                 textAlign: TextAlign.center,
-                style: TextStyle(
-                  color: Theme.of(context).colorScheme.onSurfaceVariant,
+                style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                  color: scheme.onSurfaceVariant,
                 ),
               ),
-              const SizedBox(height: 16),
+              const SizedBox(height: Insets.lg),
               FilledButton.icon(
                 onPressed: searchState.query.isEmpty
                     ? null
@@ -390,7 +388,7 @@ class _SearchRows extends ConsumerWidget {
     if (allCompleted && resultRows.isEmpty) {
       return Center(
         child: Padding(
-          padding: EdgeInsets.all(24),
+          padding: const EdgeInsets.all(Insets.xl),
           child: Column(
             mainAxisSize: MainAxisSize.min,
             children: [
@@ -399,13 +397,13 @@ class _SearchRows extends ConsumerWidget {
                 size: 64,
                 color: Theme.of(context).colorScheme.onSurfaceVariant,
               ),
-              SizedBox(height: 16),
-              Text('No results found', style: TextStyle(fontSize: 18)),
-              SizedBox(height: 8),
+              const SizedBox(height: Insets.lg),
+              Text('No results found', style: Theme.of(context).textTheme.headlineSmall),
+              const SizedBox(height: Insets.sm),
               Text(
                 'Try a different query.',
                 textAlign: TextAlign.center,
-                style: TextStyle(
+                style: Theme.of(context).textTheme.bodyMedium?.copyWith(
                   color: Theme.of(context).colorScheme.onSurfaceVariant,
                 ),
               ),
@@ -417,7 +415,7 @@ class _SearchRows extends ConsumerWidget {
 
     return MaxWidthBox(
       child: ListView(
-        padding: const EdgeInsets.symmetric(vertical: 8),
+        padding: const EdgeInsets.symmetric(vertical: Insets.sm),
         children: [
           for (final provider in [...resultRows, ...emptyRows])
             _ProviderRow(
@@ -425,7 +423,7 @@ class _SearchRows extends ConsumerWidget {
               state: searchState.stateFor(provider.id),
               onOpen: onOpen,
             ),
-          const SizedBox(height: 24),
+          const SizedBox(height: Insets.xl),
         ],
       ),
     );
@@ -463,19 +461,22 @@ class _ProviderRow extends ConsumerWidget {
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 Padding(
-                  padding: const EdgeInsets.fromLTRB(16, 16, 8, 12),
+                  padding: const EdgeInsets.fromLTRB(
+                    Insets.lg,
+                    Insets.lg,
+                    Insets.sm,
+                    Insets.md,
+                  ),
                   child: Row(
                     children: [
                       ProviderAvatar(provider: provider, radius: 16),
-                      const SizedBox(width: 10),
+                      const SizedBox(width: Insets.sm),
                       Expanded(
                         child: Text(
                           '${provider.name} • '
                           '${state.results.length} loaded',
-                          style: const TextStyle(
-                            fontSize: 18,
-                            fontWeight: FontWeight.w600,
-                          ),
+                          style:
+                              Theme.of(sheetContext).textTheme.titleLarge,
                         ),
                       ),
                       IconButton(
@@ -527,30 +528,32 @@ class _ProviderRow extends ConsumerWidget {
         InkWell(
           onTap: () => _showFullList(context, ref),
           child: Padding(
-            padding: const EdgeInsets.fromLTRB(16, 10, 8, 6),
+            padding: const EdgeInsets.fromLTRB(
+              Insets.lg,
+              Insets.sm,
+              Insets.sm,
+              Insets.xs,
+            ),
             child: Row(
               children: [
                 ProviderAvatar(provider: provider, radius: 15),
-                const SizedBox(width: 10),
+                const SizedBox(width: Insets.sm),
                 Expanded(
                   child: Text(
                     provider.name,
                     maxLines: 1,
                     overflow: TextOverflow.ellipsis,
-                    style: const TextStyle(
-                      fontSize: 17,
-                      fontWeight: FontWeight.w600,
-                    ),
+                    style: Theme.of(context).textTheme.titleLarge,
                   ),
                 ),
                 if (providerState.error != null &&
                     providerState.results.isEmpty)
                   IconButton(
                     tooltip: 'Retry',
-                    icon: const Icon(
+                    icon: Icon(
                       Icons.refresh,
                       size: 20,
-                      color: Colors.redAccent,
+                      color: Theme.of(context).colorScheme.error,
                     ),
                     onPressed: () => ref
                         .read(searchProvider.notifier)
@@ -559,7 +562,7 @@ class _ProviderRow extends ConsumerWidget {
                 else if (providerState.results.isEmpty &&
                     providerState.isLoading)
                   const Padding(
-                    padding: EdgeInsets.symmetric(horizontal: 8),
+                    padding: EdgeInsets.symmetric(horizontal: Insets.sm),
                     child: SizedBox(
                       width: 18,
                       height: 18,
@@ -569,8 +572,7 @@ class _ProviderRow extends ConsumerWidget {
                 else if (providerState.results.isEmpty)
                   Text(
                     'No results',
-                    style: TextStyle(
-                      fontSize: 12,
+                    style: Theme.of(context).textTheme.bodySmall?.copyWith(
                       color: Theme.of(context).colorScheme.onSurfaceVariant,
                     ),
                   )
@@ -578,8 +580,7 @@ class _ProviderRow extends ConsumerWidget {
                   Text(
                     '${providerState.results.length}'
                     '${providerState.hasNextPage ? '+' : ''}',
-                    style: TextStyle(
-                      fontSize: 12,
+                    style: Theme.of(context).textTheme.bodySmall?.copyWith(
                       color: Theme.of(context).colorScheme.onSurfaceVariant,
                     ),
                   ),
@@ -606,9 +607,10 @@ class _ProviderRow extends ConsumerWidget {
               },
               child: ListView.separated(
                 scrollDirection: Axis.horizontal,
-                padding: const EdgeInsets.symmetric(horizontal: 12),
+                padding: const EdgeInsets.symmetric(horizontal: Insets.md),
                 itemCount: results.length + (hasMorePreview ? 1 : 0),
-                separatorBuilder: (_, _) => const SizedBox(width: 8),
+                separatorBuilder: (_, _) =>
+                    const SizedBox(width: Insets.sm),
                 itemBuilder: (context, index) {
                   if (index >= results.length) {
                     return SizedBox(
@@ -629,12 +631,12 @@ class _ProviderRow extends ConsumerWidget {
                     width: 112,
                     child: InkWell(
                       onTap: () => onOpen(item),
-                      borderRadius: BorderRadius.circular(8),
+                      borderRadius: BorderRadius.all(Radii.sm),
                       child: Column(
                         crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
                           ClipRRect(
-                            borderRadius: BorderRadius.circular(8),
+                            borderRadius: BorderRadius.all(Radii.sm),
                             child: CoverImage(
                               imageUrl: item.cover,
                               width: 112,
@@ -642,12 +644,12 @@ class _ProviderRow extends ConsumerWidget {
                               imageHeaders: item.coverHeaders,
                             ),
                           ),
-                          const SizedBox(height: 4),
+                          const SizedBox(height: Insets.xs),
                           Text(
                             item.title,
                             maxLines: 2,
                             overflow: TextOverflow.ellipsis,
-                            style: const TextStyle(fontSize: 12),
+                            style: Theme.of(context).textTheme.bodySmall,
                           ),
                         ],
                       ),
@@ -659,7 +661,7 @@ class _ProviderRow extends ConsumerWidget {
           )
         else if (providerState.isLoading)
           const Padding(
-            padding: EdgeInsets.fromLTRB(16, 0, 16, 12),
+            padding: EdgeInsets.fromLTRB(Insets.lg, 0, Insets.lg, Insets.md),
             child: Align(
               alignment: Alignment.centerLeft,
               child: SizedBox(
@@ -671,16 +673,20 @@ class _ProviderRow extends ConsumerWidget {
           )
         else if (providerState.error == null)
           Padding(
-            padding: EdgeInsets.fromLTRB(16, 0, 16, 12),
+            padding: const EdgeInsets.fromLTRB(
+              Insets.lg,
+              0,
+              Insets.lg,
+              Insets.md,
+            ),
             child: Text(
               'No results',
-              style: TextStyle(
-                fontSize: 12,
+              style: Theme.of(context).textTheme.bodySmall?.copyWith(
                 color: Theme.of(context).colorScheme.onSurfaceVariant,
               ),
             ),
           ),
-        const SizedBox(height: 4),
+        const SizedBox(height: Insets.xs),
       ],
     );
   }
@@ -753,19 +759,20 @@ class _ErrorContent extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final scheme = Theme.of(context).colorScheme;
     return Center(
       child: Padding(
-        padding: const EdgeInsets.all(24),
+        padding: const EdgeInsets.all(Insets.xl),
         child: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
-            const Icon(Icons.error_outline, size: 48, color: Colors.red),
-            const SizedBox(height: 12),
-            const Text(
+            Icon(Icons.error_outline, size: 48, color: scheme.error),
+            const SizedBox(height: Insets.md),
+            Text(
               'Could not load results',
-              style: TextStyle(fontSize: 17, fontWeight: FontWeight.w600),
+              style: Theme.of(context).textTheme.titleLarge,
             ),
-            const SizedBox(height: 12),
+            const SizedBox(height: Insets.md),
             OutlinedButton.icon(
               onPressed: onRetry,
               icon: const Icon(Icons.refresh),

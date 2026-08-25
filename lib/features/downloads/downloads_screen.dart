@@ -4,10 +4,12 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../core/database/database.dart';
 import '../../core/providers/database_providers.dart';
 import '../../core/utils/platform.dart';
+import '../../theme/app_theme.dart';
 import '../../theme/tokens.dart';
 import '../../widgets/max_width_box.dart';
 import '../../widgets/shimmer_list.dart';
 import '../settings/pages/download_settings_page.dart';
+import 'providers/download_provider.dart';
 
 class DownloadsScreen extends ConsumerStatefulWidget {
   const DownloadsScreen({super.key});
@@ -19,18 +21,54 @@ class DownloadsScreen extends ConsumerStatefulWidget {
 class _DownloadsScreenState extends ConsumerState<DownloadsScreen> {
   bool _showSettings = false;
 
+  @override
+  void initState() {
+    super.initState();
+    // Requeue tasks stuck in 'downloading' from a killed session and drain
+    // anything still queued.
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      ref.read(downloadProvider.notifier).resumePendingDownloads();
+    });
+  }
+
+  /// Header action: re-queues every failed task when any exists.
+  Widget _retryFailedAction(List<DownloadsQueueData> downloads) {
+    final hasFailed = downloads.any((d) => d.status == 'failed');
+    if (!hasFailed) return const SizedBox.shrink();
+    return IconButton(
+      icon: const Icon(Icons.refresh),
+      tooltip: 'Retry failed',
+      onPressed: () async {
+        final notifier = ref.read(downloadProvider.notifier);
+        for (final novelId
+            in downloads
+                .where((d) => d.status == 'failed')
+                .map((d) => d.novelId)
+                .toSet()) {
+          await notifier.retryFailed(novelId);
+        }
+      },
+    );
+  }
+
   Widget _clearActions() {
     return StreamBuilder<List<DownloadsQueueData>>(
       stream: ref.watch(downloadDaoProvider).watchAllDownloads(),
       builder: (context, snapshot) {
         final downloads = snapshot.data ?? [];
         if (downloads.isEmpty) return const SizedBox.shrink();
-        return IconButton(
-          icon: const Icon(Icons.delete_sweep),
-          tooltip: 'Clear completed',
-          onPressed: () async {
-            await ref.read(downloadDaoProvider).clearCompletedDownloads();
-          },
+        return Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            _retryFailedAction(downloads),
+            IconButton(
+              icon: const Icon(Icons.delete_sweep),
+              tooltip: 'Clear completed',
+              onPressed: () async {
+                await ref.read(downloadDaoProvider).clearCompletedDownloads();
+              },
+            ),
+          ],
         );
       },
     );
@@ -174,7 +212,10 @@ class _DownloadsScreenState extends ConsumerState<DownloadsScreen> {
               builder: (context, snapshot) {
                 final downloads = snapshot.data ?? [];
 
-                if (snapshot.connectionState == ConnectionState.waiting) {
+                // The stream is recreated on rebuilds; never blank an
+                // already-loaded queue with a skeleton flash.
+                if (snapshot.connectionState == ConnectionState.waiting &&
+                    !snapshot.hasData) {
                   return const ShimmerList();
                 }
 
@@ -287,21 +328,18 @@ class _DownloadTile extends ConsumerWidget {
                       download.status == 'downloading'
                   ? IconButton(
                       icon: const Icon(Icons.close, size: 20),
+                      tooltip: 'Cancel',
                       onPressed: () => ref
-                          .read(downloadDaoProvider)
-                          .removeDownload(download.id),
+                          .read(downloadProvider.notifier)
+                          .cancelTask(download.id),
                     )
                   : download.status == 'failed'
                   ? IconButton(
                       icon: const Icon(Icons.refresh, size: 20),
+                      tooltip: 'Retry',
                       onPressed: () => ref
-                          .read(downloadDaoProvider)
-                          .updateDownloadStatus(
-                            download.id,
-                            'queued',
-                            progress: 0,
-                            error: null,
-                          ),
+                          .read(downloadProvider.notifier)
+                          .retryTask(download.id),
                     )
                   : null,
             );
@@ -320,9 +358,17 @@ class _DownloadTile extends ConsumerWidget {
           child: CircularProgressIndicator(strokeWidth: 2),
         );
       case 'done':
-        return const Icon(Icons.check_circle, color: Colors.green, size: 24);
+        return Icon(
+          Icons.check_circle,
+          color: Theme.of(context).extension<AppColors>()!.ongoing,
+          size: 24,
+        );
       case 'failed':
-        return const Icon(Icons.error, color: Colors.red, size: 24);
+        return Icon(
+          Icons.error,
+          color: Theme.of(context).colorScheme.error,
+          size: 24,
+        );
       case 'queued':
       default:
         return Icon(

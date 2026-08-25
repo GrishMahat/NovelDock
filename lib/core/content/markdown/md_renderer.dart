@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 
 import '../../tts/tts_manager.dart';
 import '../../../features/settings/pages/reader/reader_settings_state.dart';
+import '../../../theme/app_theme.dart';
 import 'md_ast.dart';
 
 TextStyle _buildTextStyle(ReaderSettings settings) {
@@ -147,7 +148,7 @@ Widget _buildParagraph(
             ttsState.highlightMode == TtsHighlightMode.paragraph) {
           return Container(
             decoration: BoxDecoration(
-              color: Colors.blue.withValues(alpha: 0.1),
+              color: AppTheme.kReaderAccent.withValues(alpha: 0.1),
               borderRadius: BorderRadius.circular(4),
             ),
             child: _richText(
@@ -380,7 +381,7 @@ List<InlineSpan> _buildSpans(
             .expand((n) => _buildSpans(n, baseStyle, settings))
             .toList(),
         style: baseStyle.copyWith(
-          color: Colors.blue,
+          color: AppTheme.kReaderAccent,
           decoration: TextDecoration.underline,
         ),
       ),
@@ -493,7 +494,7 @@ Widget _highlightedRichText(
                 text: sentenceText.substring(0, localWStart),
                 style: span.style?.copyWith(
                   background: Paint()
-                    ..color = Colors.blue.withValues(alpha: 0.22),
+                    ..color = AppTheme.kReaderAccent.withValues(alpha: 0.22),
                 ),
               ),
             );
@@ -506,7 +507,7 @@ Widget _highlightedRichText(
                   fontWeight: FontWeight.bold,
                   color: Colors.white,
                   background: Paint()
-                    ..color = Colors.blue.withValues(alpha: 0.75),
+                    ..color = AppTheme.kReaderAccent.withValues(alpha: 0.75),
                 ),
               ),
             );
@@ -517,7 +518,7 @@ Widget _highlightedRichText(
                 text: sentenceText.substring(localWEnd),
                 style: span.style?.copyWith(
                   background: Paint()
-                    ..color = Colors.blue.withValues(alpha: 0.22),
+                    ..color = AppTheme.kReaderAccent.withValues(alpha: 0.22),
                 ),
               ),
             );
@@ -528,7 +529,7 @@ Widget _highlightedRichText(
               text: sentenceText,
               style: span.style?.copyWith(
                 background: Paint()
-                  ..color = Colors.blue.withValues(alpha: 0.22),
+                  ..color = AppTheme.kReaderAccent.withValues(alpha: 0.22),
               ),
             ),
           );
