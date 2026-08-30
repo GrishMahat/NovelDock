@@ -55,6 +55,9 @@ part 'database.g.dart';
 class AppDatabase extends _$AppDatabase {
   AppDatabase() : super(_openConnection());
 
+  /// Test/in-memory constructor (does not touch the platform DB path).
+  AppDatabase.withExecutor(super.e);
+
   @override
   int get schemaVersion => 2;
 

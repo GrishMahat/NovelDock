@@ -87,7 +87,9 @@ class _ProviderScreenState extends ConsumerState<ProviderScreen>
 
   Future<ProviderInstance?> _ensureLoaded() async {
     if (_instance == null) {
-      _instance = await loadProviderById(widget.providerId, ref.container);
+      _instance = await ref.read(
+        providerInstanceProvider(widget.providerId).future,
+      );
       if (_instance == null) {
         Log.e(_tag, 'No cached provider for ${widget.providerId}');
       }
@@ -215,7 +217,7 @@ class _ProviderScreenState extends ConsumerState<ProviderScreen>
 
   Future<void> _openNovel(SearchResultItem item) async {
     if (item.providerId == null) return;
-    final id = await NovelOpener(ref).open(item);
+    final id = await ref.read(novelOpenerProvider).open(item);
     if (!mounted || id <= 0) return;
     context.push('/novel/$id');
   }

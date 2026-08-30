@@ -35,9 +35,9 @@ class ErrorView extends StatelessWidget {
               const SizedBox(height: Insets.sm),
               Text(
                 details!,
-                style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                  color: scheme.onSurfaceVariant,
-                ),
+                style: Theme.of(
+                  context,
+                ).textTheme.bodySmall?.copyWith(color: scheme.onSurfaceVariant),
                 textAlign: TextAlign.center,
               ),
             ],

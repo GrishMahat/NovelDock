@@ -324,6 +324,11 @@ class SearchNotifier extends Notifier<SearchState> {
 
     ref.read(searchHistoryProvider.notifier).add(q);
 
+    // Wait for the initial enabled-providers load. On a cold start the
+    // notifier defaults to an empty set until the DB read completes, and
+    // searching before then would silently query zero providers.
+    await ref.read(enabledProvidersProvider.notifier).ready;
+
     final enabled = ref.read(enabledProvidersProvider);
     final selected = ref
         .read(searchProviderSelectionProvider.notifier)
@@ -331,7 +336,7 @@ class SearchNotifier extends Notifier<SearchState> {
 
     state = SearchState(
       query: q,
-      providerOrder: enabled.toList(),
+      providerOrder: selected.toList(),
       selectedProviders: selected,
       filters: state.filters,
     );
@@ -380,6 +385,9 @@ class SearchNotifier extends Notifier<SearchState> {
   /// Re-run the search when the provider selection changes.
   Future<void> refreshSelection() async {
     if (state.query.isEmpty) return;
+
+    // See [search]: don't act on the transient empty default set.
+    await ref.read(enabledProvidersProvider.notifier).ready;
 
     final enabled = ref.read(enabledProvidersProvider);
     final selected = ref
@@ -730,7 +738,6 @@ Future<SearchResults?> postNovelList(
     final fields = config['fields'] as Map<String, dynamic>?;
     final headers = config['headers'] as Map<String, dynamic>?;
     final rawBody = config['body'] as List?;
-    final resultPattern = config['resultUrlPattern'] as String?;
 
     if (url == null || url.isEmpty) {
       Log.w(_tag, 'postNovelList: config has no "url"');
@@ -830,28 +837,6 @@ Future<SearchResults?> postNovelList(
     } else {
       Log.w(_tag, 'postNovelList: unexpected status $status, aborting');
       return null;
-    }
-
-    // Optional URL pattern can still be used if the provider explicitly
-    // gives one and the redirect target needs page substitution.
-    if (resultPattern != null && resultPattern.isNotEmpty) {
-      final resolvedPattern = resultPattern.replaceAll(
-        '{page}',
-        page.toString(),
-      );
-
-      if (resolvedPattern.isNotEmpty) {
-        final patternUri = response.requestOptions.uri.resolve(resolvedPattern);
-
-        // Only use the configured pattern when it appears to contain
-        // the same provider-hosted search path. Otherwise keep the
-        // actual redirect target.
-        if (patternUri.host == response.requestOptions.uri.host) {
-          // Keep the actual Location target by default. The pattern is
-          // intentionally not allowed to override a concrete redirect
-          // target without provider-specific evidence.
-        }
-      }
     }
 
     Log.i(_tag, 'postNovelList: fetching results: $resultUrl');

@@ -149,20 +149,21 @@ class ReadingProgressNotifier extends StateNotifier<ReadingProgressState> {
       final existingChapters = await chapterDao.getChaptersForNovel(novelId);
       final existingUrls = existingChapters.map((c) => c.url).toSet();
 
-      var newChapters = 0;
-      for (final chapterUrl in chapterUrls) {
-        if (!existingUrls.contains(chapterUrl['url'])) {
-          await chapterDao.insertChaptersForNovel(novelId, [
+      // One diff-sync for the whole batch. The previous per-chapter loop
+      // called delete-all + insert-one on every iteration, which wiped the
+      // novel's entire chapter list and left only the last entry.
+      final chapterList = [
+        for (final chapterUrl in chapterUrls)
+          if (!existingUrls.contains(chapterUrl['url']))
             ChaptersCompanion(
               novelId: Value(novelId),
               name: Value(chapterUrl['name'] as String),
               url: Value(chapterUrl['url'] as String),
               index: Value((chapterUrl['index'] as num).toDouble()),
             ),
-          ]);
-          newChapters++;
-        }
-      }
+      ];
+      await chapterDao.syncChaptersForNovel(novelId, chapterList);
+      final newChapters = chapterList.length;
 
       await _loadProgress();
 

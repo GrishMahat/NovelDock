@@ -49,7 +49,7 @@ class _BrowseScreenState extends ConsumerState<BrowseScreen>
   Future<void> _updateAll() async {
     setState(() => _updating = true);
     try {
-      final count = await updateAllRegistries(ref);
+      final count = await updateAllRegistries(ref.container);
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
         count > 0
@@ -357,9 +357,9 @@ class _SourceCard extends StatelessWidget {
                     const SizedBox(height: 2),
                     Text(
                       provider.lang.toUpperCase(),
-                      style: Theme.of(
-                        context,
-                      ).textTheme.bodySmall?.copyWith(color: scheme.onSurfaceVariant),
+                      style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                        color: scheme.onSurfaceVariant,
+                      ),
                     ),
                   ],
                 ),
@@ -457,7 +457,7 @@ class CatalogTab extends ConsumerWidget {
                     child: _ExtensionTile(
                       provider: p,
                       isInstalled: true,
-                      onToggle: () => toggleProvider(p.id, ref),
+                      onToggle: () => toggleProvider(p.id, ref.container),
                     ),
                   ),
                 ),
@@ -470,7 +470,7 @@ class CatalogTab extends ConsumerWidget {
                     child: _ExtensionTile(
                       provider: p,
                       isInstalled: false,
-                      onToggle: () => toggleProvider(p.id, ref),
+                      onToggle: () => toggleProvider(p.id, ref.container),
                     ),
                   ),
                 ),
@@ -530,7 +530,9 @@ class _ExtensionTile extends StatelessWidget {
               Container(
                 padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 1),
                 decoration: BoxDecoration(
-                  color: Theme.of(context).colorScheme.error.withValues(alpha: 0.2),
+                  color: Theme.of(
+                    context,
+                  ).colorScheme.error.withValues(alpha: 0.2),
                   borderRadius: BorderRadius.circular(3),
                 ),
                 child: Text(

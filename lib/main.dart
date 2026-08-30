@@ -10,6 +10,7 @@ import 'core/utils/log_buffer.dart';
 import 'core/tts/background_audio_handler.dart';
 import 'core/utils/window_state.dart';
 import 'features/downloads/background_service.dart';
+import 'features/downloads/providers/download_notification.dart';
 
 final FlutterLocalNotificationsPlugin flutterLocalNotificationsPlugin =
     FlutterLocalNotificationsPlugin();
@@ -70,7 +71,11 @@ Future<void> _initNotifications() async {
     android: androidSettings,
     linux: linuxSettings,
   );
-  await flutterLocalNotificationsPlugin.initialize(settings: initSettings);
+  await flutterLocalNotificationsPlugin.initialize(
+    settings: initSettings,
+    onDidReceiveNotificationResponse:
+        DownloadNotification.handleNotificationResponse,
+  );
 
   if (!Platform.isAndroid) return;
 

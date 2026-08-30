@@ -3,7 +3,6 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_riverpod/legacy.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
-
 /// Translation settings
 class TranslationSettings {
   final String fromLanguage;
@@ -243,7 +242,10 @@ class TranslationSettingsPage extends ConsumerWidget {
                           : null,
                     ),
                     title: Text(name),
-                    subtitle: Text(code, style: Theme.of(ctx).textTheme.bodySmall),
+                    subtitle: Text(
+                      code,
+                      style: Theme.of(ctx).textTheme.bodySmall,
+                    ),
                     onTap: () {
                       if (isSource) {
                         notifier.updateFromLanguage(code);

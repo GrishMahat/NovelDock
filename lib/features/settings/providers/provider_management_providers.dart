@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:convert';
 import 'dart:io';
 
@@ -6,6 +7,7 @@ import 'package:flutter_riverpod/legacy.dart';
 import 'package:path/path.dart' as p;
 
 import '../../../core/config/app_config.dart';
+import '../../../core/providers/engine.dart';
 import '../../../core/providers/models.dart';
 import '../../../core/providers/registry.dart';
 import '../../../core/providers/database_providers.dart';
@@ -103,6 +105,8 @@ class RegistriesNotifier extends AsyncNotifier<List<RegistryInfo>> {
         if (r.id == registryId) r.copyWith(enabled: !r.enabled) else r,
     ]);
     await _saveToDb();
+    // The provider list is built from enabled registries only.
+    ref.invalidate(availableProvidersProvider);
     Log.i(_tag, 'Toggled registry: $registryId');
   }
 }
@@ -176,6 +180,13 @@ final enabledProvidersProvider =
 
 class EnabledProvidersNotifier extends StateNotifier<Set<String>> {
   final Ref ref;
+  final Completer<void> _ready = Completer<void>();
+
+  /// Completes once the initial DB load has finished (or failed). Callers
+  /// that must not act on the transient empty default state should await
+  /// this — otherwise a search started at cold start would see no enabled
+  /// providers and silently return nothing.
+  Future<void> get ready => _ready.future;
 
   EnabledProvidersNotifier(this.ref) : super(const {}) {
     _loadFromDb();
@@ -194,6 +205,8 @@ class EnabledProvidersNotifier extends StateNotifier<Set<String>> {
       }
     } catch (e) {
       Log.e(_tag, 'Failed to load enabled providers from DB', e);
+    } finally {
+      if (!_ready.isCompleted) _ready.complete();
     }
   }
 
@@ -237,10 +250,21 @@ class EnabledProvidersNotifier extends StateNotifier<Set<String>> {
 
 /// Add a new registry from a URL: fetch JSON, sync providers, add to list.
 /// Returns null on success, or an error message string on failure.
-Future<String?> addRegistry(String url, WidgetRef ref) async {
+///
+/// Takes a [ProviderContainer] instead of a [WidgetRef] so the network work
+/// survives the originating page being disposed mid-flight.
+Future<String?> addRegistry(String url, ProviderContainer ref) async {
   final registryManager = await ref.read(registryManagerProvider.future);
 
   final id = Uri.parse(url).pathSegments.where((s) => s.isNotEmpty).join('-');
+
+  // Two different URLs can normalize to the same id (and re-adding the same
+  // URL would produce a duplicate list entry that all id-based operations
+  // would then hit twice).
+  final existing = ref.read(registriesProvider).value ?? const [];
+  if (existing.any((r) => r.id == id || r.url == url)) {
+    return 'Registry already added';
+  }
 
   Log.i(_tag, 'Adding registry from URL: $url (id: $id)');
   final error = await registryManager.fetchRegistryJsonWithError(url);
@@ -274,7 +298,10 @@ Future<String?> addRegistry(String url, WidgetRef ref) async {
 
 /// Add a new registry from a local JSON file.
 /// Returns null on success, or an error message string on failure.
-Future<String?> addRegistryFromFile(String filePath, WidgetRef ref) async {
+Future<String?> addRegistryFromFile(
+  String filePath,
+  ProviderContainer ref,
+) async {
   final registryManager = await ref.read(registryManagerProvider.future);
 
   final filename = p.basenameWithoutExtension(filePath);
@@ -330,7 +357,7 @@ bool _isLocalRegistryUrl(String url) =>
 
 /// Check a single registry for updates and apply them if available.
 /// Returns true if it was updated, false if already up to date or failed.
-Future<bool> updateRegistryNow(String registryId, WidgetRef ref) async {
+Future<bool> updateRegistryNow(String registryId, ProviderContainer ref) async {
   final registryManager = await ref.read(registryManagerProvider.future);
   final registries = ref.read(registriesProvider).value ?? [];
   final registry = registries.firstWhere(
@@ -363,8 +390,11 @@ Future<bool> updateRegistryNow(String registryId, WidgetRef ref) async {
         ),
       );
 
-  // Force provider list to refresh
+  // Force provider list to refresh...
   ref.invalidate(availableProvidersProvider);
+  // ...and drop any loaded JS instance so search/browse immediately use the
+  // newly synced provider code instead of the previous runtime.
+  ref.invalidate(providerInstanceProvider);
 
   Log.ok(_tag, 'Registry updated: $registryId');
   return true;
@@ -372,7 +402,7 @@ Future<bool> updateRegistryNow(String registryId, WidgetRef ref) async {
 
 /// Manually check all URL-based registries for updates and apply them.
 /// Returns the number of registries that were updated.
-Future<int> updateAllRegistries(WidgetRef ref) async {
+Future<int> updateAllRegistries(ProviderContainer ref) async {
   final registryManager = await ref.read(registryManagerProvider.future);
   final registries = ref.read(registriesProvider).value ?? [];
 
@@ -418,6 +448,9 @@ Future<int> updateAllRegistries(WidgetRef ref) async {
 
   if (updatedCount > 0) {
     ref.invalidate(availableProvidersProvider);
+    // Drop loaded JS instances so the updated provider code takes effect
+    // without an app restart.
+    ref.invalidate(providerInstanceProvider);
     Log.ok(_tag, 'Updated $updatedCount registry(ies)');
   } else {
     Log.i(_tag, 'No registry updates available');
@@ -426,11 +459,13 @@ Future<int> updateAllRegistries(WidgetRef ref) async {
 }
 
 /// Remove a registry and its cached data.
-Future<void> removeRegistry(String registryId, WidgetRef ref) async {
-  ref.read(registriesProvider.notifier).remove(registryId);
-  Log.i(_tag, 'Removed registry: $registryId');
-
+Future<void> removeRegistry(String registryId, ProviderContainer ref) async {
   final registryManager = await ref.read(registryManagerProvider.future);
+
+  // Delete the cached files first: if the delete fails, the registry is
+  // still usable and loadable; removing it from the list while its cache
+  // remains would leave a "ghost" provider that still resolves via
+  // loadCachedProviderJs.
   final cacheDir = registryManager.registryDir(registryId);
   if (cacheDir.existsSync()) {
     try {
@@ -440,9 +475,13 @@ Future<void> removeRegistry(String registryId, WidgetRef ref) async {
       Log.w(_tag, 'Failed to delete cached data for $registryId: $e');
     }
   }
+
+  ref.read(registriesProvider.notifier).remove(registryId);
+  ref.invalidate(providerInstanceProvider);
+  Log.i(_tag, 'Removed registry: $registryId');
 }
 
 /// Toggle a provider's enabled state (convenience wrapper).
-void toggleProvider(String providerId, WidgetRef ref) {
+void toggleProvider(String providerId, ProviderContainer ref) {
   ref.read(enabledProvidersProvider.notifier).toggle(providerId);
 }

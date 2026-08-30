@@ -65,7 +65,7 @@
             android:foregroundServiceType="dataSync"
             android:exported="false"
             android:stopWithTask="true"
-            tools:replace="android:exported"/>
+            tools:replace="android:exported,android:stopWithTask"/>
         <receiver
             android:name="com.ryanheise.audioservice.MediaButtonReceiver"
             android:exported="true">

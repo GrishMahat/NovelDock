@@ -117,10 +117,9 @@ Widget buildReaderTopBar({
                                 chapterName,
                                 style: TextStyle(
                                   color: s.textColor,
-                                  fontSize:
-                                      Theme.of(
-                                        context,
-                                      ).textTheme.titleMedium?.fontSize,
+                                  fontSize: Theme.of(
+                                    context,
+                                  ).textTheme.titleMedium?.fontSize,
                                   fontWeight: FontWeight.w500,
                                 ),
                                 maxLines: 1,
@@ -133,10 +132,9 @@ Widget buildReaderTopBar({
                                 positionLabel,
                                 style: TextStyle(
                                   color: s.textColor.withValues(alpha: 0.6),
-                                  fontSize:
-                                      Theme.of(
-                                        context,
-                                      ).textTheme.bodySmall?.fontSize,
+                                  fontSize: Theme.of(
+                                    context,
+                                  ).textTheme.bodySmall?.fontSize,
                                   fontWeight: FontWeight.w500,
                                 ),
                               ),
@@ -237,6 +235,10 @@ Widget buildReaderBottomBar({
 }
 
 /// TTS floating player controls.
+///
+/// Media-cluster hierarchy: skips are quiet, play/pause is the single focal
+/// control, stop is separated behind a hairline. All colors derive from the
+/// reader text tint so the pill sits well on every reader theme.
 Widget buildTtsFloatingPlayer({
   required ReaderSettings settings,
   required TtsManagerState ttsState,
@@ -245,6 +247,8 @@ Widget buildTtsFloatingPlayer({
   required VoidCallback onStop,
   required VoidCallback onSkipNext,
 }) {
+  final tint = settings.textColor;
+  final quiet = tint.withValues(alpha: 0.72);
   final progress = ttsState.totalChunks > 0
       ? ttsState.currentChunkIndex / ttsState.totalChunks
       : 0.0;
@@ -267,47 +271,91 @@ Widget buildTtsFloatingPlayer({
             clipBehavior: Clip.antiAlias,
             elevation: 0,
             child: IconTheme(
-              data: IconThemeData(color: settings.textColor),
+              data: IconThemeData(color: tint),
               child: Column(
                 mainAxisSize: MainAxisSize.min,
                 children: [
                   Padding(
-                    padding: const EdgeInsets.symmetric(horizontal: Insets.sm),
+                    padding: const EdgeInsets.fromLTRB(
+                      Insets.xs,
+                      Insets.xs,
+                      Insets.xs,
+                      0,
+                    ),
                     child: Row(
                       mainAxisSize: MainAxisSize.min,
                       children: [
                         IconButton(
-                          icon: const Icon(Icons.skip_previous),
+                          icon: const Icon(Icons.skip_previous_rounded),
+                          color: quiet,
                           tooltip: 'Previous paragraph',
                           onPressed: onSkipBack,
                         ),
+                        // Focal control: the filled disc reads as "this is
+                        // the button", the rest recede per DESIGN.md.
                         IconButton(
                           icon: Icon(
-                            ttsState.isPaused ? Icons.play_arrow : Icons.pause,
+                            ttsState.isPaused
+                                ? Icons.play_arrow_rounded
+                                : Icons.pause_rounded,
+                            size: 26,
                           ),
                           tooltip: ttsState.isPaused ? 'Resume' : 'Pause',
                           onPressed: onTogglePause,
+                          style: IconButton.styleFrom(
+                            backgroundColor: tint.withValues(alpha: 0.14),
+                            shape: const CircleBorder(),
+                          ),
                         ),
                         IconButton(
-                          icon: const Icon(Icons.stop),
-                          tooltip: 'Stop',
-                          onPressed: onStop,
-                        ),
-                        IconButton(
-                          icon: const Icon(Icons.skip_next),
+                          icon: const Icon(Icons.skip_next_rounded),
+                          color: quiet,
                           tooltip: 'Next paragraph',
                           onPressed: onSkipNext,
+                        ),
+                        // Stop is destructive-adjacent; a hairline separates
+                        // it from the transport cluster.
+                        Padding(
+                          padding: const EdgeInsets.symmetric(
+                            horizontal: Insets.xs,
+                          ),
+                          child: SizedBox(
+                            height: 22,
+                            child: VerticalDivider(
+                              width: 1,
+                              thickness: 1,
+                              color: tint.withValues(alpha: 0.18),
+                            ),
+                          ),
+                        ),
+                        IconButton(
+                          icon: const Icon(Icons.stop_rounded),
+                          color: quiet,
+                          tooltip: 'Stop',
+                          onPressed: onStop,
                         ),
                       ],
                     ),
                   ),
-                  LinearProgressIndicator(
-                    value: progress,
-                    backgroundColor: settings.textColor.withValues(alpha: 0.15),
-                    valueColor: AlwaysStoppedAnimation<Color>(
-                      settings.textColor.withValues(alpha: 0.7),
+                  // Progress line, inset so it hugs the pill's rounded ends.
+                  Padding(
+                    padding: const EdgeInsets.fromLTRB(
+                      Insets.md,
+                      0,
+                      Insets.md,
+                      Insets.xs,
                     ),
-                    minHeight: 3,
+                    child: ClipRRect(
+                      borderRadius: BorderRadius.circular(2),
+                      child: LinearProgressIndicator(
+                        value: progress,
+                        backgroundColor: tint.withValues(alpha: 0.15),
+                        valueColor: AlwaysStoppedAnimation<Color>(
+                          tint.withValues(alpha: 0.7),
+                        ),
+                        minHeight: 3,
+                      ),
+                    ),
                   ),
                 ],
               ),

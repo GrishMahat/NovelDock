@@ -45,8 +45,7 @@ class EmptyState extends StatelessWidget {
                 textAlign: TextAlign.center,
               ),
             ],
-            if (action != null)
-              ...[const SizedBox(height: Insets.xl), action!],
+            if (action != null) ...[const SizedBox(height: Insets.xl), action!],
           ],
         ),
       ),

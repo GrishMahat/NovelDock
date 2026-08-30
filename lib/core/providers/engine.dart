@@ -10,22 +10,35 @@ import '../utils/logger.dart';
 
 const _tag = 'Engine';
 
+/// Decodes the HTML entities that appear in scraped content.
+///
+/// `&amp;` is decoded LAST so that double-encoded input like `&amp;lt;`
+/// resolves to `&lt;` (the literal text) instead of being unescaped twice
+/// into `<`.
 String decodeHtmlEntities(String str) {
   str = str
-      .replaceAll('&amp;', '&')
       .replaceAll('&lt;', '<')
       .replaceAll('&gt;', '>')
       .replaceAll('&quot;', '"')
+      .replaceAll('&apos;', "'")
+      .replaceAll('&#39;', "'")
       .replaceAll('&nbsp;', ' ');
   str = str.replaceAllMapped(
     RegExp(r'&#(\d+);'),
-    (m) => String.fromCharCode(int.parse(m[1]!)),
+    (m) => _safeFromCharCode(int.parse(m[1]!)),
   );
   str = str.replaceAllMapped(
     RegExp(r'&#x([0-9a-fA-F]+);'),
-    (m) => String.fromCharCode(int.parse(m[1]!, radix: 16)),
+    (m) => _safeFromCharCode(int.parse(m[1]!, radix: 16)),
   );
-  return str;
+  return str.replaceAll('&amp;', '&');
+}
+
+/// [String.fromCharCode] throws on values outside the valid code point
+/// range; clamp so a malformed entity can't crash a parse.
+String _safeFromCharCode(int code) {
+  if (code < 0 || code > 0x10FFFF) return '';
+  return String.fromCharCode(code);
 }
 
 /// Feature flags that a provider can declare via getProviderMetadata().
@@ -76,14 +89,7 @@ class ProviderFeatureFlags {
 
 /// Wraps the JS engine for evaluating provider JS files.
 class ProviderEngine {
-  JavascriptRuntime? _runtime;
   final List<JavascriptRuntime> _runtimes = [];
-
-  void init() {
-    Log.i(_tag, 'Initializing JS runtime...');
-    _runtime = getJavascriptRuntime();
-    Log.ok(_tag, 'JS runtime initialized');
-  }
 
   void dispose() {
     Log.i(_tag, 'Disposing JS runtimes');
@@ -93,10 +99,6 @@ class ProviderEngine {
       } catch (_) {}
     }
     _runtimes.clear();
-    try {
-      _runtime?.dispose();
-    } catch (_) {}
-    _runtime = null;
   }
 
   /// Load a provider from JS source code.
@@ -105,8 +107,6 @@ class ProviderEngine {
   /// shared global scope (`var module = { exports: {} }`), so loading a
   /// second provider would overwrite the first one's exports.
   Future<ProviderInstance> loadProvider(String jsSource) async {
-    if (_runtime == null) init();
-
     Log.i(_tag, 'Loading provider (${jsSource.length} chars)...');
 
     final runtime = getJavascriptRuntime();
@@ -600,10 +600,10 @@ final providerEngineProvider = Provider<ProviderEngine>((ref) {
 
 /// Loads a provider's JS, evaluates it, and loads its feature flags.
 ///
-/// One module owns the whole load path. Callers just
+/// This is the single load path for provider instances. Callers just
 /// `ref.read(providerInstanceProvider(id).future)`. The family caches per
 /// provider id, so concurrent callers share one load. After a registry
-/// update, invalidate the family to force a fresh instance.
+/// update or removal, invalidate the family to force a fresh instance.
 final providerInstanceProvider =
     FutureProvider.family<ProviderInstance?, String>((ref, providerId) async {
       Log.i(_tag, 'Loading provider: $providerId');
@@ -626,48 +626,3 @@ final providerInstanceProvider =
         return null;
       }
     });
-
-/// Manages loaded provider instances keyed by provider ID.
-class LoadedProvidersNotifier extends Notifier<Map<String, ProviderInstance>> {
-  @override
-  Map<String, ProviderInstance> build() => {};
-
-  /// Cache a freshly-loaded provider instance under [providerId].
-  void cache(String providerId, ProviderInstance instance) {
-    state = {...state, providerId: instance};
-  }
-}
-
-final loadedProvidersProvider =
-    NotifierProvider<LoadedProvidersNotifier, Map<String, ProviderInstance>>(
-      LoadedProvidersNotifier.new,
-    );
-
-/// Load a provider's JS from disk cache, evaluate it, and cache the instance.
-/// Returns cached instance if already loaded.
-Future<ProviderInstance?> loadProviderById(
-  String providerId,
-  ProviderContainer container,
-) async {
-  // Check cache first
-  final cached = container.read(loadedProvidersProvider)[providerId];
-  if (cached != null) return cached;
-
-  final registry = await container.read(registryManagerProvider.future);
-  final engine = container.read(providerEngineProvider);
-
-  final jsSource = await registry.loadCachedProviderJs(providerId);
-  if (jsSource == null) {
-    Log.w(_tag, 'No cached JS for provider: $providerId');
-    return null;
-  }
-
-  final instance = await engine.loadProvider(jsSource);
-
-  // Load feature flags
-  await instance.loadFlags();
-
-  container.read(loadedProvidersProvider.notifier).cache(providerId, instance);
-
-  return instance;
-}

@@ -65,8 +65,7 @@ class _StatusPickerSheetState extends State<StatusPickerSheet> {
               leading: Icon(icon, color: optionColor(status)),
               title: Text(status),
               selected: !_removeRequested && _selected == status,
-              trailing:
-                  !_removeRequested && _selected == status
+              trailing: !_removeRequested && _selected == status
                   ? const Icon(Icons.check, size: 20)
                   : null,
               onTap: () => setState(() {

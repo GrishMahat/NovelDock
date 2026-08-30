@@ -55,6 +55,17 @@ class TtsPlaybackController {
   bool _paused = false;
   bool _synthesizing = false;
 
+  /// True while [_playRest] is alive for the current generation, i.e. the
+  /// pipeline is still able to synthesize and append more chunks.
+  bool _pipelineActive = false;
+
+  /// True while a synthesized chunk is being handed to the platform player.
+  ///
+  /// Synthesis has finished at that point, so [_synthesizing] is false; the
+  /// stall watchdog and the premature-completion handler must still treat
+  /// this window as "pipeline busy".
+  bool _appending = false;
+
   int _generation = 0;
 
   DateTime _lastBytesAt = DateTime.fromMillisecondsSinceEpoch(0);
@@ -235,7 +246,9 @@ class TtsPlaybackController {
 
     _startStallTimer();
 
-    await _player.play();
+    // Never awaited: on Android play() only completes when the loaded
+    // playlist ends, which would wedge the manager's paused state.
+    _startPlayback(_generation);
   }
 
   Future<void> stop() async {
@@ -257,6 +270,8 @@ class TtsPlaybackController {
     _prematurelyCompleted = false;
     _pipelineFailed = false;
     _synthesizing = false;
+    _pipelineActive = false;
+    _appending = false;
 
     _stallTimer?.cancel();
     _stallTimer = null;
@@ -423,6 +438,27 @@ class TtsPlaybackController {
     unawaited(_playRest(fromIndex + 1, sessionGeneration));
   }
 
+  /// Starts playback without awaiting it.
+  ///
+  /// just_audio's play() future does not complete on Android until the loaded
+  /// playlist reaches its end (the platform replies to the play request on
+  /// STATE_ENDED, not on STATE_READY). Awaiting it would block the pipeline
+  /// until after the first premature completion, so chunk appends would never
+  /// overlap playback and every session would loop on its first chunk.
+  void _startPlayback(int generation) {
+    unawaited(
+      _player.play().catchError((Object e, StackTrace stackTrace) {
+        if (_isGenerationCurrent(generation)) {
+          _pipelineFailed = true;
+
+          Log.e(_tag, 'Playback failed to start: $e');
+
+          onError?.call(e, fatal: true);
+        }
+      }),
+    );
+  }
+
   Future<void> _loadFirstChunk(int index, int generation) async {
     final bytes = await _synthesizeChunk(index, generation);
 
@@ -441,18 +477,27 @@ class TtsPlaybackController {
       return;
     }
 
-    await _player.play();
+    _startPlayback(generation);
   }
 
   Future<void> _playRest(int from, int generation) async {
     try {
+      if (generation == _generation) {
+        _pipelineActive = true;
+      }
+
       for (var i = from; i < _chunks.length; i++) {
         if (!_isGenerationCurrent(generation)) {
           return;
         }
 
+        // Wait for the playhead to fall behind by less than the prefetch
+        // window. A premature completion means the player ran out of loaded
+        // audio and is parked at the end of the playlist; the playhead can
+        // no longer advance, so waiting for it would wedge the pipeline.
         while (i - _playhead >= prefetchWindow &&
-            _isGenerationCurrent(generation)) {
+            _isGenerationCurrent(generation) &&
+            !_prematurelyCompleted) {
           await Future<void>.delayed(const Duration(milliseconds: 100));
         }
 
@@ -468,7 +513,23 @@ class TtsPlaybackController {
 
         final source = TtsStreamSource.fromBytes(bytes);
 
-        await _player.addToPlaylist(source);
+        // A platform playlist update that never answers (ExoPlayer hiccup)
+        // must not wedge the pipeline silently: synthesizing would read
+        // false, no error would fire, and playback would loop on the last
+        // loaded chunk until the premature handler gives up. Bound the wait.
+        _appending = true;
+
+        try {
+          await _player
+              .addToPlaylist(source)
+              .timeout(
+                const Duration(seconds: 30),
+                onTimeout: () =>
+                    throw StateError('addToPlaylist timed out for chunk $i'),
+              );
+        } finally {
+          _appending = false;
+        }
 
         if (!_isGenerationCurrent(generation)) {
           return;
@@ -493,6 +554,7 @@ class TtsPlaybackController {
       }
     } on Object catch (e) {
       _synthesizing = false;
+      _appending = false;
 
       if (_isGenerationCurrent(generation)) {
         _pipelineFailed = true;
@@ -500,6 +562,12 @@ class TtsPlaybackController {
         Log.e(_tag, 'Pipeline failed: $e');
 
         onError?.call(e, fatal: true);
+      }
+    } finally {
+      // Only the run that owns the current generation may clear the flag;
+      // a superseded run can finish after a newer pipeline has started.
+      if (generation == _generation) {
+        _pipelineActive = false;
       }
     }
   }
@@ -509,19 +577,47 @@ class TtsPlaybackController {
       return;
     }
 
-    try {
-      // If the player completed the playlist, seek to the first item that
-      // has not been played yet, then resume.
-      await _player.audioPlayer.seekToNext();
-    } catch (e) {
-      Log.w(_tag, 'seekToNext after premature EOF failed: $e');
+    // If the player already continued on its own (the platform extended the
+    // ended playlist and resumed), or the completion flag was stale, seeking
+    // here would skip over audio that is still playing.
+    final state = _player.audioPlayer.processingState;
+    final playing = _player.audioPlayer.playing;
+
+    if (playing &&
+        (state == ProcessingState.ready ||
+            state == ProcessingState.buffering)) {
+      return;
     }
 
     try {
-      await _player.play();
+      // The player completed the playlist, so it is parked in the completed
+      // state on the LAST loaded item — where seekToNext() is a no-op and
+      // play() would just replay the whole playlist from the top. Seek
+      // explicitly to the first item that has not been played yet.
+      final lastLoadedItem = _player.playlistLength - 1;
+      final nextChunk = (_pipelineFromIndex + lastLoadedItem + 1).clamp(
+        0,
+        _chunks.length - 1,
+      );
+      final nextItem = (nextChunk - _pipelineFromIndex).clamp(
+        0,
+        lastLoadedItem,
+      );
+
+      Log.i(
+        _tag,
+        'Resuming playlist at chunk '
+        '${_pipelineFromIndex + nextItem} after premature EOF',
+      );
+
+      await _player.audioPlayer.seek(Duration.zero, index: nextItem);
     } catch (e) {
-      Log.w(_tag, 'Resume after premature EOF failed: $e');
+      Log.w(_tag, 'Seek after premature EOF failed: $e');
     }
+
+    // Must not be awaited: play() only completes on Android once the loaded
+    // playlist ends, which would freeze the append loop here.
+    _startPlayback(_generation);
   }
 
   Future<Uint8List?> _synthesizeChunk(int index, int generation) async {
@@ -715,6 +811,7 @@ class TtsPlaybackController {
 
   void _resetChunkState({bool clearAudioCache = false}) {
     _synthesizing = false;
+    _appending = false;
 
     _boundaries
       ..clear()
@@ -769,6 +866,12 @@ class TtsPlaybackController {
 
       // Slow synthesis is not itself a playback stall.
       if (_synthesizing) {
+        return;
+      }
+
+      // Handing a finished chunk to the platform player is not a stall
+      // either; synthesis already completed, so _synthesizing is false here.
+      if (_appending) {
         return;
       }
 
@@ -859,12 +962,31 @@ class TtsPlaybackController {
         'chunks loaded '
         '(loaded=$loaded/'
         '${_chunks.length}, '
-        'synthesizing=$_synthesizing)',
+        'synthesizing=$_synthesizing, '
+        'appending=$_appending, '
+        'pipelineActive=$_pipelineActive)',
       );
 
+      if (_pipelineFailed) {
+        unawaited(_stopInternal(invalidateEngine: true));
+        return;
+      }
+
+      // The pipeline is still alive: it will append the next chunk and then
+      // resume playback from the first unplayed item via
+      // _resumeAfterPrematureEof(). Restarting here would tear down a
+      // healthy pipeline (possibly dropping an in-flight append), replay
+      // audio the user already heard, and race the pipeline's own recovery.
+      if (_pipelineActive) {
+        _prematurelyCompleted = true;
+        return;
+      }
+
+      // No pipeline is running to append anything — recover by restarting
+      // at the playhead. Treat an in-flight append as pipeline work too.
       _prematurelyCompleted = true;
 
-      if (!_synthesizing) {
+      if (!_synthesizing && !_appending) {
         _handlePrematureCompletion();
       }
 

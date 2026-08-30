@@ -41,31 +41,53 @@ class TtsMiniPlayer extends ConsumerWidget {
               ),
               child: Row(
                 children: [
-                  // Pause/Play
+                  // Skip back
                   IconButton(
-                    icon: Icon(
-                      ttsState.isPaused ? Icons.play_arrow : Icons.pause,
-                      color: scheme.primary,
-                      size: 28,
-                    ),
-                    onPressed: () => ttsNotifier.togglePause(),
-                    tooltip: ttsState.isPaused ? 'Play' : 'Pause',
+                    icon: const Icon(Icons.skip_previous_rounded, size: 22),
+                    color: scheme.onSurfaceVariant,
+                    tooltip: 'Previous line',
+                    onPressed: () => ttsNotifier.skipBackward(),
                     padding: EdgeInsets.zero,
                     constraints: const BoxConstraints(minWidth: 44),
                   ),
-                  // Skip back
-                  IconButton(
-                    icon: const Icon(Icons.skip_previous, size: 22),
-                    onPressed: () => ttsNotifier.skipBackward(),
-                    tooltip: 'Previous line',
-                    padding: EdgeInsets.zero,
-                    constraints: const BoxConstraints(minWidth: 44),
+                  // Focal control: filled disc follows the live accent.
+                  IconButton.filledTonal(
+                    icon: Icon(
+                      ttsState.isPaused
+                          ? Icons.play_arrow_rounded
+                          : Icons.pause_rounded,
+                      size: 26,
+                    ),
+                    tooltip: ttsState.isPaused ? 'Play' : 'Pause',
+                    onPressed: () => ttsNotifier.togglePause(),
                   ),
                   // Skip forward
                   IconButton(
-                    icon: const Icon(Icons.skip_next, size: 22),
-                    onPressed: () => ttsNotifier.skipForward(),
+                    icon: const Icon(Icons.skip_next_rounded, size: 22),
+                    color: scheme.onSurfaceVariant,
                     tooltip: 'Next line',
+                    onPressed: () => ttsNotifier.skipForward(),
+                    padding: EdgeInsets.zero,
+                    constraints: const BoxConstraints(minWidth: 44),
+                  ),
+                  // Stop is destructive-adjacent; a hairline separates it
+                  // from the transport cluster.
+                  Padding(
+                    padding: const EdgeInsets.symmetric(horizontal: Insets.xs),
+                    child: SizedBox(
+                      height: 22,
+                      child: VerticalDivider(
+                        width: 1,
+                        thickness: 1,
+                        color: scheme.outlineVariant,
+                      ),
+                    ),
+                  ),
+                  IconButton(
+                    icon: const Icon(Icons.stop_rounded, size: 22),
+                    color: scheme.onSurfaceVariant,
+                    tooltip: 'Stop',
+                    onPressed: () => ttsNotifier.stop(),
                     padding: EdgeInsets.zero,
                     constraints: const BoxConstraints(minWidth: 44),
                   ),
@@ -91,14 +113,6 @@ class TtsMiniPlayer extends ConsumerWidget {
                         ),
                       ],
                     ),
-                  ),
-                  // Stop
-                  IconButton(
-                    icon: const Icon(Icons.close, size: 20),
-                    onPressed: () => ttsNotifier.stop(),
-                    tooltip: 'Stop',
-                    padding: EdgeInsets.zero,
-                    constraints: const BoxConstraints(minWidth: 44),
                   ),
                 ],
               ),

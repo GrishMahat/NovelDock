@@ -45,9 +45,7 @@ void showChapterListSheet({
                         : Theme.of(context).colorScheme.surfaceContainerHighest,
                     child: Text(
                       '${index + 1}',
-                      style: Theme.of(
-                        context,
-                      ).textTheme.labelMedium?.copyWith(
+                      style: Theme.of(context).textTheme.labelMedium?.copyWith(
                         color: isCurrent
                             ? Theme.of(context).colorScheme.primary
                             : null,

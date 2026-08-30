@@ -29,7 +29,10 @@ class _DownloadRangeSheetState extends State<DownloadRangeSheet> {
   @override
   void initState() {
     super.initState();
-    _range = RangeValues(widget.minChapter.toDouble(), widget.maxChapter.toDouble());
+    _range = RangeValues(
+      widget.minChapter.toDouble(),
+      widget.maxChapter.toDouble(),
+    );
   }
 
   @override
@@ -103,8 +106,7 @@ class _DownloadRangeSheetState extends State<DownloadRangeSheet> {
                 Expanded(
                   child: FilledButton(
                     onPressed: _useRange
-                        ? () =>
-                              widget.onDownloadRange(_range.start, _range.end)
+                        ? () => widget.onDownloadRange(_range.start, _range.end)
                         : widget.onDownloadAll,
                     child: Text(_useRange ? 'Download range' : 'Download all'),
                   ),

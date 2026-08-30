@@ -50,9 +50,7 @@ class NovelGridCard extends StatelessWidget {
                     const SizedBox(height: 2),
                     Text(
                       item.providerId!,
-                      style: text.labelSmall?.copyWith(
-                        color: scheme.primary,
-                      ),
+                      style: text.labelSmall?.copyWith(color: scheme.primary),
                       maxLines: 1,
                       overflow: TextOverflow.ellipsis,
                     ),

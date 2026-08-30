@@ -4,6 +4,7 @@ import 'package:drift/drift.dart' hide Column;
 
 import '../database/database.dart';
 import 'database_providers.dart';
+import 'novel_fetch_state.dart';
 import '../network/client.dart';
 import '../utils/logger.dart';
 import 'engine.dart';
@@ -16,8 +17,12 @@ const _tag = 'NovelOpener';
 /// - [refreshNovel]: re-fetch info + chapter list for an existing novel
 ///   without resetting [Novels.addedAt].
 /// - [firstChapterId]: entry chapter used by "play from start" actions.
+///
+/// Exposed via [novelOpenerProvider] so it always holds a provider-level
+/// [Ref]; a widget-scoped ref would throw if the originating screen is
+/// disposed while the background fetch is still running.
 class NovelOpener {
-  final WidgetRef ref;
+  final Ref ref;
 
   NovelOpener(this.ref);
 
@@ -44,7 +49,17 @@ class NovelOpener {
     }
     final (id, isNew) = await insertNovel(item);
     if (id > 0) {
-      fetchNovelDetails(id, item, isNew: isNew);
+      // Skip the background re-fetch for novels that already have chapters:
+      // re-opening an existing novel must not clobber refreshed metadata
+      // with search-listing data. "Refresh" on the detail screen does that
+      // explicitly. Re-fetch only when the novel is new or has no chapters
+      // (e.g. a previous fetch failed or is still incomplete).
+      final chapterCount = await ref
+          .read(chapterDaoProvider)
+          .getChapterCount(id);
+      if (isNew || chapterCount == 0) {
+        fetchNovelDetails(id, item, isNew: isNew);
+      }
     }
     return id;
   }
@@ -55,20 +70,31 @@ class NovelOpener {
     SearchResultItem item, {
     bool isNew = false,
   }) async {
+    final phase = ref.read(novelFetchStateProvider(id).notifier);
+    phase.set(NovelFetchPhase.fetchingInfo);
     try {
       final instance = await ref.read(
         providerInstanceProvider(item.providerId!).future,
       );
-      if (instance == null) return;
+      if (instance == null) {
+        phase.set(NovelFetchPhase.failed);
+        return;
+      }
       final novelDao = ref.read(novelDaoProvider);
 
       final novelUrl = await instance.getNovelInfoUrl(item.url);
-      if (novelUrl == null) return;
+      if (novelUrl == null) {
+        phase.set(NovelFetchPhase.failed);
+        return;
+      }
 
       final dio = await ref.read(dioProvider.future);
       final response = await dio.get(novelUrl);
       final info = await instance.parseNovelInfo(response.data.toString());
-      if (info == null) return;
+      if (info == null) {
+        phase.set(NovelFetchPhase.failed);
+        return;
+      }
 
       await novelDao.updateNovel(
         NovelsCompanion(
@@ -87,9 +113,12 @@ class NovelOpener {
         ),
       );
 
+      phase.set(NovelFetchPhase.fetchingChapters);
       await _insertChapters(instance, id, item.url, info.chapters, dio);
+      phase.set(NovelFetchPhase.completed);
     } catch (e) {
       Log.w(_tag, 'Failed to fetch novel details: $e');
+      phase.set(NovelFetchPhase.failed);
     }
   }
 
@@ -98,6 +127,8 @@ class NovelOpener {
   /// not reset the date the novel was added to the library.
   /// Returns false when the novel or its provider is unavailable.
   Future<bool> refreshNovel(int novelId) async {
+    final phase = ref.read(novelFetchStateProvider(novelId).notifier);
+    phase.set(NovelFetchPhase.fetchingInfo);
     try {
       final novelDao = ref.read(novelDaoProvider);
       final novel = await novelDao.getNovelById(novelId);
@@ -106,15 +137,24 @@ class NovelOpener {
       final instance = await ref.read(
         providerInstanceProvider(novel.providerId).future,
       );
-      if (instance == null) return false;
+      if (instance == null) {
+        phase.set(NovelFetchPhase.failed);
+        return false;
+      }
 
       final novelUrl = await instance.getNovelInfoUrl(novel.url);
-      if (novelUrl == null) return false;
+      if (novelUrl == null) {
+        phase.set(NovelFetchPhase.failed);
+        return false;
+      }
 
       final dio = await ref.read(dioProvider.future);
       final response = await dio.get(novelUrl);
       final info = await instance.parseNovelInfo(response.data.toString());
-      if (info == null) return false;
+      if (info == null) {
+        phase.set(NovelFetchPhase.failed);
+        return false;
+      }
 
       await novelDao.updateNovel(
         NovelsCompanion(
@@ -130,10 +170,13 @@ class NovelOpener {
         ),
       );
 
+      phase.set(NovelFetchPhase.fetchingChapters);
       await _insertChapters(instance, novelId, novel.url, info.chapters, dio);
+      phase.set(NovelFetchPhase.completed);
       return true;
     } catch (e) {
       Log.w(_tag, 'Failed to refresh novel $novelId: $e');
+      phase.set(NovelFetchPhase.failed);
       return false;
     }
   }
@@ -162,9 +205,14 @@ class NovelOpener {
     final chapterList = <ChaptersCompanion>[];
     try {
       if (chapters.isEmpty && bookId.isNotEmpty) {
+        // Hard caps so a misbehaving provider (e.g. one that ignores the
+        // `page` parameter) can't loop forever or fill the DB with
+        // duplicates. A page that adds no new chapter URLs ends the walk.
+        const maxChapterApiPages = 500;
+        final seenChapterUrls = <String>{};
         var page = 0;
         var chapterIndex = 0;
-        while (true) {
+        while (page < maxChapterApiPages) {
           final config = instance.hasFunction('getChaptersApiConfig')
               ? await instance.call('getChaptersApiConfig', [bookId, page])
               : null;
@@ -211,19 +259,33 @@ class NovelOpener {
           }
           final chList = await instance.call('parseChapterList', [chData]);
           if (chList == null || chList is! List || chList.isEmpty) break;
+          var addedThisPage = 0;
           for (var i = 0; i < chList.length; i++) {
             final ch = chList[i] as Map<String, dynamic>;
+            final url = ch['url'] as String? ?? '';
+            // Skip empty URLs and anything already seen on an earlier page.
+            if (url.isEmpty || !seenChapterUrls.add(url)) continue;
             chapterList.add(
               ChaptersCompanion(
                 novelId: Value(novelId),
                 name: Value(ch['name'] as String? ?? ''),
-                url: Value(ch['url'] as String? ?? ''),
+                url: Value(url),
                 index: Value(chapterIndex.toDouble()),
               ),
             );
             chapterIndex++;
+            addedThisPage++;
           }
           page++;
+          // Same page returned twice — the site ignored the page parameter.
+          if (addedThisPage == 0) break;
+        }
+        if (page >= maxChapterApiPages) {
+          Log.w(
+            _tag,
+            'Chapter API pagination hit the $maxChapterApiPages page cap '
+            'for $novelUrl',
+          );
         }
       } else {
         for (var i = 0; i < chapters.length; i++) {
@@ -241,6 +303,11 @@ class NovelOpener {
     } catch (e) {
       Log.w(_tag, 'Failed to fetch novel details: $e');
     }
-    await chapterDao.insertChaptersForNovel(novelId, chapterList);
+    await chapterDao.syncChaptersForNovel(novelId, chapterList);
   }
 }
+
+/// Provider-scoped [NovelOpener]. Use `ref.read(novelOpenerProvider)` from
+/// widgets instead of constructing one with a [WidgetRef] — the background
+/// fetch outlives the originating screen.
+final novelOpenerProvider = Provider<NovelOpener>((ref) => NovelOpener(ref));

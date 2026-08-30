@@ -5,7 +5,6 @@ import '../../../core/database/database.dart';
 import '../../../core/network/client.dart';
 import '../../../core/providers/engine.dart' hide ChapterContent;
 import '../../../core/providers/database_providers.dart';
-import '../../../core/providers/registry.dart';
 import '../../../core/utils/logger.dart';
 import '../content_model.dart';
 import '../markdown/html2md.dart';
@@ -24,7 +23,9 @@ class RemoteLoader extends ContentLoader {
       throw Exception('Novel not found for id ${chapter.novelId}');
     }
 
-    final instance = await _loadProvider(novel.providerId, ref);
+    final instance = await ref.read(
+      providerInstanceProvider(novel.providerId).future,
+    );
     if (instance == null) {
       throw Exception('Provider not available for ${novel.providerId}');
     }
@@ -58,23 +59,6 @@ class RemoteLoader extends ContentLoader {
       data: md,
       chapterId: chapter.id,
     );
-  }
-
-  Future<ProviderInstance?> _loadProvider(String providerId, Ref ref) async {
-    final cached = ref.read(loadedProvidersProvider)[providerId];
-    if (cached != null) return cached;
-
-    final registry = await ref.read(registryManagerProvider.future);
-    final engine = ref.read(providerEngineProvider);
-    final jsSource = await registry.loadCachedProviderJs(providerId);
-    if (jsSource == null) return null;
-
-    final instance = await engine.loadProvider(jsSource);
-    await instance.loadFlags();
-
-    ref.read(loadedProvidersProvider.notifier).cache(providerId, instance);
-
-    return instance;
   }
 }
 

@@ -163,8 +163,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
                       title: Text(
                         _tiles[i].title,
                         style: TextStyle(
-                          fontSize:
-                              textTheme.bodyMedium?.fontSize,
+                          fontSize: textTheme.bodyMedium?.fontSize,
                           fontWeight: i == _selectedIndex
                               ? FontWeight.w600
                               : FontWeight.w400,

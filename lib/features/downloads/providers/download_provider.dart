@@ -12,7 +12,6 @@ import '../../../core/content/markdown/html2md.dart';
 import '../../../core/database/database.dart';
 import '../../../core/providers/database_providers.dart';
 import '../../../core/providers/engine.dart';
-import '../../../core/providers/registry.dart';
 import '../../../core/network/client.dart';
 import '../../../core/utils/logger.dart';
 import '../../settings/pages/download_settings_page.dart';
@@ -66,7 +65,10 @@ class DownloadNotifier extends StateNotifier<Map<int, NovelDownloadProgress>> {
   /// its row; the pipeline checks row existence before touching disk or DB.
   int? _currentTaskId;
 
-  DownloadNotifier(this.ref) : super({});
+  DownloadNotifier(this.ref) : super({}) {
+    // Route notification Cancel actions into the pipeline.
+    DownloadNotification.onCancelRequest = cancelDownloads;
+  }
 
   /// Download a single chapter
   Future<void> downloadChapter(int novelId, int chapterId) async {
@@ -90,7 +92,7 @@ class DownloadNotifier extends StateNotifier<Map<int, NovelDownloadProgress>> {
     );
 
     Log.i(_tag, 'Enqueued chapter $chapterId for novel $novelId');
-    _updateProgress(novelId);
+    await _updateProgress(novelId);
     _processQueue();
   }
 
@@ -206,7 +208,7 @@ class DownloadNotifier extends StateNotifier<Map<int, NovelDownloadProgress>> {
 
     final pending = await downloadDao.getPendingDownloads();
     for (final novelId in pending.map((t) => t.novelId).toSet()) {
-      _updateProgress(novelId);
+      await _updateProgress(novelId);
     }
 
     unawaited(_processQueue());
@@ -262,7 +264,7 @@ class DownloadNotifier extends StateNotifier<Map<int, NovelDownloadProgress>> {
         'downloading',
         progress: 0.0,
       );
-      _updateProgress(task.novelId);
+      await _updateProgress(task.novelId);
 
       // Get chapter info
       final chapter = await chapterDao.getChapterById(task.chapterId);
@@ -272,7 +274,7 @@ class DownloadNotifier extends StateNotifier<Map<int, NovelDownloadProgress>> {
           'failed',
           error: 'Chapter not found',
         );
-        _updateProgress(task.novelId);
+        await _updateProgress(task.novelId);
         return;
       }
 
@@ -280,7 +282,7 @@ class DownloadNotifier extends StateNotifier<Map<int, NovelDownloadProgress>> {
       if (chapter.url.startsWith('epub://') ||
           chapter.url.startsWith('pdf://')) {
         await downloadDao.updateDownloadStatus(task.id, 'done', progress: 1.0);
-        _updateProgress(task.novelId);
+        await _updateProgress(task.novelId);
         return;
       }
 
@@ -293,36 +295,25 @@ class DownloadNotifier extends StateNotifier<Map<int, NovelDownloadProgress>> {
           'failed',
           error: 'Novel not found',
         );
-        _updateProgress(task.novelId);
+        await _updateProgress(task.novelId);
         return;
       }
 
       final dio = await ref.read(dioProvider.future);
 
       Log.d(_tag, 'Loading provider instance for: ${novel.providerId}');
-      // Load provider directly using Ref (not WidgetRef)
-      ProviderInstance? instance;
-      final cached = ref.read(loadedProvidersProvider)[novel.providerId];
-      if (cached != null) {
-        instance = cached;
-      } else {
-        final registry = await ref.read(registryManagerProvider.future);
-        final engine = ref.read(providerEngineProvider);
-        final jsSource = await registry.loadCachedProviderJs(novel.providerId);
-        if (jsSource != null) {
-          instance = await engine.loadProvider(jsSource);
-          ref
-              .read(loadedProvidersProvider.notifier)
-              .cache(novel.providerId, instance);
-        }
-      }
+      // Single shared load path: caches per provider id, dedupes concurrent
+      // loads, and loads feature flags.
+      final instance = await ref.read(
+        providerInstanceProvider(novel.providerId).future,
+      );
       if (instance == null) {
         await downloadDao.updateDownloadStatus(
           task.id,
           'failed',
           error: 'Provider not found for ${novel.providerId}',
         );
-        _updateProgress(task.novelId);
+        await _updateProgress(task.novelId);
         return;
       }
 
@@ -334,25 +325,20 @@ class DownloadNotifier extends StateNotifier<Map<int, NovelDownloadProgress>> {
           'failed',
           error: 'getChapterContentUrl returned null',
         );
-        _updateProgress(task.novelId);
+        await _updateProgress(task.novelId);
         return;
       }
 
       Log.d(_tag, 'Downloading: $contentUrl');
 
-      // Download with retries
+      // Download. Retries are handled centrally by the Dio interceptor in
+      // core/network/client.dart, so a failure here is final.
       String? html;
-      for (int attempt = 0; attempt < 3; attempt++) {
-        try {
-          final response = await dio.get(contentUrl);
-          html = response.data.toString();
-          break;
-        } catch (e) {
-          Log.w(_tag, 'Download attempt ${attempt + 1} failed: $e');
-          if (attempt < 2) {
-            await Future.delayed(Duration(seconds: (attempt + 1) * 2));
-          }
-        }
+      try {
+        final response = await dio.get(contentUrl);
+        html = response.data.toString();
+      } catch (e) {
+        Log.w(_tag, 'Download failed: $e');
       }
 
       if (html == null) {
@@ -361,19 +347,19 @@ class DownloadNotifier extends StateNotifier<Map<int, NovelDownloadProgress>> {
           'failed',
           error: 'Failed to download',
         );
-        _updateProgress(task.novelId);
+        await _updateProgress(task.novelId);
         return;
       }
 
       // Parse content
       final content = await instance.parseChapterContent(html);
-      if (content == null) {
+      if (content == null || content.html.trim().isEmpty) {
         await downloadDao.updateDownloadStatus(
           task.id,
           'failed',
           error: 'Failed to parse content',
         );
-        _updateProgress(task.novelId);
+        await _updateProgress(task.novelId);
         return;
       }
 
@@ -390,13 +376,20 @@ class DownloadNotifier extends StateNotifier<Map<int, NovelDownloadProgress>> {
       final file = File(p.join(dir.path, fileName));
 
       final markdown = Html2Md.convert(content.html);
-      await file.writeAsString(markdown);
 
-      // Clean up old format files
-      final oldEpub = File(p.join(dir.path, '${task.chapterId}.epub'));
-      final oldHtml = File(p.join(dir.path, '${task.chapterId}.html'));
-      if (await oldEpub.exists()) await oldEpub.delete();
-      if (await oldHtml.exists()) await oldHtml.delete();
+      // Integrity: refuse to persist an empty conversion. A done-marked
+      // chapter with an empty file would serve broken content in the reader.
+      if (markdown.trim().isEmpty) {
+        await downloadDao.updateDownloadStatus(
+          task.id,
+          'failed',
+          error: 'Converted content was empty',
+        );
+        await _updateProgress(task.novelId);
+        return;
+      }
+
+      await file.writeAsString(markdown);
 
       // Update chapter as downloaded
       final chapterDao2 = ref.read(chapterDaoProvider);
@@ -404,7 +397,7 @@ class DownloadNotifier extends StateNotifier<Map<int, NovelDownloadProgress>> {
 
       // Mark task as done
       await downloadDao.updateDownloadStatus(task.id, 'done', progress: 1.0);
-      _updateProgress(task.novelId);
+      await _updateProgress(task.novelId);
 
       Log.ok(_tag, 'Chapter ${chapter.name} downloaded to ${file.path}');
     } catch (e, stackTrace) {
@@ -418,7 +411,7 @@ class DownloadNotifier extends StateNotifier<Map<int, NovelDownloadProgress>> {
         'failed',
         error: e.toString(),
       );
-      _updateProgress(task.novelId);
+      await _updateProgress(task.novelId);
     }
   }
 
@@ -433,7 +426,12 @@ class DownloadNotifier extends StateNotifier<Map<int, NovelDownloadProgress>> {
       p.join(
         basePath,
         novel.providerId,
-        novel.title.replaceAll(RegExp(r'[^\w\s-]'), ''),
+        // Non-Latin titles can sanitize to an empty string; without a
+        // fallback, every such novel shares one directory (and the orphan
+        // scanner would delete their files as belonging to the wrong novel).
+        novel.title.replaceAll(RegExp(r'[^\w\s-]'), '').trim().isEmpty
+            ? 'novel-${novel.id}'
+            : novel.title.replaceAll(RegExp(r'[^\w\s-]'), '').trim(),
       ),
     );
     if (!await dir.exists()) {
@@ -442,7 +440,7 @@ class DownloadNotifier extends StateNotifier<Map<int, NovelDownloadProgress>> {
     return dir;
   }
 
-  void _updateProgress(int novelId) async {
+  Future<void> _updateProgress(int novelId) async {
     final downloadDao = ref.read(downloadDaoProvider);
     final chapterDao = ref.read(chapterDaoProvider);
 
@@ -476,22 +474,25 @@ class DownloadNotifier extends StateNotifier<Map<int, NovelDownloadProgress>> {
       final novel = await novelDao.getNovelById(novelId);
       final title = novel?.title ?? 'Unknown';
       DownloadNotification.showProgress(
+        novelId: novelId,
         novelTitle: title,
         completed: completed,
         total: allChapters.length,
+        failed: failed,
       );
-      // Also update background service notification
-      BackgroundDownloadService.updateNotification(
-        title: 'Downloading: $title',
-        content: '$completed/${allChapters.length} chapters',
-      );
-    } else if (completed > 0 && !isDownloading) {
+    } else if (completed > 0) {
       final novelDao = ref.read(novelDaoProvider);
       final novel = await novelDao.getNovelById(novelId);
       DownloadNotification.showComplete(
+        novelId: novelId,
         novelTitle: novel?.title ?? 'Unknown',
         total: completed,
+        failed: failed,
       );
+    } else {
+      // Cancelled/deleted before anything completed; clear any stale
+      // progress notification for this novel.
+      unawaited(DownloadNotification.hide(novelId));
     }
   }
 
@@ -507,7 +508,7 @@ class DownloadNotifier extends StateNotifier<Map<int, NovelDownloadProgress>> {
     )) {
       await downloadDao.removeDownload(d.id);
     }
-    _updateProgress(novelId);
+    await _updateProgress(novelId);
   }
 
   /// Delete downloaded files for a novel
@@ -532,7 +533,7 @@ class DownloadNotifier extends StateNotifier<Map<int, NovelDownloadProgress>> {
       await downloadDao.removeDownload(d.id);
     }
 
-    _updateProgress(novelId);
+    await _updateProgress(novelId);
   }
 
   /// Reconciles download state between the database and the filesystem.
@@ -541,7 +542,8 @@ class DownloadNotifier extends StateNotifier<Map<int, NovelDownloadProgress>> {
   ///   externally, cleared app storage) get their flag cleared so the UI
   ///   stops claiming content that no longer exists.
   /// - Numeric `<chapterId>.md/.epub/.html` files with no matching DB row
-  ///   are orphaned leftovers; they are deleted.
+  ///   are orphaned leftovers; they are deleted. Legacy `.epub`/`.html`
+  ///   files beside a chapter's current `.md` are superseded; deleted too.
   ///
   /// Safe to call repeatedly. Returns the number of repaired entries.
   Future<int> reconcileDownloads({int? novelId}) async {
@@ -575,7 +577,7 @@ class DownloadNotifier extends StateNotifier<Map<int, NovelDownloadProgress>> {
       Log.i(_tag, 'Cleared ${stale.length} stale download flags');
     }
 
-    // ── Orphan files: on disk, but unknown to the database ──
+    // ── Orphan files & legacy formats: on disk, but unknown/superseded ──
     for (final novel in novels) {
       try {
         final dir = await _getDownloadDir(novel);
@@ -584,12 +586,28 @@ class DownloadNotifier extends StateNotifier<Map<int, NovelDownloadProgress>> {
           for (final c in chapters)
             if (c.downloaded) c.id,
         };
+        // Current on-disk format per chapter, e.g. {42: '.md'}.
+        final currentExt = {
+          for (final c in chapters)
+            if (c.downloaded &&
+                c.downloadedPath != null &&
+                c.downloadedPath!.isNotEmpty)
+              c.id: p.extension(c.downloadedPath!).toLowerCase(),
+        };
         await for (final entry in dir.list()) {
           if (entry is! File) continue;
           final name = p.basename(entry.path);
           final match = RegExp(r'^(\d+)\.(md|epub|html)$').firstMatch(name);
           if (match == null) continue;
-          if (!knownIds.contains(int.parse(match.group(1)!))) {
+          final id = int.parse(match.group(1)!);
+          final ext = '.${match.group(2)}';
+          // No DB row: orphan leftover. Row exists but stores a newer
+          // format: superseded legacy file (.epub/.html beside a .md).
+          // Legacy migration lives here rather than in the download
+          // pipeline so it costs nothing on the hot path.
+          final isSuperseded =
+              currentExt.containsKey(id) && currentExt[id] != ext;
+          if (!knownIds.contains(id) || isSuperseded) {
             try {
               await entry.delete();
               repairs++;

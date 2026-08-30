@@ -156,9 +156,7 @@ class _ProviderManagementPageState
                           Flexible(
                             child: Text(
                               registry.name ?? registry.id,
-                              style: Theme.of(
-                                context,
-                              ).textTheme.titleMedium,
+                              style: Theme.of(context).textTheme.titleMedium,
                               overflow: TextOverflow.ellipsis,
                             ),
                           ),
@@ -198,7 +196,7 @@ class _ProviderManagementPageState
                                   color: Theme.of(
                                     context,
                                   ).colorScheme.onSurfaceVariant,
-                            ),
+                                ),
                             maxLines: 1,
                             overflow: TextOverflow.ellipsis,
                           ),
@@ -282,7 +280,7 @@ class _ProviderManagementPageState
       context,
     ).showSnackBar(const SnackBar(content: Text('Importing registry...')));
 
-    final error = await addRegistryFromFile(file.path!, ref);
+    final error = await addRegistryFromFile(file.path!, ref.container);
 
     if (!context.mounted) return;
     ScaffoldMessenger.of(context).hideCurrentSnackBar();
@@ -376,9 +374,8 @@ class _ProviderManagementPageState
                           Expanded(
                             child: Text(
                               error,
-                              style: Theme.of(
-                                context,
-                              ).textTheme.bodySmall?.copyWith(color: scheme.error),
+                              style: Theme.of(context).textTheme.bodySmall
+                                  ?.copyWith(color: scheme.error),
                             ),
                           ),
                         ],
@@ -402,7 +399,7 @@ class _ProviderManagementPageState
                       if (url.isEmpty) return;
                       loading.value = true;
                       errorMsg.value = null;
-                      final error = await addRegistry(url, ref);
+                      final error = await addRegistry(url, ref.container);
                       loading.value = false;
                       if (error == null) {
                         if (context.mounted) Navigator.pop(context);
@@ -459,7 +456,7 @@ class _ProviderManagementPageState
       context,
     ).showSnackBar(const SnackBar(content: Text('Checking for updates...')));
 
-    final success = await updateRegistryNow(registry.id, ref);
+    final success = await updateRegistryNow(registry.id, ref.container);
 
     if (!context.mounted) return;
     ScaffoldMessenger.of(context).hideCurrentSnackBar();
@@ -499,7 +496,7 @@ class _ProviderManagementPageState
               backgroundColor: Theme.of(context).colorScheme.error,
             ),
             onPressed: () {
-              removeRegistry(registry.id, ref);
+              removeRegistry(registry.id, ref.container);
               Navigator.pop(context);
             },
             child: const Text('Remove'),

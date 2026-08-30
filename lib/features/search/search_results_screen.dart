@@ -85,7 +85,7 @@ class _SearchResultsScreenState extends ConsumerState<SearchResultsScreen> {
   Future<void> _openNovel(SearchResultItem item) async {
     if (item.providerId == null) return;
 
-    final id = await NovelOpener(ref).open(item);
+    final id = await ref.read(novelOpenerProvider).open(item);
 
     if (!mounted || id <= 0) return;
 
@@ -360,7 +360,10 @@ class _SearchRows extends ConsumerWidget {
             children: [
               Icon(Icons.error_outline, size: 64, color: scheme.error),
               const SizedBox(height: Insets.lg),
-              Text('Search failed', style: Theme.of(context).textTheme.headlineSmall),
+              Text(
+                'Search failed',
+                style: Theme.of(context).textTheme.headlineSmall,
+              ),
               const SizedBox(height: Insets.sm),
               Text(
                 'None of the selected sources returned results.',
@@ -398,7 +401,10 @@ class _SearchRows extends ConsumerWidget {
                 color: Theme.of(context).colorScheme.onSurfaceVariant,
               ),
               const SizedBox(height: Insets.lg),
-              Text('No results found', style: Theme.of(context).textTheme.headlineSmall),
+              Text(
+                'No results found',
+                style: Theme.of(context).textTheme.headlineSmall,
+              ),
               const SizedBox(height: Insets.sm),
               Text(
                 'Try a different query.',
@@ -475,8 +481,7 @@ class _ProviderRow extends ConsumerWidget {
                         child: Text(
                           '${provider.name} • '
                           '${state.results.length} loaded',
-                          style:
-                              Theme.of(sheetContext).textTheme.titleLarge,
+                          style: Theme.of(sheetContext).textTheme.titleLarge,
                         ),
                       ),
                       IconButton(
@@ -609,8 +614,7 @@ class _ProviderRow extends ConsumerWidget {
                 scrollDirection: Axis.horizontal,
                 padding: const EdgeInsets.symmetric(horizontal: Insets.md),
                 itemCount: results.length + (hasMorePreview ? 1 : 0),
-                separatorBuilder: (_, _) =>
-                    const SizedBox(width: Insets.sm),
+                separatorBuilder: (_, _) => const SizedBox(width: Insets.sm),
                 itemBuilder: (context, index) {
                   if (index >= results.length) {
                     return SizedBox(

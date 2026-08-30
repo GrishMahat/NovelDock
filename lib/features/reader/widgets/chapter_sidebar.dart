@@ -139,10 +139,9 @@ class _ChapterSidebarState extends State<ChapterSidebar> {
                   ).textTheme.bodySmall?.copyWith(color: s.textColor),
                   decoration: InputDecoration(
                     hintText: 'Filter chapters',
-                    hintStyle: Theme.of(context).textTheme.bodySmall
-                        ?.copyWith(
-                          color: s.textColor.withValues(alpha: 0.5),
-                        ),
+                    hintStyle: Theme.of(context).textTheme.bodySmall?.copyWith(
+                      color: s.textColor.withValues(alpha: 0.5),
+                    ),
                     prefixIcon: Icon(
                       Icons.search,
                       size: 16,

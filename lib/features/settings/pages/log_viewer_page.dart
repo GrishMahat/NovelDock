@@ -231,8 +231,9 @@ class _LogViewerPageState extends ConsumerState<LogViewerPage> {
                         child: Text(
                           entry.formatted,
                           style: TextStyle(
-                            fontSize:
-                                Theme.of(context).textTheme.labelSmall?.fontSize,
+                            fontSize: Theme.of(
+                              context,
+                            ).textTheme.labelSmall?.fontSize,
                             fontFamily: 'monospace',
                             color: color,
                             height: 1.3,

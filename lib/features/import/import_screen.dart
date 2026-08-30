@@ -149,10 +149,9 @@ class _ImportScreenState extends ConsumerState<ImportScreen> {
                       child: ListTile(
                         leading: Icon(
                           Icons.check_circle,
-                          color:
-                              Theme.of(
-                                context,
-                              ).extension<AppColors>()!.ongoing,
+                          color: Theme.of(
+                            context,
+                          ).extension<AppColors>()!.ongoing,
                         ),
                         title: Text('Imported: $_importedFile'),
                         subtitle: const Text('Added to library'),

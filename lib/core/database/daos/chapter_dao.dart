@@ -94,14 +94,59 @@ class ChapterDao extends DatabaseAccessor<AppDatabase> with _$ChapterDaoMixin {
     );
   }
 
-  Future<void> insertChaptersForNovel(
+  /// Replaces the stored chapter list for a novel while preserving the
+  /// identity (row id) of chapters whose URL still exists.
+  ///
+  /// The naive approach (delete all + re-insert) churns autoincrement ids,
+  /// which orphans everything keyed by chapter id (reading history, download
+  /// queue, bookmarks) and destroys per-chapter state (read / ttsRead /
+  /// bookmarked / downloaded). Instead this diffs by URL:
+  /// - new URLs are inserted,
+  /// - existing URLs keep their row (name/index updated in place),
+  /// - vanished URLs are deleted.
+  Future<void> syncChaptersForNovel(
     int novelId,
     List<ChaptersCompanion> chapterList,
   ) async {
     await transaction(() async {
-      await (delete(chapters)..where((t) => t.novelId.equals(novelId))).go();
-      for (final ch in chapterList) {
-        await into(chapters).insert(ch, mode: InsertMode.insertOrReplace);
+      final existing = await (select(
+        chapters,
+      )..where((t) => t.novelId.equals(novelId))).get();
+      final existingByUrl = {for (final c in existing) c.url: c};
+
+      final incomingUrls = <String>{};
+      final updates = <Future>[];
+
+      await batch((b) {
+        for (final ch in chapterList) {
+          final url = ch.url.value;
+          incomingUrls.add(url);
+          final match = existingByUrl[url];
+          if (match == null) {
+            b.insert(chapters, ch);
+          } else if (match.name != ch.name.value ||
+              match.index != ch.index.value) {
+            // Rare (renames/reorders) — a targeted in-place update keeps the
+            // row id and per-chapter state intact.
+            updates.add(
+              (update(chapters)..where((t) => t.id.equals(match.id))).write(
+                ChaptersCompanion(name: ch.name, index: ch.index),
+              ),
+            );
+          }
+        }
+      });
+      await Future.wait(updates);
+
+      final staleIds = [
+        for (final c in existing)
+          if (!incomingUrls.contains(c.url)) c.id,
+      ];
+
+      if (staleIds.isNotEmpty) {
+        await (delete(
+          chapters,
+        )..where((t) => t.novelId.equals(novelId) & t.id.isIn(staleIds))).go();
       }
     });
   }

@@ -1,14 +1,14 @@
 import 'dart:async';
 
-import 'package:drift/drift.dart' hide Column;
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
 import '../../core/database/database.dart';
 import '../../core/providers/database_providers.dart';
-import '../../core/providers/engine.dart';
-import '../../core/network/client.dart';
+import '../../core/providers/novel_fetch_state.dart';
+import '../../core/providers/novel_opener.dart';
+import '../../core/utils/logger.dart';
 import '../../core/utils/platform.dart';
 import '../../theme/tokens.dart';
 import '../../widgets/max_width_box.dart';
@@ -20,6 +20,8 @@ import 'widgets/status_picker_sheet.dart';
 import 'widgets/download_range_sheet.dart';
 
 enum ChapterSort { indexAsc, indexDesc, nameAsc, nameDesc }
+
+const _tag = 'NovelDetail';
 
 /// Novel detail screen. Shows novel info with tabs: Novel, Reviews, Related, Chapters.
 class NovelDetailScreen extends ConsumerStatefulWidget {
@@ -36,7 +38,6 @@ class _NovelDetailScreenState extends ConsumerState<NovelDetailScreen> {
   Novel? _novel;
   bool _novelLoaded = false;
   bool _isRefreshing = false;
-  bool _initialLoading = true;
 
   /// Memoized so StreamBuilder keeps its subscription across rebuilds;
   /// recreating the stream each build resets connectionState to waiting
@@ -51,7 +52,9 @@ class _NovelDetailScreenState extends ConsumerState<NovelDetailScreen> {
     WidgetsBinding.instance.addPostFrameCallback((_) {
       // Verify this novel's downloads still exist on disk before the UI
       // claims them.
-      ref.read(downloadProvider.notifier).reconcileDownloads(novelId: widget.novelId);
+      ref
+          .read(downloadProvider.notifier)
+          .reconcileDownloads(novelId: widget.novelId);
     });
   }
 
@@ -157,9 +160,7 @@ class _NovelDetailScreenState extends ConsumerState<NovelDetailScreen> {
                 onTap: () => Navigator.pop(context),
                 child: InteractiveViewer(
                   maxScale: 5,
-                  child: Center(
-                    child: Image.network(url, fit: BoxFit.contain),
-                  ),
+                  child: Center(child: Image.network(url, fit: BoxFit.contain)),
                 ),
               ),
             ),
@@ -211,57 +212,31 @@ class _NovelDetailScreenState extends ConsumerState<NovelDetailScreen> {
     setState(() => _isRefreshing = true);
 
     try {
-      final novelDao = ref.read(novelDaoProvider);
-      final chapterDao = ref.read(chapterDaoProvider);
-      final instance = await loadProviderById(
-        _novel!.providerId,
-        ref.container,
-      );
-      if (instance != null) {
-        final novelUrl = await instance.getNovelInfoUrl(_novel!.url);
-        if (novelUrl != null) {
-          final dio = await ref.read(dioProvider.future);
-          final response = await dio.get(novelUrl);
-          final info = await instance.parseNovelInfo(response.data.toString());
-          if (info != null && mounted) {
-            await novelDao.updateNovel(
-              NovelsCompanion(
-                id: Value(widget.novelId),
-                providerId: Value(_novel!.providerId),
-                url: Value(_novel!.url),
-                title: Value(info.title),
-                author: Value(info.author),
-                coverUrl: Value(info.cover ?? _novel!.coverUrl),
-                description: Value(info.description),
-                genres: Value(info.genres.join(',')),
-                status: Value(info.status),
-                addedAt: Value(DateTime.now().millisecondsSinceEpoch),
-              ),
-            );
-            final chapterList = <ChaptersCompanion>[];
-            for (var i = 0; i < info.chapters.length; i++) {
-              final ch = info.chapters[i];
-              chapterList.add(
-                ChaptersCompanion(
-                  novelId: Value(widget.novelId),
-                  name: Value(ch.name),
-                  url: Value(ch.url),
-                  index: Value(i.toDouble()),
-                ),
-              );
-            }
-            await chapterDao.insertChaptersForNovel(
-              widget.novelId,
-              chapterList,
-            );
-            if (mounted) {
-              final updated = await novelDao.getNovelById(widget.novelId);
-              setState(() => _novel = updated);
-            }
-          }
-        }
+      // Delegates to NovelOpener.refreshNovel — the single fetch/parse/
+      // insert pipeline, which also preserves Novels.addedAt.
+      final ok = await ref
+          .read(novelOpenerProvider)
+          .refreshNovel(widget.novelId);
+      if (!mounted) return;
+
+      if (ok) {
+        final updated = await ref
+            .read(novelDaoProvider)
+            .getNovelById(widget.novelId);
+        if (mounted) setState(() => _novel = updated);
+      } else {
+        ScaffoldMessenger.of(
+          context,
+        ).showSnackBar(const SnackBar(content: Text('Refresh failed')));
       }
-    } catch (_) {}
+    } catch (e) {
+      Log.w(_tag, 'Refresh failed: $e');
+      if (mounted) {
+        ScaffoldMessenger.of(
+          context,
+        ).showSnackBar(const SnackBar(content: Text('Refresh failed')));
+      }
+    }
 
     if (mounted) setState(() => _isRefreshing = false);
   }
@@ -444,24 +419,20 @@ class _NovelDetailScreenState extends ConsumerState<NovelDetailScreen> {
                 return b.name.compareTo(a.name);
             }
           });
-        // Only show the skeleton when there is nothing to show yet;
-        // re-emissions and rebuilds must never blank an existing list.
+        // Only show the skeleton when there is nothing to show yet AND
+        // chapters may still arrive; re-emissions must never blank an
+        // existing list. The fetch phase is authoritative: an empty stream
+        // while a background fetch is running is transient, not "zero".
         final isLoadingChapters =
             chapterSnapshot.connectionState == ConnectionState.waiting &&
             sortedChapters.isEmpty;
-        final hasDescription =
-            novel?.description != null && novel!.description!.isNotEmpty;
+        final fetchPhase = ref
+            .watch(novelFetchStateProvider(widget.novelId))
+            .phase;
         final showChapterShimmer =
             isLoadingChapters ||
             (sortedChapters.isEmpty &&
-                (!hasDescription || _initialLoading || _isRefreshing));
-
-        if (sortedChapters.isNotEmpty) {
-          _initialLoading = false;
-        } else if (chapterSnapshot.connectionState == ConnectionState.active &&
-            hasDescription) {
-          _initialLoading = false;
-        }
+                (fetchPhase.isFetching || _isRefreshing));
 
         return Stack(
           children: [
@@ -666,7 +637,7 @@ class _NovelDetailScreenState extends ConsumerState<NovelDetailScreen> {
                     ],
 
                     // Chapter Header count
-                    if (!showChapterShimmer) ...[
+                    if (!showChapterShimmer && sortedChapters.isNotEmpty) ...[
                       Text(
                         '${sortedChapters.length} chapters',
                         style: Theme.of(context).textTheme.titleMedium,
@@ -679,16 +650,33 @@ class _NovelDetailScreenState extends ConsumerState<NovelDetailScreen> {
                       ...List.generate(8, (_) => const ShimmerChapterTile())
                     else if (sortedChapters.isEmpty)
                       Padding(
-                        padding: EdgeInsets.symmetric(vertical: 24),
-                        child: Center(
-                          child: Text(
-                            'No chapters available.',
-                            style: TextStyle(
-                              color: Theme.of(
-                                context,
-                              ).colorScheme.onSurfaceVariant,
+                        padding: const EdgeInsets.symmetric(vertical: 24),
+                        child: Column(
+                          children: [
+                            Text(
+                              fetchPhase == NovelFetchPhase.failed
+                                  ? 'Could not load chapters.'
+                                  : 'No chapters available.',
+                              style: Theme.of(context).textTheme.bodyMedium
+                                  ?.copyWith(
+                                    color: Theme.of(
+                                      context,
+                                    ).colorScheme.onSurfaceVariant,
+                                  ),
                             ),
-                          ),
+                            const SizedBox(height: Insets.md),
+                            OutlinedButton.icon(
+                              onPressed: _isRefreshing
+                                  ? null
+                                  : () => unawaited(_refreshNovel()),
+                              icon: const Icon(Icons.refresh, size: 18),
+                              label: Text(
+                                fetchPhase == NovelFetchPhase.failed
+                                    ? 'Retry'
+                                    : 'Check for chapters',
+                              ),
+                            ),
+                          ],
                         ),
                       )
                     else
@@ -700,10 +688,9 @@ class _NovelDetailScreenState extends ConsumerState<NovelDetailScreen> {
                             maxLines: 1,
                             overflow: TextOverflow.ellipsis,
                             style: TextStyle(
-                              fontSize:
-                                  Theme.of(
-                                    context,
-                                  ).textTheme.bodyMedium?.fontSize,
+                              fontSize: Theme.of(
+                                context,
+                              ).textTheme.bodyMedium?.fontSize,
                               fontWeight: chapter.read
                                   ? FontWeight.normal
                                   : FontWeight.w600,
@@ -717,8 +704,9 @@ class _NovelDetailScreenState extends ConsumerState<NovelDetailScreen> {
                           subtitle: Text(
                             'Available',
                             style: TextStyle(
-                              fontSize:
-                                  Theme.of(context).textTheme.labelSmall?.fontSize,
+                              fontSize: Theme.of(
+                                context,
+                              ).textTheme.labelSmall?.fontSize,
                               color: Theme.of(
                                 context,
                               ).colorScheme.onSurfaceVariant,

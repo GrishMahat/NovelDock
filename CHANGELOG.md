@@ -3,10 +3,11 @@
 All notable changes to NovelDock are documented here.
 The format follows [Keep a Changelog](https://keepachangelog.com); versions aim for SemVer.
 
-## Unreleased
+## 0.1.2-beta - 2026-08-30
 
 ### Added
 
+- Reader settings sheet now has Reading and Listen tabs: engine, speed, pitch, language, voice, highlight granularity, auto-scroll, and auto-advance are all adjustable without leaving the book; future surfaces like translation can join as additional tabs
 - Pluggable TTS engines: pick between Microsoft voices and on-device system voices (Android) in Reader settings. The voice list, sample previews, and playback all follow the active engine; the choice persists and falls back to Microsoft voices where system TTS is unavailable
 - Download reconciliation: opening Downloads or a novel detail verifies download records against the files actually on disk
 
@@ -24,9 +25,26 @@ The format follows [Keep a Changelog](https://keepachangelog.com); versions aim 
 - Reader's initial load showed a bare spinner; it now shows a prose-shaped skeleton tinted to the active reader theme
 - Chapter load failures offered only a low-emphasis text link; Retry is now a proper button styled for the reader theme
 - TTS voice samples always played Microsoft audio regardless of the selected engine; previews now use whichever engine is active
+- Novel detail claimed "0 chapters" while the chapter list was still being fetched in the background; the skeleton now stays up until the fetch actually finishes, and a genuine empty result shows a "Check for chapters" action instead of a false zero count
+- TTS auto-scroll and auto-advance toggles vanished from Settings during the reader settings rework; both now live in the Listen tab of Reader settings and in the in-reader sheet, backed by one shared language and voice picker implementation
+- On-device TTS died seconds after starting ("Playback stalled"): device voices synthesize WAV while the playback pipeline labeled every chunk as MP3, so ExoPlayer treated the data as invalid, "finished" the playlist instantly, and burned all stall-restart attempts into a fatal error. Chunk payloads are now sniffed (RIFF/WAVE vs MPEG) and served with the matching content type
+- Picking a device voice did nothing even when a voice was selected: Android reports TTS locales as `eng-USA`-style tags and flutter_tts's setVoice demands an exact match, but the app was sending `en-US`. Voice selection now resolves each discovered voice's original Android locale tag, so the chosen Google/device voice is actually applied during synthesis
+- Device voices didn't appear when searching for "English (US)" in the voice picker for the same locale-format reason; picker locales are now normalized to `en-US`/`ru-RU` BCP-47 form (with 3-letter language and region codes mapped) so search and filtering match what users type
+- Refreshing a novel destroyed per-chapter state: the chapter list was rebuilt by deleting every row and re-inserting, churning autoincrement ids, orphaning everything keyed by chapter id (reading history, download queue, bookmarks), and resetting read/TTS-read/downloaded flags. Chapter sync now diffs by URL — new chapters are inserted, existing ones keep their row and state in place, vanished ones are removed
+- Reopening a novel clobbered refreshed metadata with stale search-listing data because the opener always re-fetched details in the background; the background re-fetch now runs only for new novels or ones with no chapters yet (the explicit Refresh action still always does)
+- Searching immediately after a cold start silently queried zero providers: the enabled-providers set defaults to empty until the database load finishes, so an early search saw nothing. Searches now wait for the initial provider load to complete
+- Re-adding a provider registry could create duplicate list entries when two different URLs normalize to the same registry id
 
 ### Changed
 
+- Download notifications rebuilt: one grouped notification per novel instead of parallel downloads overwriting a single slot, a real progress bar (it previously sat at 0% forever), an ongoing flag so active downloads can't be swiped away by accident, a Cancel action button that routes into the download queue, failed-chapter counts in the body, and a tappable completion notice
+- The background download service no longer mirrors every progress update into its own foreground-service notification, which duplicated the progress notification verbatim; it stays as a quiet status strip and disappears once the queue drains
+- TTS player controls rebuilt as a proper media cluster on both surfaces: skips recede, play/pause becomes the single filled focal control (live accent in the top mini player, reader text tint in the floating reader pill), and stop sits behind a hairline with a quiet treatment instead of reading as a mystery gray square; rounded icon set and an inset, rounded progress line throughout
+- Background novel fetches rebuilt around a session-scoped fetch-state provider: novel detail shows live fetching/refreshing progress instead of a skeleton flash or a false "0 chapters", and a fetch survives the screen that started it being disposed (provider-level Ref instead of widget-scoped)
+- Download pipeline consolidated: the separate download manager was folded into the download provider, and notification Cancel actions wire directly into the download queue
+- Registry additions run on a ProviderContainer, so adding a registry by URL survives the management page being closed mid-flight
+- Provider instance loading centralized behind a single provider-instance provider instead of ad-hoc caching inside each loader
+- Regression tests added for chapter sync, system TTS locale resolution, and the TTS stream source
 - Removed the dead Tracking placeholder from novel detail actions
 - Cover image opens a pinch-zoom fullscreen viewer on tap
 - UI polish pass: every screen now draws text sizes, spacing, radii, and colors from the shared theme tokens; hardcoded values were replaced with theme roles across library, browse, search results, downloads, history, import, logs, provider management, settings, and reader surfaces
@@ -35,6 +53,10 @@ The format follows [Keep a Changelog](https://keepachangelog.com); versions aim 
 - TTS mini player, reader theme swatches, and font picker follow your chosen accent color instead of the default blue seed
 - Copy tightening: "Wi-Fi Only" recased, the download concurrency row is now labeled "Parallel downloads"
 - Added DESIGN.md recording the design contract: accent rules, Sora/Literata type scale, spacing/radius/motion tokens, and the reader palette exemption
+
+### Known issues
+
+- **Android may be a little bit buggy right now.** The Android build is an early preview: on-device TTS, background downloads/notifications, and cold-start provider loading have had the most churn in this cycle and haven't been shaken out across many devices yet. Expect rough edges on Android specifically; desktop builds are more settled. If you hit something broken on Android, it's probably us, not you — please report it with the device and Android version.
 
 ## 0.1.0-beta - 2026-08-21
 

@@ -191,10 +191,7 @@ class DownloadSettingsPage extends ConsumerWidget {
       padding: const EdgeInsets.symmetric(vertical: 4),
       child: Row(
         children: [
-          const SizedBox(
-            width: 80,
-            child: Text('Parallel'),
-          ),
+          const SizedBox(width: 80, child: Text('Parallel')),
           Expanded(
             child: SegmentedButton<int>(
               segments: const [

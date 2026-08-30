@@ -55,7 +55,7 @@ class _GeneralTab extends ConsumerWidget {
           onTap: () => _showFontPicker(context, settings, notifier),
         ),
         slider(
-        context,
+          context,
           'Size',
           settings.fontSize,
           10,
@@ -64,7 +64,7 @@ class _GeneralTab extends ConsumerWidget {
           (v) => notifier.updateFontSize(v),
         ),
         slider(
-        context,
+          context,
           'Line Height',
           settings.lineHeight,
           1.0,
@@ -77,7 +77,7 @@ class _GeneralTab extends ConsumerWidget {
         // ── Layout ──
         section(context, 'Layout'),
         slider(
-        context,
+          context,
           'H Padding',
           settings.paddingH,
           0,
@@ -86,7 +86,7 @@ class _GeneralTab extends ConsumerWidget {
           (v) => notifier.updatePaddingH(v),
         ),
         slider(
-        context,
+          context,
           'V Padding',
           settings.paddingV,
           0,
@@ -95,7 +95,7 @@ class _GeneralTab extends ConsumerWidget {
           (v) => notifier.updatePaddingV(v),
         ),
         slider(
-        context,
+          context,
           'Paragraph Gap',
           settings.paragraphSpacing,
           0,
@@ -113,21 +113,21 @@ class _GeneralTab extends ConsumerWidget {
         // ── Display ──
         section(context, 'Display'),
         switchTile(
-        context,
+          context,
           'Bionic Reading',
           'Bold first half of each word',
           settings.bionicReading,
           (_) => notifier.toggleBionicReading(),
         ),
         switchTile(
-        context,
+          context,
           'Selectable Text',
           null,
           settings.selectableText,
           (_) => notifier.toggleSelectableText(),
         ),
         switchTile(
-        context,
+          context,
           'Show Time',
           null,
           settings.showTime,
@@ -135,14 +135,14 @@ class _GeneralTab extends ConsumerWidget {
         ),
         if (!Platform.isLinux && !Platform.isMacOS && !Platform.isWindows) ...[
           switchTile(
-        context,
+            context,
             'Show Battery',
             null,
             settings.showBattery,
             (_) => notifier.toggleShowBattery(),
           ),
           switchTile(
-        context,
+            context,
             'Keep Screen On',
             null,
             settings.keepScreenOn,
@@ -292,8 +292,9 @@ class _GeneralTab extends ConsumerWidget {
                         font,
                         style: TextStyle(
                           fontFamily: font,
-                          fontSize:
-                              Theme.of(context).textTheme.bodyLarge?.fontSize,
+                          fontSize: Theme.of(
+                            context,
+                          ).textTheme.bodyLarge?.fontSize,
                         ),
                       ),
                       onTap: () {
@@ -320,7 +321,8 @@ class _GeneralTab extends ConsumerWidget {
       spacing: 12,
       runSpacing: 8,
       children: [
-        _themeCircle(context,
+        _themeCircle(
+          context,
           'Dark',
           'dark',
           AppTheme.kReaderBgDefault,
@@ -328,7 +330,8 @@ class _GeneralTab extends ConsumerWidget {
           settings,
           notifier,
         ),
-        _themeCircle(context,
+        _themeCircle(
+          context,
           'Light',
           'light',
           AppTheme.kReaderBgColors['light']!,
@@ -336,7 +339,8 @@ class _GeneralTab extends ConsumerWidget {
           settings,
           notifier,
         ),
-        _themeCircle(context,
+        _themeCircle(
+          context,
           'Sepia',
           'sepia',
           AppTheme.kReaderBgColors['sepia']!,
@@ -344,7 +348,8 @@ class _GeneralTab extends ConsumerWidget {
           settings,
           notifier,
         ),
-        _themeCircle(context,
+        _themeCircle(
+          context,
           'Green',
           'green',
           AppTheme.kReaderBgColors['green']!,
@@ -352,7 +357,8 @@ class _GeneralTab extends ConsumerWidget {
           settings,
           notifier,
         ),
-        _themeCircle(context,
+        _themeCircle(
+          context,
           'Blue',
           'blue',
           AppTheme.kReaderBgColors['blue']!,
@@ -393,7 +399,12 @@ class _GeneralTab extends ConsumerWidget {
               ),
             ),
             child: Center(
-              child: Text('Aa', style: Theme.of(context).textTheme.labelMedium?.copyWith(color: text)),
+              child: Text(
+                'Aa',
+                style: Theme.of(
+                  context,
+                ).textTheme.labelMedium?.copyWith(color: text),
+              ),
             ),
           ),
           const SizedBox(height: 4),
