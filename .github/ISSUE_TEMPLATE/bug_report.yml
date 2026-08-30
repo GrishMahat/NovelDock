@@ -1,0 +1,63 @@
+name: Bug report
+description: Something is broken or behaves unexpectedly
+labels: [bug]
+body:
+  - type: markdown
+    attributes:
+      value: Thanks for taking the time to report this! The more detail, the faster the fix.
+  - type: input
+    id: version
+    attributes:
+      label: App version
+      description: From Settings → About, or the release tag (e.g. v0.1.2-beta)
+      placeholder: v0.1.2-beta
+    validations:
+      required: true
+  - type: dropdown
+    id: platform
+    attributes:
+      label: Platform
+      options:
+        - Android
+        - Linux
+        - Windows / macOS (if building from source)
+    validations:
+      required: true
+  - type: dropdown
+    id: area
+    attributes:
+      label: Area
+      options:
+        - Reader
+        - Library
+        - Browse / search
+        - Downloads
+        - TTS (text-to-speech)
+        - Import (EPUB/PDF)
+        - Providers / sources
+        - Translation
+        - Other
+    validations:
+      required: true
+  - type: textarea
+    id: steps
+    attributes:
+      label: Steps to reproduce
+      description: What provider/source were you using? What did you tap?
+      placeholder: |
+        1. Open ...
+        2. Tap ...
+    validations:
+      required: true
+  - type: textarea
+    id: expected
+    attributes:
+      label: What happened vs what you expected
+    validations:
+      required: true
+  - type: textarea
+    id: logs
+    attributes:
+      label: Logs
+      description: Settings → Logs, paste anything relevant
+      render: shell

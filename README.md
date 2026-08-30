@@ -1,10 +1,30 @@
+<div align="center">
+
+<img src="assets/images/logo.png" alt="NovelDock logo" width="128"/>
+
 # NovelDock
 
-Ad-free novel reader and downloader for Android and Linux desktop, built with Flutter.
+**Ad-free novel reader and downloader for Android and Linux desktop, built with Flutter.**
+
+[![CI](https://github.com/GrishMahat/NovelDock/actions/workflows/ci.yml/badge.svg)](https://github.com/GrishMahat/NovelDock/actions/workflows/ci.yml)
+[![Release](https://img.shields.io/github/v/release/GrishMahat/NovelDock?include_prereleases&label=release)](https://github.com/GrishMahat/NovelDock/releases)
+[![License](https://img.shields.io/github/license/GrishMahat/NovelDock)](LICENSE)
+![Platforms](https://img.shields.io/badge/platform-Android%20%7C%20Linux-blue)
+[![PRs welcome](https://img.shields.io/badge/PRs-welcome-brightgreen)](CONTRIBUTING.md)
 
 Read web novels through installable JavaScript source extensions, import your own EPUB and PDF files, or listen to your library with text-to-speech.
 
+</div>
+
 > NovelDock hosts nothing. It renders whatever sources you install. Novels belong to their authors and publishers; support official releases when you can.
+
+<!-- Screenshots: add 2–3 rows of phone/desktop screenshots here, e.g.
+<p align="center">
+  <img src="docs/screenshots/library.png" width="270"/>
+  <img src="docs/screenshots/reader.png" width="270"/>
+  <img src="docs/screenshots/tts.png" width="270"/>
+</p>
+-->
 
 ## Features
 
@@ -42,6 +62,10 @@ Forked git dependencies (see below) resolve automatically during `pub get`.
 
 ## Desktop keyboard shortcuts
 
+<details>
+<summary>Click to expand</summary>
+
+
 | Keys | Action |
 |------|--------|
 | `1` - `4` | Switch tabs (Library, Browse, History, Settings) |
@@ -53,17 +77,24 @@ Forked git dependencies (see below) resolve automatically during `pub get`.
 | `Esc` (reader) | Back |
 | `Ctrl+L` (reader) | Pin the chapter panel |
 
+</details>
+
 ## Sources
 
 Novels come from provider registries you add in Settings > Providers. The default registry lives at [noveldock-providers](https://github.com/GrishMahat/noveldock-providers).
 
 ## Forked packages
 
+<details>
+<summary>Why some dependencies are git forks</summary>
+
 Some Dart packages are maintained as forks and pulled as git dependencies:
 
 - [flutter_edge_tts](https://github.com/GrishMahat/flutter_edge_tts), fork of [Moosphan/flutter_edge_tts](https://github.com/Moosphan/flutter_edge_tts). Upstream opens a new connection per synthesis request; the fork holds one persistent WebSocket instead.
 - [just_audio_media_kit](https://github.com/GrishMahat/just_audio_media_kit), fork of [Pato05/just_audio_media_kit](https://github.com/Pato05/just_audio_media_kit). Adds a static `mpvProperties` map so any mpv property (network timeout, HTTP headers) applies to every player; upstream had no such hook.
 - [flutter_js](https://github.com/GrishMahat/flutter_js), fork of [abner/flutter_js](https://github.com/abner/flutter_js). Runs provider scripts on quickjs-ng. Forked early on; the exact reason is lost to time, but it works and stays pinned.
+
+</details>
 
 ## Releases
 

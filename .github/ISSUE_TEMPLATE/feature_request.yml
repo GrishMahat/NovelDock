@@ -1,0 +1,28 @@
+name: Feature request
+description: Suggest an idea or improvement
+labels: [enhancement]
+body:
+  - type: textarea
+    id: problem
+    attributes:
+      label: Problem or use case
+      description: What are you trying to do, and what's in the way?
+    validations:
+      required: true
+  - type: textarea
+    id: proposal
+    attributes:
+      label: Proposed solution
+    validations:
+      required: true
+  - type: dropdown
+    id: willing
+    attributes:
+      label: Would you be willing to help implement this?
+      options:
+        - "Yes, I can write the code"
+        - "Yes, I can write a provider extension"
+        - "I can help test"
+        - "No, just suggesting"
+    validations:
+      required: true
