@@ -381,6 +381,17 @@ class _ReaderSettingsSheetState extends ConsumerState<ReaderSettingsSheet> {
       ),
       switchTile(
         context,
+        'Lock scrolling while listening',
+        'Prevent manual scrolling while auto-scroll follows playback',
+        readerSettings.ttsScrollLock,
+        (_) {
+          if (readerSettings.ttsAutoScroll) {
+            readerNotifier.toggleTtsScrollLock();
+          }
+        },
+      ),
+      switchTile(
+        context,
         'Auto-advance chapters',
         'Keep listening into the next chapter when one finishes',
         readerSettings.ttsAutoAdvance,

@@ -18,13 +18,39 @@ Read web novels through installable JavaScript source extensions, import your ow
 
 > NovelDock hosts nothing. It renders whatever sources you install. Novels belong to their authors and publishers; support official releases when you can.
 
-<!-- Screenshots: add 2–3 rows of phone/desktop screenshots here, e.g.
+## Who is this for?
+
+I built this for myself first. I wanted to read novels on my laptop, and on Linux I couldn't find a good reader  the one or two apps I did find were in Chinese, which I don't read. So I wrote the app I wanted: one library, my downloads, and read-aloud, following me from laptop to phone wherever I go.
+
+Many people read novels in a browser, and if tabs work for you, that's fine  this isn't trying to replace your browser. NovelDock is for readers who want a standalone app. On Android there are plenty of readers; on Linux desktop there are few, and none I could actually use. If that's your situation too, this app is for you.
+
+## Screenshots
+
+<details>
+<summary>Linux desktop screenshots</summary>
+
 <p align="center">
-  <img src="docs/screenshots/library.png" width="270"/>
-  <img src="docs/screenshots/reader.png" width="270"/>
-  <img src="docs/screenshots/tts.png" width="270"/>
+  <a href="docs/screenshots/desktop-library.png"><img src="docs/screenshots/desktop-library.png" alt="NovelDock library on Linux desktop" width="360"/></a>
+  <a href="docs/screenshots/desktop-browse.png"><img src="docs/screenshots/desktop-browse.png" alt="NovelDock browse screen on Linux desktop" width="360"/></a>
 </p>
--->
+<p align="center">
+  <a href="docs/screenshots/desktop-sources.png"><img src="docs/screenshots/desktop-sources.png" alt="NovelDock source catalog on Linux desktop" width="360"/></a>
+  <a href="docs/screenshots/desktop-novel.png"><img src="docs/screenshots/desktop-novel.png" alt="NovelDock novel details on Linux desktop" width="360"/></a>
+</p>
+
+</details>
+
+<details>
+<summary>Android screenshots</summary>
+
+<p align="center">
+  <a href="docs/screenshots/mobile-library.png"><img src="docs/screenshots/mobile-library.png" alt="NovelDock library on Android" width="180"/></a>
+  <a href="docs/screenshots/mobile-browse.png"><img src="docs/screenshots/mobile-browse.png" alt="NovelDock browse screen on Android" width="180"/></a>
+  <a href="docs/screenshots/mobile-sources.png"><img src="docs/screenshots/mobile-sources.png" alt="NovelDock source catalog on Android" width="180"/></a>
+  <a href="docs/screenshots/mobile-novel.png"><img src="docs/screenshots/mobile-novel.png" alt="NovelDock novel details on Android" width="180"/></a>
+</p>
+
+</details>
 
 ## Features
 
@@ -106,6 +132,11 @@ git push origin vX.Y.Z-beta
 ```
 
 The release workflow signs the APK with a keystore stored in GitHub secrets and publishes it under Releases with generated notes. To build locally you need `android/key.properties` pointing at your own keystore; without it, local release builds fall back to debug signing.
+
+## Docs
+
+- [DESIGN.md](DESIGN.md) — the design contract: accent rules, Sora/Literata type scale, spacing/radius/motion tokens, and the reader palette exemption
+- [docs/WHY.md](docs/WHY.md) — why the code is built this way: the Markdown rendering pipeline vs raw HTML, and other decisions as they're made
 
 ## Credits
 

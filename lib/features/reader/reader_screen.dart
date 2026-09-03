@@ -52,6 +52,9 @@ class _ReaderScreenState extends ConsumerState<ReaderScreen> {
   double _scrollProgress = 0.0;
   final Map<String, GlobalKey> _chunkKeys = {};
   double? _ttsScrollCeiling;
+  int? _lastAutoScrolledParagraph;
+  Future<void>? _autoScrollFuture;
+  bool _restoringTtsScroll = false;
   int _settingsVersion = 0;
   double _lastScrollPixels = 0.0;
 
@@ -190,11 +193,14 @@ class _ReaderScreenState extends ConsumerState<ReaderScreen> {
     }
 
     final ceiling = _ttsScrollCeiling;
-    if (ceiling != null && settings.ttsAutoScroll) {
-      final ttsState = ref.read(ttsManagerProvider);
-      if (ttsState.isSpeaking && pos.pixels > ceiling + 1) {
-        _scrollController.jumpTo(ceiling);
-      }
+    final ttsState = ref.read(ttsManagerProvider);
+    final lockScroll =
+        settings.ttsAutoScroll &&
+        settings.ttsScrollLock &&
+        ttsState.isSpeaking &&
+        !_restoringTtsScroll;
+    if (lockScroll && ceiling != null && pos.pixels > ceiling + 1) {
+      _restoreLockedTtsScroll(ceiling);
     }
   }
 
@@ -447,7 +453,7 @@ class _ReaderScreenState extends ConsumerState<ReaderScreen> {
   }
 
   void _scrollToTtsHighlight(int lineIndex) {
-    if (!_scrollController.hasClients) return;
+    if (!_scrollController.hasClients || _autoScrollFuture != null) return;
     final settings = ref.read(readerSettingsProvider);
     if (!settings.ttsAutoScroll || settings.scrollMode == 'paged') return;
 
@@ -456,17 +462,37 @@ class _ReaderScreenState extends ConsumerState<ReaderScreen> {
     if (chapter == null) return;
 
     final ttsState = ref.read(ttsManagerProvider);
-    final blockIndex = _paragraphToBlock[ttsState.currentChunkIndex];
+    final paragraph = ttsState.currentChunkIndex;
+    if (_lastAutoScrolledParagraph == paragraph) return;
+    final blockIndex = _paragraphToBlock[paragraph];
     if (blockIndex == null) return;
-    final chunkKey = _chunkKeys['${chapter.id}-$blockIndex'];
-    if (chunkKey?.currentContext != null) {
-      Scrollable.ensureVisible(
-        chunkKey!.currentContext!,
-        duration: const Duration(milliseconds: 400),
-        curve: Curves.easeInOutCubic,
-        alignment: 0.25,
-      );
-    }
+    final targetContext = _chunkKeys['${chapter.id}-$blockIndex']?.currentContext;
+    if (targetContext == null) return;
+
+    _lastAutoScrolledParagraph = paragraph;
+    _autoScrollFuture = Scrollable.ensureVisible(
+      targetContext,
+      duration: const Duration(milliseconds: 320),
+      curve: Curves.easeOutCubic,
+      alignment: 0.22,
+    ).whenComplete(() {
+      _autoScrollFuture = null;
+    });
+  }
+
+  void _restoreLockedTtsScroll(double ceiling) {
+    if (_restoringTtsScroll || !_scrollController.hasClients) return;
+    _restoringTtsScroll = true;
+    _autoScrollFuture = _scrollController
+        .animateTo(
+          ceiling.clamp(0.0, _scrollController.position.maxScrollExtent),
+          duration: const Duration(milliseconds: 180),
+          curve: Curves.easeOutCubic,
+        )
+        .whenComplete(() {
+          _restoringTtsScroll = false;
+          _autoScrollFuture = null;
+        });
   }
 
   void _toggleTts() async {
@@ -771,6 +797,8 @@ class _ReaderScreenState extends ConsumerState<ReaderScreen> {
       }
       if ((prev?.isSpeaking == true) && !next.isSpeaking) {
         _ttsScrollCeiling = null;
+        _lastAutoScrolledParagraph = null;
+        _autoScrollFuture = null;
         // Only advance when the chapter finished playing on its own; a user
         // stop or a fatal error must not silently jump to the next chapter.
         if (next.completedNaturally &&

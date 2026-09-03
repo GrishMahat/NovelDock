@@ -144,7 +144,9 @@ class ProviderEngine {
   /// Loads `assets/providers/provider_helpers.js` once and caches it.
   /// Returns an empty string (no helpers) if the asset is missing, so a
   /// broken bundle degrades to providers that carry their own helpers.
-  Future<String> _providerHelpersSource() async {
+  static Future<String> warmup() => _providerHelpersSource();
+
+  static Future<String> _providerHelpersSource() async {
     if (_helpersSource != null) return _helpersSource!;
     try {
       _helpersSource = await rootBundle.loadString(

@@ -27,6 +27,7 @@ class ReaderSettings {
   final bool keepScreenOn;
   final bool selectableText;
   final bool ttsAutoScroll;
+  final bool ttsScrollLock;
   final bool ttsAutoAdvance;
   final String orientation;
   final String readerTheme;
@@ -49,6 +50,7 @@ class ReaderSettings {
     this.keepScreenOn = true,
     this.selectableText = false,
     this.ttsAutoScroll = true,
+    this.ttsScrollLock = false,
     this.ttsAutoAdvance = true,
     this.orientation = 'auto',
     this.readerTheme = 'dark',
@@ -72,6 +74,7 @@ class ReaderSettings {
     bool? keepScreenOn,
     bool? selectableText,
     bool? ttsAutoScroll,
+    bool? ttsScrollLock,
     bool? ttsAutoAdvance,
     String? orientation,
     String? readerTheme,
@@ -94,6 +97,7 @@ class ReaderSettings {
       keepScreenOn: keepScreenOn ?? this.keepScreenOn,
       selectableText: selectableText ?? this.selectableText,
       ttsAutoScroll: ttsAutoScroll ?? this.ttsAutoScroll,
+      ttsScrollLock: ttsScrollLock ?? this.ttsScrollLock,
       ttsAutoAdvance: ttsAutoAdvance ?? this.ttsAutoAdvance,
       orientation: orientation ?? this.orientation,
       readerTheme: readerTheme ?? this.readerTheme,
@@ -215,6 +219,7 @@ class ReaderSettingsNotifier extends StateNotifier<ReaderSettings> {
         keepScreenOn: p.getBool('reader_keep_screen_on') ?? true,
         selectableText: p.getBool('reader_selectable_text') ?? false,
         ttsAutoScroll: p.getBool('reader_tts_autoscroll') ?? true,
+        ttsScrollLock: p.getBool('reader_tts_scroll_lock') ?? false,
         ttsAutoAdvance: p.getBool('reader_tts_autoadvance') ?? true,
         orientation: p.getString('reader_orientation') ?? 'auto',
         readerTheme: p.getString('reader_theme') ?? 'dark',
@@ -244,6 +249,7 @@ class ReaderSettingsNotifier extends StateNotifier<ReaderSettings> {
       await p.setBool('reader_keep_screen_on', state.keepScreenOn);
       await p.setBool('reader_selectable_text', state.selectableText);
       await p.setBool('reader_tts_autoscroll', state.ttsAutoScroll);
+      await p.setBool('reader_tts_scroll_lock', state.ttsScrollLock);
       await p.setBool('reader_tts_autoadvance', state.ttsAutoAdvance);
       await p.setString('reader_orientation', state.orientation);
       await p.setString('reader_theme', state.readerTheme);
@@ -285,6 +291,8 @@ class ReaderSettingsNotifier extends StateNotifier<ReaderSettings> {
       _update((s) => s.copyWith(selectableText: !s.selectableText));
   void toggleTtsAutoScroll() =>
       _update((s) => s.copyWith(ttsAutoScroll: !s.ttsAutoScroll));
+  void toggleTtsScrollLock() =>
+      _update((s) => s.copyWith(ttsScrollLock: !s.ttsScrollLock));
   void toggleTtsAutoAdvance() =>
       _update((s) => s.copyWith(ttsAutoAdvance: !s.ttsAutoAdvance));
   void updateLeftTapAction(String v) =>

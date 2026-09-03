@@ -88,37 +88,26 @@ class LibraryDao extends DatabaseAccessor<AppDatabase> with _$LibraryDaoMixin {
   }
 
   Stream<List<Novel>> watchLibraryNovels() {
-    return (select(library)..orderBy([(t) => OrderingTerm.desc(t.lastReadAt)]))
-        .watch()
-        .asyncMap((entries) async {
-          final novels = <Novel>[];
-          for (final entry in entries) {
-            final novel = await (select(
-              db.novels,
-            )..where((t) => t.id.equals(entry.novelId))).getSingleOrNull();
-            if (novel != null) {
-              novels.add(novel);
-            }
-          }
-          return novels;
-        });
+    final query = select(library).join([
+      innerJoin(novels, novels.id.equalsExp(library.novelId)),
+    ])..orderBy([OrderingTerm.desc(library.lastReadAt)]);
+
+    return query.watch().map(
+      (rows) => rows.map((row) => row.readTable(novels)).toList(),
+    );
   }
 
   Stream<List<Novel>> watchLibraryNovelsByStatus(String status) {
-    return (select(library)
-          ..where((t) => t.status.equals(status))
-          ..orderBy([(t) => OrderingTerm.desc(t.lastReadAt)]))
-        .watch()
-        .asyncMap((entries) async {
-          final novels = <Novel>[];
-          for (final entry in entries) {
-            final novel = await (select(
-              db.novels,
-            )..where((t) => t.id.equals(entry.novelId))).getSingleOrNull();
-            if (novel != null) novels.add(novel);
-          }
-          return novels;
-        });
+    final query =
+        select(
+            library,
+          ).join([innerJoin(novels, novels.id.equalsExp(library.novelId))])
+          ..where(library.status.equals(status))
+          ..orderBy([OrderingTerm.desc(library.lastReadAt)]);
+
+    return query.watch().map(
+      (rows) => rows.map((row) => row.readTable(novels)).toList(),
+    );
   }
 
   Future<List<Novel>> getContinueReadingNovels() async {

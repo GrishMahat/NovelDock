@@ -31,8 +31,17 @@ class DownloadNotification {
   /// Action button identifier sent back by the platform.
   static const _cancelActionId = 'noveldock.download.cancel';
 
-  static final _plugin = FlutterLocalNotificationsPlugin();
+  static final FlutterLocalNotificationsPlugin _plugin =
+      FlutterLocalNotificationsPlugin();
+
+  /// Shared plugin instance so permission requests and notification posts
+  /// always go through the same platform implementation (and the response
+  /// callback stays registered on one instance). Also used by the lazy
+  /// notification-permission request (notification_permission.dart).
+  static FlutterLocalNotificationsPlugin get plugin => _plugin;
+
   static bool _initialized = false;
+  static Future<void>? _initFuture;
 
   /// Bridge into the download pipeline; assigned by the provider layer.
   static Future<void> Function(int novelId)? onCancelRequest;
@@ -68,6 +77,22 @@ class DownloadNotification {
   static Future<void> init() async {
     if (_initialized || Platform.isLinux) return;
 
+    final existing = _initFuture;
+    if (existing != null) {
+      await existing;
+      return;
+    }
+
+    final future = _initialize();
+    _initFuture = future;
+    try {
+      await future;
+    } finally {
+      if (identical(_initFuture, future)) _initFuture = null;
+    }
+  }
+
+  static Future<void> _initialize() async {
     try {
       if (Platform.isAndroid) {
         final android = _plugin

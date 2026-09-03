@@ -14,8 +14,8 @@ import '../../../core/providers/database_providers.dart';
 import '../../../core/providers/engine.dart';
 import '../../../core/network/client.dart';
 import '../../../core/utils/logger.dart';
+import '../../../core/utils/notification_permission.dart';
 import '../../settings/pages/download_settings_page.dart';
-import '../background_service.dart';
 import 'download_notification.dart';
 
 const _tag = 'Download';
@@ -93,7 +93,7 @@ class DownloadNotifier extends StateNotifier<Map<int, NovelDownloadProgress>> {
 
     Log.i(_tag, 'Enqueued chapter $chapterId for novel $novelId');
     await _updateProgress(novelId);
-    _processQueue();
+    unawaited(_processQueue());
   }
 
   /// Download all chapters for a novel
@@ -136,10 +136,15 @@ class DownloadNotifier extends StateNotifier<Map<int, NovelDownloadProgress>> {
   /// external trigger (the old snapshot-once loop could strand them).
   Future<void> _processQueue() async {
     if (_isProcessing) return;
-    _isProcessing = true;
 
-    // Start background service for Android (keeps downloads running when app is backgrounded)
-    BackgroundDownloadService.start();
+    // Do not start the Android service for an empty queue. This also prevents
+    // cancellation/reconciliation calls from waking the service during app
+    // startup or while the Downloads screen is being constructed.
+    final downloadDao = ref.read(downloadDaoProvider);
+    final pendingBeforeStart = await downloadDao.getPendingDownloads();
+    if (pendingBeforeStart.isEmpty) return;
+
+    _isProcessing = true;
 
     try {
       final settings = ref.read(downloadSettingsProvider);
@@ -160,13 +165,11 @@ class DownloadNotifier extends StateNotifier<Map<int, NovelDownloadProgress>> {
 
       // New tasks may have been enqueued while the pool ran (or a cancelled
       // task left siblings behind). Keep draining instead of stranding them.
-      final downloadDao = ref.read(downloadDaoProvider);
       final pending = await downloadDao.getPendingDownloads();
       if (pending.isNotEmpty) {
         unawaited(_processQueue());
       } else {
         _currentTaskId = null;
-        BackgroundDownloadService.stop();
       }
     }
   }
@@ -467,13 +470,16 @@ class DownloadNotifier extends StateNotifier<Map<int, NovelDownloadProgress>> {
       ),
     };
 
-    // Update download notification
-    DownloadNotification.init(); // no-op if already initialized
+    // Initialize notifications only when a download needs them. This is
+    // deliberately outside cold startup because the Android plugin can be
+    // slow and must remain on the main isolate.
+    await DownloadNotification.init();
+    await ensureNotificationPermission(DownloadNotification.plugin);
     if (isDownloading) {
       final novelDao = ref.read(novelDaoProvider);
       final novel = await novelDao.getNovelById(novelId);
       final title = novel?.title ?? 'Unknown';
-      DownloadNotification.showProgress(
+      await DownloadNotification.showProgress(
         novelId: novelId,
         novelTitle: title,
         completed: completed,
@@ -483,7 +489,7 @@ class DownloadNotifier extends StateNotifier<Map<int, NovelDownloadProgress>> {
     } else if (completed > 0) {
       final novelDao = ref.read(novelDaoProvider);
       final novel = await novelDao.getNovelById(novelId);
-      DownloadNotification.showComplete(
+      await DownloadNotification.showComplete(
         novelId: novelId,
         novelTitle: novel?.title ?? 'Unknown',
         total: completed,

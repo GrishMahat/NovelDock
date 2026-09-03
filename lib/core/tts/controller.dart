@@ -194,6 +194,11 @@ class TtsPlaybackController {
       _engine = engine;
       engine.reopen();
 
+      // Apply the requested player speed before the first item is attached.
+      // Without this, a restored/non-default speed only took effect after a
+      // later settings change and Android could play at an unexpected rate.
+      await _player.setSpeed(speed);
+
       _chunks = normalizedChunks;
       _voiceId = voiceId;
       _rate = rate;
@@ -254,10 +259,24 @@ class TtsPlaybackController {
   Future<void> stop() async {
     if (_disposed) return;
 
-    // Invalidate any start/restart currently waiting in the operation queue.
+    // Invalidate callbacks and synthesis immediately. Do not wait behind a
+    // queued start/restart operation: the user-visible stop action must take
+    // effect before any network/session teardown completes.
     ++_generation;
+    _cancelled = true;
+    _stopped = true;
+    _paused = false;
+    _pipelineActive = false;
+    _stallTimer?.cancel();
+    _stallTimer = null;
 
-    await _enqueueOperation(() => _stopInternal(invalidateEngine: true));
+    final stopFuture = _enqueueOperation(
+      () => _stopInternal(invalidateEngine: true),
+    );
+    await stopFuture.timeout(
+      const Duration(milliseconds: 750),
+      onTimeout: () {},
+    );
   }
 
   Future<void> _stopInternal({required bool invalidateEngine}) async {

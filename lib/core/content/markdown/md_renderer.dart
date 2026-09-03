@@ -78,13 +78,14 @@ Widget _buildBlock(
   // TTS chunks are indexed by paragraph (skipping headings etc.), so map the
   // block index to its paragraph index before comparing with the current chunk.
   final isParagraph = block is ParagraphNode;
-  final currentIndex = isParagraph
-      ? (blockToParagraph?[blockIndex] ?? blockIndex)
-      : blockIndex;
+  final paragraphIndex = isParagraph
+      ? (blockToParagraph?[blockIndex])
+      : null;
   final isHighlighted =
       isCurrentChapter &&
       ttsState.isSpeaking &&
-      currentIndex == ttsState.currentChunkIndex;
+      paragraphIndex != null &&
+      paragraphIndex == ttsState.currentChunkIndex;
 
   return KeyedSubtree(
     key: chunkKeys.putIfAbsent('$chapterId-$blockIndex', () => GlobalKey()),
@@ -438,7 +439,9 @@ Widget _highlightedRichText(
 
   final plainText = spans.map((s) => s.toPlainText()).join();
   final wordRanges = _extractWordRanges(plainText);
-  final wordIndex = ttsState.currentWordIndex.clamp(0, wordRanges.length - 1);
+  final wordIndex = wordRanges.isEmpty
+      ? 0
+      : ttsState.currentWordIndex.clamp(0, wordRanges.length - 1);
   final sentenceRange = _findSentenceRange(plainText, wordRanges, wordIndex);
 
   final highlighted = <InlineSpan>[];
@@ -477,63 +480,15 @@ Widget _highlightedRichText(
         highlighted.add(TextSpan(text: before, style: span.style));
       }
       if (sentenceText.isNotEmpty) {
-        if (wordRanges.isNotEmpty && wordIndex < wordRanges.length) {
-          final (wStart, wEnd) = wordRanges[wordIndex];
-          final localWStart = (wStart - sentenceRange.$1).clamp(
-            0,
-            sentenceText.length,
-          );
-          final localWEnd = (wEnd - sentenceRange.$1).clamp(
-            0,
-            sentenceText.length,
-          );
-
-          if (localWStart > 0) {
-            highlighted.add(
-              TextSpan(
-                text: sentenceText.substring(0, localWStart),
-                style: span.style?.copyWith(
-                  background: Paint()
-                    ..color = AppTheme.kReaderAccent.withValues(alpha: 0.22),
-                ),
-              ),
-            );
-          }
-          if (localWEnd > localWStart) {
-            highlighted.add(
-              TextSpan(
-                text: sentenceText.substring(localWStart, localWEnd),
-                style: span.style?.copyWith(
-                  fontWeight: FontWeight.bold,
-                  color: Colors.white,
-                  background: Paint()
-                    ..color = AppTheme.kReaderAccent.withValues(alpha: 0.75),
-                ),
-              ),
-            );
-          }
-          if (localWEnd < sentenceText.length) {
-            highlighted.add(
-              TextSpan(
-                text: sentenceText.substring(localWEnd),
-                style: span.style?.copyWith(
-                  background: Paint()
-                    ..color = AppTheme.kReaderAccent.withValues(alpha: 0.22),
-                ),
-              ),
-            );
-          }
-        } else {
-          highlighted.add(
-            TextSpan(
-              text: sentenceText,
-              style: span.style?.copyWith(
-                background: Paint()
-                  ..color = AppTheme.kReaderAccent.withValues(alpha: 0.22),
-              ),
+        highlighted.add(
+          TextSpan(
+            text: sentenceText,
+            style: span.style?.copyWith(
+              background: Paint()
+                ..color = AppTheme.kReaderAccent.withValues(alpha: 0.22),
             ),
-          );
-        }
+          ),
+        );
       }
       if (after.isNotEmpty) {
         highlighted.add(TextSpan(text: after, style: span.style));

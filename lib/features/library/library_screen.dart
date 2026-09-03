@@ -7,6 +7,7 @@ import '../../core/database/database.dart';
 import '../../core/display_mode.dart';
 import '../../core/providers/database_providers.dart';
 import '../../core/utils/platform.dart';
+
 import '../../theme/tokens.dart';
 import '../../widgets/header_search_field.dart';
 import '../../widgets/max_width_box.dart';

@@ -3,6 +3,25 @@
 All notable changes to NovelDock are documented here.
 The format follows [Keep a Changelog](https://keepachangelog.com); versions aim for SemVer.
 
+## Unreleased
+
+### Fixed
+
+- TTS playback could start at an unexpected speed because the selected speed was not applied before the first audio item; the speed is now set before playback begins
+- TTS Stop could take several seconds to respond while audio and synthesis teardown completed; stopping now invalidates playback immediately and bounds cleanup time
+- Read-along highlighting could drift or become visually unstable: sentence mode also emphasized a word, paragraph mode could miss its mapped paragraph, and word updates could trigger unnecessary visual work; sentence highlighting is now sentence-only and paragraph identity is mapped explicitly
+- TTS auto-scroll could snap abruptly or repeatedly animate the same paragraph; scrolling now uses guarded smooth animations, with an optional setting to lock manual scrolling while listening
+- Android cold start could remain on the splash screen for several seconds because download-service initialization was triggered during app startup; downloads no longer start a background service while the app is launching
+- Android emitted a `flutter_background_service_android` main-isolate error and could start the foreground download service more than once; the unstable background-service integration was removed and download processing now stays in the app process
+- Download notifications could race their initialization and be dropped or posted before the notification channel was ready; initialization is now shared, idempotent, and awaited before notifications are shown
+- Library loading performed one database query per saved novel for each status tab; library streams now use a joined query, reducing database work during the first screen load
+
+### Changed
+
+- Startup no longer eagerly initializes notifications, media playback libraries, provider assets, or application paths; those resources initialize when their features are first used instead of delaying launch
+- Android no longer explicitly opts out of Impeller, removing the deprecated renderer configuration and its startup warning
+- The Android download queue no longer depends on `flutter_background_service`; queued downloads continue in the app process while the app is active. Background downloading while the app is closed will be revisited in a future version
+
 ## 0.1.2-beta - 2026-08-30
 
 ### Added

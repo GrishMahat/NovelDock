@@ -15,6 +15,18 @@ class AppTheme {
   /// Backwards-compatible alias for callers that referenced the accent.
   static const kPrimary = kAccentSeed;
 
+  // ── Cached theme builds ─────────────────────────────────────────
+  /// The palette-, text-, and component themes are pure functions of
+  /// (mode, accent)and expensive to build (ColorScheme.fromSeed +
+  /// flex_color_scheme scheme evaluation). The app root watches three
+  /// providers and rebuilds them on every change, so we cache the results.
+
+  static final Map<String, ThemeData> _themeCache = <String, ThemeData>{};
+
+  static ThemeData _cached(String key, ThemeData Function() build) {
+    return _themeCache.putIfAbsent(key, build);
+  }
+
   // ── Reader palette (kept stable across light/dark; reader owns its look)
   static const Map<String, Color> kReaderBgColors = {
     'dark': Color(0xFF121212),
@@ -96,69 +108,78 @@ class AppTheme {
     return TextSpan(children: spans);
   }
 
-  static ThemeData dark({Color primary = kAccentSeed}) => _build(
-    FlexColorScheme.dark(
-      colors: FlexSchemeColor(
-        primary: primary,
-        secondary: primary,
-        tertiary: Color(0xFF8AB4F8),
-        primaryContainer: Color(0xFF16325C),
-        secondaryContainer: Color(0xFF16325C),
-        tertiaryContainer: Color(0xFF0B1E38),
-        error: Color(0xFFF2B8B5),
-        errorContainer: Color(0xFF8C1D18),
+  static ThemeData dark({Color primary = kAccentSeed}) => _cached(
+    'dark:$primary',
+    () => _build(
+      FlexColorScheme.dark(
+        colors: FlexSchemeColor(
+          primary: primary,
+          secondary: primary,
+          tertiary: Color(0xFF8AB4F8),
+          primaryContainer: Color(0xFF16325C),
+          secondaryContainer: Color(0xFF16325C),
+          tertiaryContainer: Color(0xFF0B1E38),
+          error: Color(0xFFF2B8B5),
+          errorContainer: Color(0xFF8C1D18),
+        ),
+        surfaceMode: FlexSurfaceMode.level,
+        blendLevel: 0,
+        useMaterial3: true,
+        visualDensity: FlexColorScheme.comfortablePlatformDensity,
       ),
-      surfaceMode: FlexSurfaceMode.level,
-      blendLevel: 0,
-      useMaterial3: true,
-      visualDensity: FlexColorScheme.comfortablePlatformDensity,
     ),
   );
 
-  static ThemeData light({Color primary = kAccentSeed}) => _build(
-    FlexColorScheme.light(
-      colors: FlexSchemeColor(
-        primary: primary,
-        secondary: primary,
-        tertiary: Color(0xFF0B57D0),
-        primaryContainer: Color(0xFFD6E4FF),
-        secondaryContainer: Color(0xFFD6E4FF),
-        tertiaryContainer: Color(0xFFD3E3FD),
-        error: Color(0xFFB3261E),
-        errorContainer: Color(0xFFF9DEDC),
+  static ThemeData light({Color primary = kAccentSeed}) => _cached(
+    'light:$primary',
+    () => _build(
+      FlexColorScheme.light(
+        colors: FlexSchemeColor(
+          primary: primary,
+          secondary: primary,
+          tertiary: Color(0xFF0B57D0),
+          primaryContainer: Color(0xFFD6E4FF),
+          secondaryContainer: Color(0xFFD6E4FF),
+          tertiaryContainer: Color(0xFFD3E3FD),
+          error: Color(0xFFB3261E),
+          errorContainer: Color(0xFFF9DEDC),
+        ),
+        surfaceMode: FlexSurfaceMode.level,
+        blendLevel: 0,
+        useMaterial3: true,
+        visualDensity: FlexColorScheme.comfortablePlatformDensity,
       ),
-      surfaceMode: FlexSurfaceMode.level,
-      blendLevel: 0,
-      useMaterial3: true,
-      visualDensity: FlexColorScheme.comfortablePlatformDensity,
     ),
   );
 
-  static ThemeData amoled({Color primary = kAccentSeed}) => _build(
-    FlexColorScheme.dark(
-      colors: FlexSchemeColor(
-        primary: primary,
-        secondary: primary,
-        tertiary: Color(0xFF8AB4F8),
-        primaryContainer: Color(0xFF16325C),
-        secondaryContainer: Color(0xFF16325C),
-        tertiaryContainer: Color(0xFF0B1E38),
-        error: Color(0xFFF2B8B5),
-        errorContainer: Color(0xFF8C1D18),
+  static ThemeData amoled({Color primary = kAccentSeed}) => _cached(
+    'amoled:$primary',
+    () => _build(
+      FlexColorScheme.dark(
+        colors: FlexSchemeColor(
+          primary: primary,
+          secondary: primary,
+          tertiary: Color(0xFF8AB4F8),
+          primaryContainer: Color(0xFF16325C),
+          secondaryContainer: Color(0xFF16325C),
+          tertiaryContainer: Color(0xFF0B1E38),
+          error: Color(0xFFF2B8B5),
+          errorContainer: Color(0xFF8C1D18),
+        ),
+        surfaceMode: FlexSurfaceMode.level,
+        blendLevel: 0,
+        useMaterial3: true,
+        visualDensity: FlexColorScheme.comfortablePlatformDensity,
       ),
-      surfaceMode: FlexSurfaceMode.level,
-      blendLevel: 0,
-      useMaterial3: true,
-      visualDensity: FlexColorScheme.comfortablePlatformDensity,
+      surfaceOverride: Colors.black,
+      surfaceLayers: const {
+        'lowest': Color(0xFF08080A),
+        'low': Color(0xFF0E0E10),
+        'default': Color(0xFF121214),
+        'high': Color(0xFF17171A),
+        'highest': Color(0xFF1D1D21),
+      },
     ),
-    surfaceOverride: Colors.black,
-    surfaceLayers: const {
-      'lowest': Color(0xFF08080A),
-      'low': Color(0xFF0E0E10),
-      'default': Color(0xFF121214),
-      'high': Color(0xFF17171A),
-      'highest': Color(0xFF1D1D21),
-    },
   );
 
   static ThemeData _build(

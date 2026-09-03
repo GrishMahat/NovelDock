@@ -169,6 +169,7 @@ final availableProvidersProvider = FutureProvider<List<ProviderMeta>>((
   }
 
   Log.ok(_tag, 'Total providers found: ${allProviders.length}');
+
   return allProviders;
 });
 

@@ -9,6 +9,7 @@ import '../../../core/providers/filters.dart';
 import '../../../core/network/client.dart';
 import '../../../core/providers/database_providers.dart';
 import '../../../core/utils/logger.dart';
+
 import '../../settings/providers/provider_management_providers.dart';
 
 const _tag = 'Search';

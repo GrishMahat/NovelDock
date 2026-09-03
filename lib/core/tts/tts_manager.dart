@@ -15,6 +15,7 @@ import 'engine/system_tts_engine.dart';
 import 'engine/tts_engine.dart';
 import 'tts_mpris.dart';
 import '../utils/logger.dart';
+import '../utils/notification_permission.dart';
 
 const _tag = 'TtsManager';
 
@@ -208,6 +209,12 @@ class TtsManager extends StateNotifier<TtsManagerState> {
     _notificationsInitFuture = future;
 
     try {
+      // Android 13+ POST_NOTIFICATIONS permission must be granted before
+      // ANY notification becomes visible; requesting it here means the
+      // permission dialog appears lazily, when TTS is first started, instead
+      // of interrupting cold launch (see main.dart — the cold-start request
+      // was removed in favor of this).
+      await ensureNotificationPermission(flutterLocalNotificationsPlugin);
       await future;
     } finally {
       // Allow retry after a failed initialization.
@@ -561,13 +568,10 @@ class TtsManager extends StateNotifier<TtsManagerState> {
     );
 
     try {
-      await _ensureNotifications();
-
-      // The request may have been stopped/replaced while notification
-      // initialization was in progress.
-      if (generation != _sessionGeneration) {
-        return;
-      }
+      // Media controls are useful once playback is active, but they must not
+      // delay the first synthesized chunk. Start playback first and initialize
+      // the controls in parallel.
+      unawaited(_ensureNotifications());
 
       if (coverUrl != null) {
         await TtsMpris.setCoverArt(coverUrl);
