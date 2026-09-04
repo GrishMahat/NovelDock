@@ -238,6 +238,7 @@ class NovelOpener {
             if (chResponse.statusCode != 200) break;
             chData = chResponse.data;
           } else {
+            if (!instance.hasFunction('getChaptersApiUrl')) break;
             final chaptersUrl = await instance.call('getChaptersApiUrl', [
               bookId,
               page,

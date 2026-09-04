@@ -7,6 +7,11 @@ The format follows [Keep a Changelog](https://keepachangelog.com); versions aim 
 
 ### Fixed
 
+- TTS sentence highlighting could lag or select the wrong sentence, especially when a paragraph was split into multiple synthesis chunks; highlighting now follows the active chunk's actual text range
+- TTS auto-scroll could miss the first target after a rebuild, and auto-advance could use stale reader state or fail during chapter handoff; the listener lifecycle, target retry, and next-chapter startup are now coordinated explicitly
+- Restarting TTS could repeatedly download the same cover, and mobile media controls had no artwork; cover files are now shared through one in-flight cache and exposed to both Linux MPRIS and mobile media metadata
+- TTS starting position could reset to the chapter top when the visible paragraph had not mounted yet; startup now uses the current scroll geometry as a fallback instead of silently choosing paragraph zero
+- MPRIS initialization could race when media controls were initialized concurrently; initialization requests now share one future
 - In-app source pages could fail to transfer Cloudflare clearance cookies to chapter requests, and JavaScript challenge probes could remain active after a normal page loaded; cookie capture now follows the current page URL and challenge results are normalized before polling stops
 - TTS playback could start at an unexpected speed because the selected speed was not applied before the first audio item; the speed is now set before playback begins
 - TTS Stop could take several seconds to respond while audio and synthesis teardown completed; stopping now invalidates playback immediately and bounds cleanup time

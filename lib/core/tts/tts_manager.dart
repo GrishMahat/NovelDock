@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'dart:io';
 
 import 'package:anni_mpris_service/anni_mpris_service.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -34,6 +35,10 @@ class TtsManagerState {
   /// Word index within the current paragraph's plain text.
   final int currentWordIndex;
 
+  /// Character range of the active synthesized chunk in the paragraph.
+  final int currentChunkStartOffset;
+  final int currentChunkEndOffset;
+
   final int totalChunks;
   final double speed;
   final double pitch;
@@ -57,6 +62,8 @@ class TtsManagerState {
     this.engineId = 'edge',
     this.currentChunkIndex = 0,
     this.currentWordIndex = 0,
+    this.currentChunkStartOffset = 0,
+    this.currentChunkEndOffset = 0,
     this.totalChunks = 0,
     this.speed = 1.0,
     this.pitch = 1.0,
@@ -79,6 +86,8 @@ class TtsManagerState {
     String? engineId,
     int? currentChunkIndex,
     int? currentWordIndex,
+    int? currentChunkStartOffset,
+    int? currentChunkEndOffset,
     int? totalChunks,
     double? speed,
     double? pitch,
@@ -97,6 +106,10 @@ class TtsManagerState {
       engineId: engineId ?? this.engineId,
       currentChunkIndex: currentChunkIndex ?? this.currentChunkIndex,
       currentWordIndex: currentWordIndex ?? this.currentWordIndex,
+      currentChunkStartOffset:
+          currentChunkStartOffset ?? this.currentChunkStartOffset,
+      currentChunkEndOffset:
+          currentChunkEndOffset ?? this.currentChunkEndOffset,
       totalChunks: totalChunks ?? this.totalChunks,
       speed: speed ?? this.speed,
       pitch: pitch ?? this.pitch,
@@ -316,6 +329,7 @@ class TtsManager extends StateNotifier<TtsManagerState> {
         isPlaying: isPlaying,
         position: position,
         duration: duration,
+        artUri: _coverArtUri,
       );
     }
   }
@@ -398,6 +412,8 @@ class TtsManager extends StateNotifier<TtsManagerState> {
     return _settingsSaveQueue;
   }
 
+  String? _coverArtUri;
+
   String get _voiceId => state.voice.isEmpty ? _defaultVoice : state.voice;
 
   String _rateString() {
@@ -444,9 +460,12 @@ class TtsManager extends StateNotifier<TtsManagerState> {
         return;
       }
 
+      final chunk = _ttsChunks[chunkIndex];
       state = state.copyWith(
         currentChunkIndex: paragraphIndex,
         currentWordIndex: 0,
+        currentChunkStartOffset: chunk.startOffset,
+        currentChunkEndOffset: chunk.endOffset,
         currentText: _chunkTexts[paragraphIndex],
       );
 
@@ -472,6 +491,8 @@ class TtsManager extends StateNotifier<TtsManagerState> {
       state = state.copyWith(
         currentChunkIndex: chunk.paragraphIndex,
         currentWordIndex: chunk.paragraphWordOffset + wordIndex,
+        currentChunkStartOffset: chunk.startOffset,
+        currentChunkEndOffset: chunk.endOffset,
       );
     };
 
@@ -573,8 +594,10 @@ class TtsManager extends StateNotifier<TtsManagerState> {
       // the controls in parallel.
       unawaited(_ensureNotifications());
 
-      if (coverUrl != null) {
-        await TtsMpris.setCoverArt(coverUrl);
+      if (Platform.isLinux) {
+        _coverArtUri = await TtsMpris.cacheCoverArt(coverUrl);
+      } else {
+        _coverArtUri = coverUrl;
       }
 
       if (generation != _sessionGeneration) {
@@ -671,6 +694,8 @@ class TtsManager extends StateNotifier<TtsManagerState> {
         isPaused: false,
         currentChunkIndex: 0,
         currentWordIndex: 0,
+        currentChunkStartOffset: 0,
+        currentChunkEndOffset: 0,
         totalChunks: 0,
         currentText: '',
         totalDuration: Duration.zero,
@@ -683,6 +708,7 @@ class TtsManager extends StateNotifier<TtsManagerState> {
       _ttsChunks = [];
       _totalParagraphs = 0;
 
+      _coverArtUri = null;
       TtsMpris.setCoverArt(null);
 
       _updateMedia();
@@ -711,6 +737,8 @@ class TtsManager extends StateNotifier<TtsManagerState> {
     state = state.copyWith(
       currentChunkIndex: target,
       currentWordIndex: 0,
+      currentChunkStartOffset: 0,
+      currentChunkEndOffset: 0,
       currentText: target < _chunkTexts.length ? _chunkTexts[target] : null,
     );
 

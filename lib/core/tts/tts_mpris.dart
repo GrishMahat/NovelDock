@@ -17,9 +17,11 @@ const _tag = 'MPRIS';
 class TtsMpris {
   static MPRISService? _service;
   static bool _initialized = false;
+  static Future<void>? _initializationFuture;
 
   static String? _artworkPath;
   static String? _artworkUrl;
+  static Future<String?>? _artworkFuture;
 
   static Function()? onPlay;
   static Function()? onPause;
@@ -29,15 +31,26 @@ class TtsMpris {
   static void Function(LoopStatus loopStatus)? onLoopChange;
 
   static Future<void> init() async {
-    if (_initialized) return;
-    if (!Platform.isLinux) return;
+    if (_initialized || !Platform.isLinux) return;
+    final existing = _initializationFuture;
+    if (existing != null) return existing;
 
+    final future = _initialize();
+    _initializationFuture = future;
+    try {
+      await future;
+    } finally {
+      if (identical(_initializationFuture, future)) {
+        _initializationFuture = null;
+      }
+    }
+  }
+
+  static Future<void> _initialize() async {
     try {
       final service = _TtsMPRISService();
-
       _service = service;
       _initialized = true;
-
       Log.ok(_tag, 'MPRIS initialized');
     } catch (e) {
       _service = null;
@@ -50,13 +63,18 @@ class TtsMpris {
   ///
   /// The same URL is reused without another download. A different cover URL
   /// replaces the cached artwork file.
-  static Future<void> setCoverArt(String? coverUrl) async {
+  static Future<String?> cacheCoverArt(String? coverUrl) async {
     final normalizedUrl = coverUrl?.trim();
 
     if (normalizedUrl == null || normalizedUrl.isEmpty) {
       _artworkPath = null;
       _artworkUrl = null;
-      return;
+      return null;
+    }
+
+    final existingFuture = _artworkFuture;
+    if (existingFuture != null && _artworkUrl == normalizedUrl) {
+      return existingFuture;
     }
 
     if (_artworkUrl == normalizedUrl &&
@@ -64,9 +82,19 @@ class TtsMpris {
         await File(
           Uri.parse(_artworkPath!.replaceFirst('file://', '')).path,
         ).exists()) {
-      return;
+      return _artworkPath;
     }
 
+    final future = _downloadCoverArt(normalizedUrl);
+    _artworkFuture = future;
+    try {
+      return await future;
+    } finally {
+      if (identical(_artworkFuture, future)) _artworkFuture = null;
+    }
+  }
+
+  static Future<String?> _downloadCoverArt(String normalizedUrl) async {
     try {
       final uri = Uri.tryParse(normalizedUrl);
 
@@ -75,7 +103,7 @@ class TtsMpris {
 
         _artworkPath = null;
         _artworkUrl = null;
-        return;
+        return null;
       }
 
       final tempDir = await getTemporaryDirectory();
@@ -95,7 +123,7 @@ class TtsMpris {
 
         _artworkPath = null;
         _artworkUrl = null;
-        return;
+        return null;
       }
 
       await file.writeAsBytes(response.bodyBytes, flush: true);
@@ -109,22 +137,30 @@ class TtsMpris {
         'Cover downloaded: '
         '${response.bodyBytes.length} bytes',
       );
+      return _artworkPath;
     } on http.ClientException catch (e) {
       Log.e(_tag, 'Cover request failed', e);
 
       _artworkPath = null;
       _artworkUrl = null;
+      return null;
     } on FormatException catch (e) {
       Log.e(_tag, 'Invalid cover URL: $normalizedUrl', e);
 
       _artworkPath = null;
       _artworkUrl = null;
+      return null;
     } catch (e) {
       Log.e(_tag, 'Failed to download cover art', e);
 
       _artworkPath = null;
       _artworkUrl = null;
+      return null;
     }
+  }
+
+  static Future<void> setCoverArt(String? coverUrl) async {
+    await cacheCoverArt(coverUrl);
   }
 
   static void updateState({
@@ -187,6 +223,8 @@ class TtsMpris {
 
     _service = null;
     _initialized = false;
+    _initializationFuture = null;
+    _artworkFuture = null;
 
     _artworkPath = null;
     _artworkUrl = null;

@@ -440,7 +440,7 @@ Widget _highlightedRichText(
   final wordIndex = wordRanges.isEmpty
       ? 0
       : ttsState.currentWordIndex.clamp(0, wordRanges.length - 1);
-  final sentenceRange = _findSentenceRange(plainText, wordRanges, wordIndex);
+  final sentenceRange = _sentenceRangeForState(plainText, ttsState, wordIndex);
 
   final highlighted = <InlineSpan>[];
   int offset = 0;
@@ -517,6 +517,18 @@ List<(int, int)> _extractWordRanges(String text) {
     ranges.add((start, pos));
   }
   return ranges;
+}
+
+(int, int)? _sentenceRangeForState(
+  String text,
+  TtsManagerState state,
+  int wordIndex,
+) {
+  final start = state.currentChunkStartOffset.clamp(0, text.length);
+  final end = state.currentChunkEndOffset.clamp(start, text.length);
+  if (end > start) return (start, end);
+
+  return _findSentenceRange(text, _extractWordRanges(text), wordIndex);
 }
 
 (int, int)? _findSentenceRange(

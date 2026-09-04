@@ -31,6 +31,7 @@ class BackgroundAudioHandler extends BaseAudioHandler
     required bool isPlaying,
     required Duration position,
     required Duration duration,
+    String? artUri,
   }) {
     final safeDuration = duration < Duration.zero ? Duration.zero : duration;
 
@@ -46,6 +47,7 @@ class BackgroundAudioHandler extends BaseAudioHandler
         title: title,
         artist: artist,
         duration: safeDuration,
+        artUri: artUri == null ? null : Uri.tryParse(artUri),
       ),
     );
 

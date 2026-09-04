@@ -75,6 +75,8 @@ class _ReaderScreenState extends ConsumerState<ReaderScreen> {
   /// more blocks than paragraphs; this map keeps highlighting aligned.
   Map<int, int> _blockToParagraph = const {};
   Map<int, int> _paragraphToBlock = const {};
+  ProviderSubscription<TtsManagerState>? _ttsSubscription;
+  bool _autoAdvancingTts = false;
 
   @override
   void initState() {
@@ -93,10 +95,15 @@ class _ReaderScreenState extends ConsumerState<ReaderScreen> {
       readerNavigationProvider(widget.novelId).notifier,
     );
     _navigationNotifier!.loadChapters(widget.chapterId);
+    _ttsSubscription = ref.listenManual<TtsManagerState>(
+      ttsManagerProvider,
+      (prev, next) => _onTtsStateChanged(prev, next),
+    );
   }
 
   @override
   void dispose() {
+    _ttsSubscription?.close();
     _saveReadingAnchor();
     _scrollController.dispose();
     _pageController.dispose();
@@ -199,7 +206,7 @@ class _ReaderScreenState extends ConsumerState<ReaderScreen> {
         settings.ttsScrollLock &&
         ttsState.isSpeaking &&
         !_restoringTtsScroll;
-    if (lockScroll && ceiling != null && pos.pixels > ceiling + 1) {
+    if (lockScroll && ceiling != null && (pos.pixels - ceiling).abs() > 1) {
       _restoreLockedTtsScroll(ceiling);
     }
   }
@@ -402,24 +409,84 @@ class _ReaderScreenState extends ConsumerState<ReaderScreen> {
   }
 
   void _goToPreviousChapter() {
-    ref
-        .read(readerNavigationProvider(widget.novelId).notifier)
-        .goToPreviousChapter();
-    if (_scrollController.hasClients) _scrollController.jumpTo(0);
+    final settings = ref.read(readerSettingsProvider);
+    if (settings.scrollMode == 'paged') {
+      ref
+          .read(readerNavigationProvider(widget.novelId).notifier)
+          .goToPreviousChapter();
+      if (_scrollController.hasClients) _scrollController.jumpTo(0);
+    } else {
+      final nav = ref.read(readerNavigationProvider(widget.novelId));
+      if (nav.currentIndex > 0) {
+        final prevChapter = nav.chapters[nav.currentIndex - 1];
+        final context = _chunkKeys['${prevChapter.id}-0']?.currentContext;
+        if (context != null) {
+          Scrollable.ensureVisible(
+            context,
+            duration: const Duration(milliseconds: 300),
+            curve: Curves.easeOut,
+          );
+        } else {
+          ref
+              .read(readerNavigationProvider(widget.novelId).notifier)
+              .goToPreviousChapter();
+        }
+      }
+    }
   }
 
   void _goToNextChapter() {
-    ref
-        .read(readerNavigationProvider(widget.novelId).notifier)
-        .goToNextChapter();
-    if (_scrollController.hasClients) _scrollController.jumpTo(0);
+    final settings = ref.read(readerSettingsProvider);
+    if (settings.scrollMode == 'paged') {
+      ref
+          .read(readerNavigationProvider(widget.novelId).notifier)
+          .goToNextChapter();
+      if (_scrollController.hasClients) _scrollController.jumpTo(0);
+    } else {
+      final nav = ref.read(readerNavigationProvider(widget.novelId));
+      if (nav.currentIndex < nav.chapters.length - 1) {
+        final nextChapter = nav.chapters[nav.currentIndex + 1];
+        final context = _chunkKeys['${nextChapter.id}-0']?.currentContext;
+        if (context != null) {
+          Scrollable.ensureVisible(
+            context,
+            duration: const Duration(milliseconds: 300),
+            curve: Curves.easeOut,
+          );
+        } else {
+          ref
+              .read(readerNavigationProvider(widget.novelId).notifier)
+              .goToNextChapter();
+        }
+      }
+    }
   }
 
   void _jumpToChapter(int index) {
-    ref
-        .read(readerNavigationProvider(widget.novelId).notifier)
-        .jumpToChapter(index);
-    if (_scrollController.hasClients) _scrollController.jumpTo(0);
+    final settings = ref.read(readerSettingsProvider);
+    if (settings.scrollMode == 'paged') {
+      ref
+          .read(readerNavigationProvider(widget.novelId).notifier)
+          .jumpToChapter(index);
+      if (_scrollController.hasClients) _scrollController.jumpTo(0);
+    } else {
+      final nav = ref.read(readerNavigationProvider(widget.novelId));
+      if (index >= 0 && index < nav.chapters.length) {
+        final chapter = nav.chapters[index];
+        final context = _chunkKeys['${chapter.id}-0']?.currentContext;
+        if (context != null) {
+          Scrollable.ensureVisible(
+            context,
+            duration: const Duration(milliseconds: 300),
+            curve: Curves.easeOut,
+          );
+        } else {
+          ref
+              .read(readerNavigationProvider(widget.novelId).notifier)
+              .jumpToChapter(index);
+        }
+      }
+    }
     // Reading intent: slide the panel away unless the user pinned it open.
     if (!_sliderPinned) setState(() => _sliderVisible = false);
   }
@@ -452,8 +519,9 @@ class _ReaderScreenState extends ConsumerState<ReaderScreen> {
     }
   }
 
-  void _scrollToTtsHighlight(int lineIndex) {
-    if (!_scrollController.hasClients || _autoScrollFuture != null) return;
+  void _scrollToTtsHighlight(int lineIndex, {int attempt = 0}) {
+    if (!_scrollController.hasClients) return;
+    if (_autoScrollFuture != null) return;
     final settings = ref.read(readerSettingsProvider);
     if (!settings.ttsAutoScroll || settings.scrollMode == 'paged') return;
 
@@ -468,7 +536,14 @@ class _ReaderScreenState extends ConsumerState<ReaderScreen> {
     if (blockIndex == null) return;
     final targetContext =
         _chunkKeys['${chapter.id}-$blockIndex']?.currentContext;
-    if (targetContext == null) return;
+    if (targetContext == null) {
+      if (attempt < 3) {
+        WidgetsBinding.instance.addPostFrameCallback(
+          (_) => _scrollToTtsHighlight(lineIndex, attempt: attempt + 1),
+        );
+      }
+      return;
+    }
 
     _lastAutoScrolledParagraph = paragraph;
     _autoScrollFuture =
@@ -479,6 +554,9 @@ class _ReaderScreenState extends ConsumerState<ReaderScreen> {
           alignment: 0.22,
         ).whenComplete(() {
           _autoScrollFuture = null;
+          if (_scrollController.hasClients) {
+            _ttsScrollCeiling = _scrollController.offset;
+          }
         });
   }
 
@@ -576,6 +654,8 @@ class _ReaderScreenState extends ConsumerState<ReaderScreen> {
         _scrollController.position.context.notificationContext;
     final viewportBox = scrollContext?.findRenderObject() as RenderBox?;
     final viewportTop = viewportBox?.localToGlobal(Offset.zero).dy ?? 0.0;
+    final viewportBottom =
+        viewportTop + _scrollController.position.viewportDimension;
 
     // Find the block whose bottom edge is the first to cross the top of the
     // viewport. Blocks above it are fully scrolled out of view.
@@ -588,69 +668,109 @@ class _ReaderScreenState extends ConsumerState<ReaderScreen> {
       if (box == null || !box.hasSize) continue;
       final top = box.localToGlobal(Offset.zero).dy;
       final bottom = top + box.size.height;
-      if (bottom > viewportTop) {
+      debugPrint('Block $blockIndex: top=$top, bottom=$bottom, viewportTop=$viewportTop, viewportBottom=$viewportBottom');
+      if (bottom > viewportTop && top < viewportBottom) {
         return blockToParagraph[blockIndex]!;
       }
     }
-    return 0;
+    // If the target is outside the currently built cache, use scroll geometry
+    // as a stable fallback instead of silently restarting at paragraph zero.
+    final extent = _scrollController.position.maxScrollExtent;
+    if (extent <= 0) return 0;
+    final ratio = (_scrollController.offset / extent).clamp(0.0, 1.0);
+    final fallback = (ratio * (blockToParagraph.length - 1)).round();
+    return fallback.clamp(0, blockToParagraph.length - 1);
   }
 
-  void _autoAdvanceTts() async {
-    final nav = ref.read(readerNavigationProvider(widget.novelId));
-    if (nav.currentIndex >= nav.chapters.length - 1) return;
+  Future<void> _autoAdvanceTts() async {
+    if (_autoAdvancingTts) return;
+    _autoAdvancingTts = true;
+    try {
+      final nav = ref.read(readerNavigationProvider(widget.novelId));
+      final settings = ref.read(readerSettingsProvider);
+      if (!settings.ttsAutoAdvance ||
+          nav.currentIndex >= nav.chapters.length - 1) {
+        return;
+      }
 
-    final currentChapter = nav.currentChapter;
-    if (currentChapter != null) {
-      // Mark current chapter as TTS-read
-      await ref
-          .read(chapterDaoProvider)
-          .markChapterAsTtsRead(currentChapter.id);
-    }
+      final currentChapter = nav.currentChapter;
+      if (currentChapter != null) {
+        // Mark current chapter as TTS-read
+        await ref
+            .read(chapterDaoProvider)
+            .markChapterAsTtsRead(currentChapter.id);
+      }
 
-    _goToNextChapter();
-    final nextChapter = ref
-        .read(readerNavigationProvider(widget.novelId))
-        .currentChapter;
-    if (nextChapter == null) return;
-
-    // Wait for chapter content to load
-    await ref.read(contentProvider.notifier).loadChapter(nextChapter.id);
-    final chapterContent = ref
-        .read(contentProvider.notifier)
-        .getChapter(nextChapter.id);
-    if (chapterContent == null || chapterContent.isPdf) return;
-
-    final doc = MDParser.parse(chapterContent.data);
-    final blockToParagraph = <int, int>{};
-    final paragraphs = <String>[];
-    for (var i = 0; i < doc.blocks.length; i++) {
-      final block = doc.blocks[i];
-      if (block is! ParagraphNode) continue;
-      final text = block.children
-          .whereType<TextNode>()
-          .map((t) => t.text)
-          .join();
-      if (text.trim().isEmpty) continue;
-      blockToParagraph[i] = paragraphs.length;
-      paragraphs.add(text);
-    }
-    if (paragraphs.isEmpty) return;
-
-    _blockToParagraph = blockToParagraph;
-    _paragraphToBlock = {
-      for (final e in blockToParagraph.entries) e.value: e.key,
-    };
-
-    final novelDao = ref.read(novelDaoProvider);
-    final novel = await novelDao.getNovelById(widget.novelId);
-    ref
-        .read(ttsManagerProvider.notifier)
-        .startFromParagraphs(
-          paragraphs,
-          coverUrl: novel?.coverUrl,
-          novelTitle: novel?.title,
-          novelAuthor: novel?.author,
+      final nextChapter = nav.chapters[nav.currentIndex + 1];
+      
+      // Scroll to the next chapter if possible
+      final context = _chunkKeys['${nextChapter.id}-0']?.currentContext;
+      if (context != null) {
+        Scrollable.ensureVisible(
+          context,
+          duration: const Duration(milliseconds: 300),
+          curve: Curves.easeOut,
         );
+      } else {
+        _goToNextChapter();
+      }
+
+      // Wait for chapter content to load
+      await ref.read(contentProvider.notifier).loadChapter(nextChapter.id);
+      final chapterContent = ref
+          .read(contentProvider.notifier)
+          .getChapter(nextChapter.id);
+      if (chapterContent == null || chapterContent.isPdf) return;
+
+      final doc = MDParser.parse(chapterContent.data);
+      final blockToParagraph = <int, int>{};
+      final paragraphs = <String>[];
+      for (var i = 0; i < doc.blocks.length; i++) {
+        final block = doc.blocks[i];
+        if (block is! ParagraphNode) continue;
+        final text = block.children
+            .whereType<TextNode>()
+            .map((t) => t.text)
+            .join();
+        if (text.trim().isEmpty) continue;
+        blockToParagraph[i] = paragraphs.length;
+        paragraphs.add(text);
+      }
+      if (paragraphs.isEmpty) return;
+
+      _blockToParagraph = blockToParagraph;
+      _paragraphToBlock = {
+        for (final e in blockToParagraph.entries) e.value: e.key,
+      };
+
+      final novelDao = ref.read(novelDaoProvider);
+      final novel = await novelDao.getNovelById(widget.novelId);
+      await ref
+          .read(ttsManagerProvider.notifier)
+          .startFromParagraphs(
+            paragraphs,
+            coverUrl: novel?.coverUrl,
+            novelTitle: novel?.title,
+            novelAuthor: novel?.author,
+          );
+    } finally {
+      _autoAdvancingTts = false;
+    }
+  }
+
+  void _onTtsStateChanged(TtsManagerState? prev, TtsManagerState next) {
+    debugPrint('TTS State Changed: isSpeaking=${next.isSpeaking}, prevLine=${prev?.currentLineIndex}, nextLine=${next.currentLineIndex}');
+    if (next.isSpeaking && prev?.currentLineIndex != next.currentLineIndex) {
+      _scrollToTtsHighlight(next.currentLineIndex);
+    }
+    if ((prev?.isSpeaking == true) && !next.isSpeaking) {
+      _ttsScrollCeiling = null;
+      _lastAutoScrolledParagraph = null;
+      _autoScrollFuture = null;
+      if (next.completedNaturally) {
+        _autoAdvanceTts();
+      }
+    }
   }
 
   void _addBookmark() async {
@@ -792,24 +912,6 @@ class _ReaderScreenState extends ConsumerState<ReaderScreen> {
 
     final currentChapter = nav.currentChapter;
     _currentChapterId = currentChapter?.id;
-
-    ref.listen(ttsManagerProvider, (prev, next) {
-      if (next.isSpeaking && prev?.currentLineIndex != next.currentLineIndex) {
-        _scrollToTtsHighlight(next.currentLineIndex);
-      }
-      if ((prev?.isSpeaking == true) && !next.isSpeaking) {
-        _ttsScrollCeiling = null;
-        _lastAutoScrolledParagraph = null;
-        _autoScrollFuture = null;
-        // Only advance when the chapter finished playing on its own; a user
-        // stop or a fatal error must not silently jump to the next chapter.
-        if (next.completedNaturally &&
-            settings.ttsAutoAdvance &&
-            nav.currentIndex < nav.chapters.length - 1) {
-          _autoAdvanceTts();
-        }
-      }
-    });
 
     // Restore the reading anchor once the chapter content is built
     ref.listen<int?>(
