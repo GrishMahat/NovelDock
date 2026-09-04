@@ -78,9 +78,7 @@ Widget _buildBlock(
   // TTS chunks are indexed by paragraph (skipping headings etc.), so map the
   // block index to its paragraph index before comparing with the current chunk.
   final isParagraph = block is ParagraphNode;
-  final paragraphIndex = isParagraph
-      ? (blockToParagraph?[blockIndex])
-      : null;
+  final paragraphIndex = isParagraph ? (blockToParagraph?[blockIndex]) : null;
   final isHighlighted =
       isCurrentChapter &&
       ttsState.isSpeaking &&

@@ -466,18 +466,20 @@ class _ReaderScreenState extends ConsumerState<ReaderScreen> {
     if (_lastAutoScrolledParagraph == paragraph) return;
     final blockIndex = _paragraphToBlock[paragraph];
     if (blockIndex == null) return;
-    final targetContext = _chunkKeys['${chapter.id}-$blockIndex']?.currentContext;
+    final targetContext =
+        _chunkKeys['${chapter.id}-$blockIndex']?.currentContext;
     if (targetContext == null) return;
 
     _lastAutoScrolledParagraph = paragraph;
-    _autoScrollFuture = Scrollable.ensureVisible(
-      targetContext,
-      duration: const Duration(milliseconds: 320),
-      curve: Curves.easeOutCubic,
-      alignment: 0.22,
-    ).whenComplete(() {
-      _autoScrollFuture = null;
-    });
+    _autoScrollFuture =
+        Scrollable.ensureVisible(
+          targetContext,
+          duration: const Duration(milliseconds: 320),
+          curve: Curves.easeOutCubic,
+          alignment: 0.22,
+        ).whenComplete(() {
+          _autoScrollFuture = null;
+        });
   }
 
   void _restoreLockedTtsScroll(double ceiling) {
