@@ -59,13 +59,27 @@ final dioProvider = FutureProvider<Dio>((ref) async {
   // "Just a moment..." challenge, while HTTP/2 passes. The adapter falls
   // back to dart:io automatically for servers that only support HTTP/1.1.
   //
-  // dio_http2_adapter is vendored at third_party/dio_http2_adapter
-  // with one patch: the TLS ALPN offer includes http/1.1 alongside h2
-  // (upstream offers h2 only). Some servers (e.g. yomou.syosetu.com)
-  // reply to an h2-only ALPN offer with an invalid extension, killing the
-  // handshake; with both protocols offered they pick http/1.1 and the
-  // adapter's built-in fallback handles the request over plain HTTP/1.1.
-  final http2 = Http2Adapter(ConnectionManager());
+  // dio_http2_adapter >=2.9.0 lets us advertise http/1.1 alongside h2 via
+  // ConnectionManager(supportedProtocols:) — upstream's default offers h2
+  // only. Some servers (e.g. yomou.syosetu.com) reply to an h2-only ALPN
+  // offer with an invalid extension, killing the handshake; with both
+  // protocols offered they pick http/1.1 and the adapter's built-in
+  // fallback (IOHttpClientAdapter) handles the request over plain HTTP/1.1
+  //
+  // KNOWN UPSTREAM BUG (unfixed as of 2.9.0): the adapter treats HTTP/2
+  // https://github.com/cfug/dio/issues/2600
+  // https://github.com/cfug/dio/pull/2601
+  // informational responses (1xx, e.g. 103 Early Hints sent by
+  // wuxiaworld.com) as the final response — it completes the response
+  // future on the 103 (dio reports a bogus badResponse with status 103)
+  // and then throws "Bad state: Future already completed" when the real
+  // response arrives. Patch location if we ever need to vendor or
+  // upstream: lib/src/http2_adapter.dart, the HeadersStreamMessage branch
+  // of _fetch's incomingMessages listener — skip 1xx statuses instead of
+  // calling responseCompleter.complete().
+  final http2 = Http2Adapter(
+    ConnectionManager(supportedProtocols: const ['h2', 'http/1.1']),
+  );
   dio.httpClientAdapter = http2;
   ref.onDispose(() => http2.connectionManager.close());
   dio.interceptors.add(
@@ -122,14 +136,3 @@ bool _shouldRetry(DioException error) {
       error.type == DioExceptionType.receiveTimeout ||
       error.type == DioExceptionType.connectionError;
 }
-
-extension CloudflareCheck on Response {
-  bool get isCloudflareChallenge {
-    return CloudflareHandler.isCloudflareChallenge(this);
-  }
-}
-
-/// Provider for Cloudflare bypass handler
-final cloudflareProvider = Provider<CloudflareHandler>((ref) {
-  return CloudflareHandler();
-});

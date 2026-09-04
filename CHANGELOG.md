@@ -7,6 +7,7 @@ The format follows [Keep a Changelog](https://keepachangelog.com); versions aim 
 
 ### Fixed
 
+- In-app source pages could fail to transfer Cloudflare clearance cookies to chapter requests, and JavaScript challenge probes could remain active after a normal page loaded; cookie capture now follows the current page URL and challenge results are normalized before polling stops
 - TTS playback could start at an unexpected speed because the selected speed was not applied before the first audio item; the speed is now set before playback begins
 - TTS Stop could take several seconds to respond while audio and synthesis teardown completed; stopping now invalidates playback immediately and bounds cleanup time
 - Read-along highlighting could drift or become visually unstable: sentence mode also emphasized a word, paragraph mode could miss its mapped paragraph, and word updates could trigger unnecessary visual work; sentence highlighting is now sentence-only and paragraph identity is mapped explicitly
@@ -18,9 +19,14 @@ The format follows [Keep a Changelog](https://keepachangelog.com); versions aim 
 
 ### Changed
 
+- The in-app source browser now supports Android, iOS, Linux, Windows, and web through the cross-platform WebView implementation
 - Startup no longer eagerly initializes notifications, media playback libraries, provider assets, or application paths; those resources initialize when their features are first used instead of delaying launch
 - Android no longer explicitly opts out of Impeller, removing the deprecated renderer configuration and its startup warning
 - The Android download queue no longer depends on `flutter_background_service`; queued downloads continue in the app process while the app is active. Background downloading while the app is closed will be revisited in a future version
+
+### Known issues
+
+- The upgraded HTTP/2 adapter can mishandle informational responses such as `103 Early Hints` on some servers, reporting a false response and then failing when the final response arrives. This is an upstream bug already tracked in an issue with a pull request under review; a future dependency update may resolve it
 
 ## 0.1.2-beta - 2026-08-30
 

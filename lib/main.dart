@@ -46,4 +46,17 @@ void main() async {
   initLogBuffer();
 
   runApp(const ProviderScope(child: NovelDockApp()));
+
+  // ── Deferred initialization (post first frame) ──
+  // Swaps just_audio's platform implementation to the media_kit-backed one on
+  // desktop. Without this, just_audio falls back to its method channel, which
+  // has no native handler on Linux/Windows, and every TTS playback call throws
+  // MissingPluginException. Safe: no AudioPlayer exists before user action.
+  WidgetsBinding.instance.addPostFrameCallback((_) {
+    try {
+      JustAudioMediaKit.ensureInitialized(linux: true, windows: true);
+    } catch (e) {
+      debugPrint('JustAudioMediaKit init failed: $e');
+    }
+  });
 }

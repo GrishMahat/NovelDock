@@ -1,10 +1,13 @@
 import 'dart:async';
 
+import 'package:dio/dio.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
 import '../../core/database/database.dart';
+import '../../core/network/client.dart' show dioProvider;
+import '../../core/network/cloudflare.dart';
 import '../../core/providers/database_providers.dart';
 import '../../core/providers/novel_fetch_state.dart';
 import '../../core/providers/novel_opener.dart';
@@ -13,8 +16,8 @@ import '../../core/utils/platform.dart';
 import '../../theme/tokens.dart';
 import '../../widgets/max_width_box.dart';
 import '../../widgets/page_header.dart';
-import '../../core/network/cloudflare.dart';
 import '../../widgets/shimmer_list.dart';
+import '../browse/webview_screen.dart';
 import '../downloads/providers/download_provider.dart';
 import 'widgets/status_picker_sheet.dart';
 import 'widgets/download_range_sheet.dart';
@@ -183,28 +186,55 @@ class _NovelDetailScreenState extends ConsumerState<NovelDetailScreen> {
     );
   }
 
-  void _triggerCloudflareBypass() async {
+  /// Opens the source in the in-app browser so a Cloudflare challenge can be
+  /// verified. The source is probed first — the verification flow only opens
+  /// when the source actually serves a challenge.
+  Future<void> _triggerCloudflareBypass() async {
     final novelDao = ref.read(novelDaoProvider);
     final novel = await novelDao.getNovelById(widget.novelId);
     if (novel == null) return;
 
-    final url = novel.url;
+    var challenge = true;
+    try {
+      final dio = await ref.read(dioProvider.future);
+      final response = await dio.get(novel.url);
+      challenge = CloudflareHandler.isCloudflareChallenge(response);
+    } on DioException catch (e) {
+      final response = e.response;
+      challenge =
+          response == null || CloudflareHandler.isCloudflareChallenge(response);
+    } catch (e) {
+      Log.w(_tag, 'Cloudflare probe failed, opening verification anyway: $e');
+    }
+
     if (!mounted) return;
-
-    final handler = CloudflareHandler();
-    final success = await handler.bypass(context, url);
-
-    if (mounted) {
+    if (!challenge) {
       ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text(
-            success
-                ? 'Cloudflare bypass successful! Try loading chapters again.'
-                : 'Cloudflare bypass failed or was skipped.',
-          ),
+        const SnackBar(
+          content: Text('No Cloudflare verification needed for this source.'),
         ),
       );
+      return;
     }
+
+    await Navigator.push(
+      context,
+      MaterialPageRoute(
+        builder: (_) => WebViewScreen(url: novel.url, title: novel.title),
+      ),
+    );
+  }
+
+  /// Opens the source page in the in-app browser.
+  void _openInAppBrowser() {
+    final novel = _novel;
+    if (novel == null) return;
+    Navigator.push(
+      context,
+      MaterialPageRoute(
+        builder: (_) => WebViewScreen(url: novel.url, title: novel.title),
+      ),
+    );
   }
 
   Future<void> _refreshNovel() async {
@@ -385,7 +415,7 @@ class _NovelDetailScreenState extends ConsumerState<NovelDetailScreen> {
               children: [
                 Icon(Icons.shield, size: 20),
                 SizedBox(width: 8),
-                Text('Cloudflare Bypass'),
+                Text('Verify Cloudflare challenge'),
               ],
             ),
           ),
@@ -588,7 +618,7 @@ class _NovelDetailScreenState extends ConsumerState<NovelDetailScreen> {
                           icon: Icons.language,
                           label: 'WebView',
                           isSelected: false,
-                          onTap: _triggerCloudflareBypass,
+                          onTap: _openInAppBrowser,
                         ),
                       ],
                     ),
