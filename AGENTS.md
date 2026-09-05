@@ -7,7 +7,8 @@ changing code; it saves guessing.
 
 Flutter app (Android + Linux desktop): an ad-free novel reader/downloader with
 installable JavaScript source extensions, TTS read-aloud, and EPUB/PDF import.
-State is Riverpod 3 (manual providers, no codegen), persistence is Drift (SQLite).
+State is Riverpod 3 with codegen providers (`@riverpod` via riverpod_generator),
+persistence is Drift (SQLite).
 License: GPL-3.0.
 
 ## Repo map — where to find things
@@ -33,15 +34,23 @@ flutter analyze --fatal-infos                        # CI treats infos as errors
 flutter test
 ```
 
-Drift codegen (after editing `lib/core/database/database.dart` tables/DAOs):
-`dart run build_runner build --delete-conflicting-outputs` (config in `build.yaml`).
-Generated `*.g.dart` files are excluded from the analyzer — never hand-edit them.
+Codegen (Drift tables/DAOs in `lib/core/database/database.dart`, Riverpod providers
+anywhere in `lib/`): `dart run build_runner build --delete-conflicting-outputs`
+(config in `build.yaml`). Generated `*.g.dart` files are excluded from the analyzer
+— never hand-edit them. Riverpod `part` files use the same `*.g.dart` naming.
+riverpod_lint is not installed: every custom_lint release caps at analyzer ^8 while
+drift_dev needs analyzer >=10, so the combination doesn't resolve yet — revisit when
+custom_lint catches up.
 
 ## Conventions & gotchas
 
 - **Analyzer is strict**: CI runs `--fatal-infos`. Style-level lints count.
-- **Riverpod 3 manual providers** — no `@riverpod` codegen. Providers that outlive a
-  screen must hold a provider-level `Ref`, never a widget-scoped one (background
+- **Riverpod codegen providers** — new and migrated providers use `@riverpod` /
+  `@Riverpod(keepAlive: true)` annotations (riverpod_generator). Codegen defaults to
+  autoDispose: app-lifetime providers must be explicitly `keepAlive: true`. Name
+  classes/functions so the generated provider keeps the historical name (e.g. class
+  `EnabledProviders` → `enabledProvidersProvider`). Providers that outlive a screen
+  must hold a provider-level `Ref`, never a widget-scoped one (background
   fetches/searches must survive navigation; see `lib/core/providers/novel_opener.dart`).
 - **Chapter rows are identity**: reading history, bookmarks, downloads, and read flags
   are keyed by chapter row id. Chapter lists must be synced via

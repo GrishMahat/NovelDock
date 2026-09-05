@@ -10,8 +10,9 @@ dependencies:
   flutter:
     sdk: flutter
 
-  # State Management (Riverpod 3.x - manual providers, no codegen)
+  # State Management (Riverpod 3.x - codegen providers via riverpod_generator)
   flutter_riverpod: ^3.3.2
+  riverpod_annotation: ^4.0.7
 
   # Navigation
   go_router: ^17.3.0
@@ -105,8 +106,11 @@ dev_dependencies:
     sdk: flutter
   flutter_lints: ^6.0.0
   build_runner: ^2.5.4
-  drift_dev: 2.34.0
-  freezed: ^3.2.5
+  # 2.34.6 aligns the analyzer range with riverpod_generator 4.0.9 (>=13 <15);
+  # older drift_dev pins (analyzer >=10 <13) conflict with it.
+  drift_dev: 2.34.6
+  riverpod_generator: ^4.0.9
+  freezed: ^4.0.1
   json_serializable: ^6.14.0
   flutter_launcher_icons: ^0.14.4
 

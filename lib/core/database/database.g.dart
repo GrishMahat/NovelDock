@@ -4755,8 +4755,10 @@ class $$NovelsTableTableManager
               ),
           withReferenceMapper: (p0) => p0
               .map(
-                (e) =>
-                    (e.readTable(table), $$NovelsTableReferences(db, table, e)),
+                (e) => (
+                  e.readTable<$NovelsTable, Novel>(table),
+                  $$NovelsTableReferences(db, table, e),
+                ),
               )
               .toList(),
           prefetchHooksCallback:
@@ -5558,7 +5560,7 @@ class $$ChaptersTableTableManager
           withReferenceMapper: (p0) => p0
               .map(
                 (e) => (
-                  e.readTable(table),
+                  e.readTable<$ChaptersTable, Chapter>(table),
                   $$ChaptersTableReferences(db, table, e),
                 ),
               )
@@ -6047,7 +6049,7 @@ class $$LibraryTableTableManager
           withReferenceMapper: (p0) => p0
               .map(
                 (e) => (
-                  e.readTable(table),
+                  e.readTable<$LibraryTable, LibraryData>(table),
                   $$LibraryTableReferences(db, table, e),
                 ),
               )
@@ -6476,7 +6478,7 @@ class $$ReadingHistoryTableTableManager
           withReferenceMapper: (p0) => p0
               .map(
                 (e) => (
-                  e.readTable(table),
+                  e.readTable<$ReadingHistoryTable, ReadingHistoryData>(table),
                   $$ReadingHistoryTableReferences(db, table, e),
                 ),
               )
@@ -6905,7 +6907,7 @@ class $$DownloadsQueueTableTableManager
           withReferenceMapper: (p0) => p0
               .map(
                 (e) => (
-                  e.readTable(table),
+                  e.readTable<$DownloadsQueueTable, DownloadsQueueData>(table),
                   $$DownloadsQueueTableReferences(db, table, e),
                 ),
               )
@@ -7323,7 +7325,7 @@ class $$BookmarksTableTableManager
           withReferenceMapper: (p0) => p0
               .map(
                 (e) => (
-                  e.readTable(table),
+                  e.readTable<$BookmarksTable, Bookmark>(table),
                   $$BookmarksTableReferences(db, table, e),
                 ),
               )
@@ -7512,7 +7514,16 @@ class $$SettingsTableTableManager
                 rowid: rowid,
               ),
           withReferenceMapper: (p0) => p0
-              .map((e) => (e.readTable(table), BaseReferences(db, table, e)))
+              .map(
+                (e) => (
+                  e.readTable<$SettingsTable, Setting>(table),
+                  BaseReferences<_$AppDatabase, $SettingsTable, Setting>(
+                    db,
+                    table,
+                    e,
+                  ),
+                ),
+              )
               .toList(),
           prefetchHooksCallback: null,
         ),
@@ -7734,7 +7745,16 @@ class $$ProviderCacheTableTableManager
                 rowid: rowid,
               ),
           withReferenceMapper: (p0) => p0
-              .map((e) => (e.readTable(table), BaseReferences(db, table, e)))
+              .map(
+                (e) => (
+                  e.readTable<$ProviderCacheTable, ProviderCacheData>(table),
+                  BaseReferences<
+                    _$AppDatabase,
+                    $ProviderCacheTable,
+                    ProviderCacheData
+                  >(db, table, e),
+                ),
+              )
               .toList(),
           prefetchHooksCallback: null,
         ),
@@ -8100,7 +8120,7 @@ class $$NovelProgressTableTableManager
           withReferenceMapper: (p0) => p0
               .map(
                 (e) => (
-                  e.readTable(table),
+                  e.readTable<$NovelProgressTable, NovelProgressData>(table),
                   $$NovelProgressTableReferences(db, table, e),
                 ),
               )
