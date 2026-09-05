@@ -59,7 +59,7 @@ jobs:
       - name: Install Linux build dependencies
         run: |
           sudo apt-get update
-          sudo apt-get install -y ninja-build libgtk-3-dev liblzma-dev pkg-config cmake clang libmpv-dev
+          sudo apt-get install -y ninja-build libgtk-3-dev liblzma-dev pkg-config cmake clang libmpv-dev libwebkit2gtk-4.1-dev
 
       - uses: subosito/flutter-action@v2
         with:
