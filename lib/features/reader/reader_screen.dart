@@ -699,8 +699,7 @@ class _ReaderScreenState extends ConsumerState<ReaderScreen> {
       final nextChapter = nav.chapters[nav.currentIndex + 1];
 
       // Scroll to the next chapter if possible (before any async gap)
-      final nextContext =
-          _chunkKeys['${nextChapter.id}-0']?.currentContext;
+      final nextContext = _chunkKeys['${nextChapter.id}-0']?.currentContext;
       if (nextContext != null) {
         Scrollable.ensureVisible(
           nextContext,
