@@ -1,11 +1,13 @@
 import 'dart:io';
 
 import 'package:flutter/material.dart';
-import 'package:flutter_riverpod/legacy.dart';
-import 'package:shared_preferences/shared_preferences.dart';
+import 'package:riverpod_annotation/riverpod_annotation.dart';
 
+import '../../../../core/config/app_prefs.dart';
 import '../../../../core/utils/logger.dart';
 import '../../../../theme/app_theme.dart';
+
+part 'reader_settings_state.g.dart';
 
 const _tag = 'ReaderSettings';
 
@@ -193,48 +195,42 @@ Future<List<String>> getSystemFonts() async {
   ];
 }
 
-class ReaderSettingsNotifier extends StateNotifier<ReaderSettings> {
-  ReaderSettingsNotifier() : super(const ReaderSettings()) {
-    _load();
-  }
-
-  Future<void> _load() async {
-    try {
-      final p = await SharedPreferences.getInstance();
-      final storedFont = p.getString('reader_font_family');
-      state = ReaderSettings(
-        fontSize: p.getDouble('reader_font_size') ?? 16.0,
-        fontFamily: (storedFont == null || storedFont.isEmpty)
-            ? kDefaultReaderFont
-            : storedFont,
-        lineHeight: p.getDouble('reader_line_height') ?? 1.6,
-        paddingH: p.getDouble('reader_padding_h') ?? 24.0,
-        paddingV: p.getDouble('reader_padding_v') ?? 24.0,
-        scrollMode: p.getString('reader_scroll_mode') ?? 'continuous',
-        textAlignment: p.getString('reader_text_alignment') ?? 'justify',
-        paragraphSpacing: p.getDouble('reader_paragraph_spacing') ?? 12.0,
-        bionicReading: p.getBool('reader_bionic_reading') ?? false,
-        showTime: p.getBool('reader_show_time') ?? true,
-        showBattery: p.getBool('reader_show_battery') ?? true,
-        keepScreenOn: p.getBool('reader_keep_screen_on') ?? true,
-        selectableText: p.getBool('reader_selectable_text') ?? false,
-        ttsAutoScroll: p.getBool('reader_tts_autoscroll') ?? true,
-        ttsScrollLock: p.getBool('reader_tts_scroll_lock') ?? false,
-        ttsAutoAdvance: p.getBool('reader_tts_autoadvance') ?? true,
-        orientation: p.getString('reader_orientation') ?? 'auto',
-        readerTheme: p.getString('reader_theme') ?? 'dark',
-        leftTapAction: p.getString('reader_left_tap') ?? 'previous',
-        centerTapAction: p.getString('reader_center_tap') ?? 'menu',
-        rightTapAction: p.getString('reader_right_tap') ?? 'next',
-      );
-    } catch (e) {
-      Log.e(_tag, 'Failed to load settings', e);
-    }
+@Riverpod(keepAlive: true)
+class ReaderSettingsNotifier extends _$ReaderSettingsNotifier {
+  @override
+  ReaderSettings build() {
+    final p = ref.watch(appPrefsProvider);
+    final storedFont = p.getString('reader_font_family');
+    return ReaderSettings(
+      fontSize: p.getDouble('reader_font_size') ?? 16.0,
+      fontFamily: (storedFont == null || storedFont.isEmpty)
+          ? kDefaultReaderFont
+          : storedFont,
+      lineHeight: p.getDouble('reader_line_height') ?? 1.6,
+      paddingH: p.getDouble('reader_padding_h') ?? 24.0,
+      paddingV: p.getDouble('reader_padding_v') ?? 24.0,
+      scrollMode: p.getString('reader_scroll_mode') ?? 'continuous',
+      textAlignment: p.getString('reader_text_alignment') ?? 'justify',
+      paragraphSpacing: p.getDouble('reader_paragraph_spacing') ?? 12.0,
+      bionicReading: p.getBool('reader_bionic_reading') ?? false,
+      showTime: p.getBool('reader_show_time') ?? true,
+      showBattery: p.getBool('reader_show_battery') ?? true,
+      keepScreenOn: p.getBool('reader_keep_screen_on') ?? true,
+      selectableText: p.getBool('reader_selectable_text') ?? false,
+      ttsAutoScroll: p.getBool('reader_tts_autoscroll') ?? true,
+      ttsScrollLock: p.getBool('reader_tts_scroll_lock') ?? false,
+      ttsAutoAdvance: p.getBool('reader_tts_autoadvance') ?? true,
+      orientation: p.getString('reader_orientation') ?? 'auto',
+      readerTheme: p.getString('reader_theme') ?? 'dark',
+      leftTapAction: p.getString('reader_left_tap') ?? 'previous',
+      centerTapAction: p.getString('reader_center_tap') ?? 'menu',
+      rightTapAction: p.getString('reader_right_tap') ?? 'next',
+    );
   }
 
   Future<void> _save() async {
     try {
-      final p = await SharedPreferences.getInstance();
+      final p = ref.read(appPrefsProvider);
       await p.setDouble('reader_font_size', state.fontSize);
       await p.setString('reader_font_family', state.fontFamily);
       await p.setDouble('reader_line_height', state.lineHeight);
@@ -302,8 +298,3 @@ class ReaderSettingsNotifier extends StateNotifier<ReaderSettings> {
   void updateRightTapAction(String v) =>
       _update((s) => s.copyWith(rightTapAction: v));
 }
-
-final readerSettingsProvider =
-    StateNotifierProvider<ReaderSettingsNotifier, ReaderSettings>((ref) {
-      return ReaderSettingsNotifier();
-    });

@@ -1,14 +1,15 @@
 import 'dart:async';
 
 import 'package:drift/drift.dart' show Value;
-import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:flutter_riverpod/legacy.dart';
+import 'package:riverpod_annotation/riverpod_annotation.dart';
 
 import '../../../core/database/database.dart';
 import '../../../core/providers/database_providers.dart';
 import '../../../core/providers/engine.dart';
 import '../../../core/providers/registry.dart';
 import '../../../core/utils/logger.dart';
+
+part 'reading_progress_provider.g.dart';
 
 const _tag = 'ReadingProgress';
 
@@ -59,21 +60,23 @@ class ReadingProgressState {
   }
 }
 
-class ReadingProgressNotifier extends StateNotifier<ReadingProgressState> {
-  final Ref ref;
-  final int novelId;
+@Riverpod(keepAlive: true)
+class ReadingProgressNotifier extends _$ReadingProgressNotifier {
   Timer? _syncTimer;
 
-  ReadingProgressNotifier(this.ref, this.novelId)
-    : super(ReadingProgressState(novelId: novelId)) {
+  @override
+  ReadingProgressState build(int novelId) {
     _loadProgress();
     _startBackgroundSync();
+    ref.onDispose(() => _syncTimer?.cancel());
+    return ReadingProgressState(novelId: novelId);
   }
 
   Future<void> _loadProgress() async {
     try {
       final chapterDao = ref.read(chapterDaoProvider);
       final historyDao = ref.read(historyDaoProvider);
+      final novelId = state.novelId;
 
       final total = await chapterDao.getChapterCount(novelId);
       final chapters = await chapterDao.getChaptersForNovel(novelId);
@@ -99,7 +102,11 @@ class ReadingProgressNotifier extends StateNotifier<ReadingProgressState> {
         isCompleted: completed,
       );
     } catch (e) {
-      Log.e(_tag, 'Failed to load reading progress for novel $novelId', e);
+      Log.e(
+        _tag,
+        'Failed to load reading progress for novel ${state.novelId}',
+        e,
+      );
     }
   }
 
@@ -120,6 +127,7 @@ class ReadingProgressNotifier extends StateNotifier<ReadingProgressState> {
     try {
       final chapterDao = ref.read(chapterDaoProvider);
       final novelDao = ref.read(novelDaoProvider);
+      final novelId = state.novelId;
 
       final novel = await novelDao.getNovelById(novelId);
       if (novel == null) return;
@@ -175,7 +183,7 @@ class ReadingProgressNotifier extends StateNotifier<ReadingProgressState> {
 
       Log.i(_tag, 'Synced novel $novelId: $newChapters new chapters');
     } catch (e) {
-      Log.e(_tag, 'Sync failed for novel $novelId', e);
+      Log.e(_tag, 'Sync failed for novel ${state.novelId}', e);
       state = state.copyWith(isSyncing: false, syncError: e.toString());
     }
   }
@@ -190,61 +198,45 @@ class ReadingProgressNotifier extends StateNotifier<ReadingProgressState> {
     state = state.copyWith(currentChapterIndex: chapterIndex);
     await _loadProgress();
   }
-
-  @override
-  void dispose() {
-    _syncTimer?.cancel();
-    super.dispose();
-  }
 }
 
-final readingProgressProvider =
-    StateNotifierProvider.family<
-      ReadingProgressNotifier,
-      ReadingProgressState,
-      int
-    >((ref, novelId) {
-      return ReadingProgressNotifier(ref, novelId);
-    });
+/// Provider to get all novels with their reading progress.
+/// The only autoDispose provider in the app.
+@Riverpod(keepAlive: false)
+Future<List<NovelProgress>> allReadingProgress(Ref ref) async {
+  final novelDao = ref.read(novelDaoProvider);
+  final novels = await novelDao.getAllNovels();
 
-/// Provider to get all novels with their reading progress
-final allReadingProgressProvider =
-    FutureProvider.autoDispose<List<NovelProgress>>((ref) async {
-      final novelDao = ref.read(novelDaoProvider);
-      final novels = await novelDao.getAllNovels();
+  final results = <NovelProgress>[];
+  for (final novel in novels) {
+    final chapterDao = ref.read(chapterDaoProvider);
+    final chapters = await chapterDao.getChaptersForNovel(novel.id);
+    final total = chapters.length;
+    final read = chapters.where((c) => c.read).length;
+    final lastHistory = await ref
+        .read(historyDaoProvider)
+        .getLatestHistoryForNovel(novel.id);
 
-      final results = <NovelProgress>[];
-      for (final novel in novels) {
-        final chapterDao = ref.read(chapterDaoProvider);
-        final chapters = await chapterDao.getChaptersForNovel(novel.id);
-        final total = chapters.length;
-        final read = chapters.where((c) => c.read).length;
-        final lastHistory = await ref
-            .read(historyDaoProvider)
-            .getLatestHistoryForNovel(novel.id);
+    int currentIndex = 0;
+    if (lastHistory != null) {
+      currentIndex = chapters.indexWhere((c) => c.id == lastHistory.chapterId);
+      if (currentIndex < 0) currentIndex = 0;
+    }
 
-        int currentIndex = 0;
-        if (lastHistory != null) {
-          currentIndex = chapters.indexWhere(
-            (c) => c.id == lastHistory.chapterId,
-          );
-          if (currentIndex < 0) currentIndex = 0;
-        }
-
-        results.add(
-          NovelProgress(
-            novelId: novel.id,
-            title: novel.title,
-            totalChapters: total,
-            readChapters: read,
-            currentChapterIndex: currentIndex,
-            overallProgress: total > 0 ? read / total : 0.0,
-            isCompleted: total > 0 && read >= total,
-          ),
-        );
-      }
-      return results;
-    });
+    results.add(
+      NovelProgress(
+        novelId: novel.id,
+        title: novel.title,
+        totalChapters: total,
+        readChapters: read,
+        currentChapterIndex: currentIndex,
+        overallProgress: total > 0 ? read / total : 0.0,
+        isCompleted: total > 0 && read >= total,
+      ),
+    );
+  }
+  return results;
+}
 
 class NovelProgress {
   final int novelId;

@@ -1,6 +1,6 @@
 import 'package:dio/dio.dart';
-import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:drift/drift.dart' hide Column;
+import 'package:riverpod_annotation/riverpod_annotation.dart';
 
 import '../database/database.dart';
 import 'database_providers.dart';
@@ -8,6 +8,8 @@ import 'novel_fetch_state.dart';
 import '../network/client.dart';
 import '../utils/logger.dart';
 import 'engine.dart';
+
+part 'novel_opener.g.dart';
 
 const _tag = 'NovelOpener';
 
@@ -311,4 +313,5 @@ class NovelOpener {
 /// Provider-scoped [NovelOpener]. Use `ref.read(novelOpenerProvider)` from
 /// widgets instead of constructing one with a [WidgetRef] — the background
 /// fetch outlives the originating screen.
-final novelOpenerProvider = Provider<NovelOpener>((ref) => NovelOpener(ref));
+@Riverpod(keepAlive: true)
+NovelOpener novelOpener(Ref ref) => NovelOpener(ref);

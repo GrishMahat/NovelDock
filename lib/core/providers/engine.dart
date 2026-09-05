@@ -2,11 +2,13 @@ import 'dart:convert';
 
 import 'package:flutter/services.dart' show rootBundle;
 import 'package:flutter_js/flutter_js.dart';
-import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:riverpod_annotation/riverpod_annotation.dart';
 
 import 'filters.dart';
 import 'registry.dart';
 import '../utils/logger.dart';
+
+part 'engine.g.dart';
 
 const _tag = 'Engine';
 
@@ -594,11 +596,12 @@ class ImageRef {
 
 // ─── Riverpod Providers ───────────────────────────────────
 
-final providerEngineProvider = Provider<ProviderEngine>((ref) {
+@Riverpod(keepAlive: true)
+ProviderEngine providerEngine(Ref ref) {
   final engine = ProviderEngine();
   ref.onDispose(() => engine.dispose());
   return engine;
-});
+}
 
 /// Loads a provider's JS, evaluates it, and loads its feature flags.
 ///
@@ -606,25 +609,25 @@ final providerEngineProvider = Provider<ProviderEngine>((ref) {
 /// `ref.read(providerInstanceProvider(id).future)`. The family caches per
 /// provider id, so concurrent callers share one load. After a registry
 /// update or removal, invalidate the family to force a fresh instance.
-final providerInstanceProvider =
-    FutureProvider.family<ProviderInstance?, String>((ref, providerId) async {
-      Log.i(_tag, 'Loading provider: $providerId');
+@Riverpod(keepAlive: true)
+Future<ProviderInstance?> providerInstance(Ref ref, String providerId) async {
+  Log.i(_tag, 'Loading provider: $providerId');
 
-      final registry = await ref.watch(registryManagerProvider.future);
-      final engine = ref.watch(providerEngineProvider);
+  final registry = await ref.watch(registryManagerProvider.future);
+  final engine = ref.watch(providerEngineProvider);
 
-      final jsSource = await registry.loadCachedProviderJs(providerId);
-      if (jsSource == null) {
-        Log.w(_tag, 'No cached JS for provider: $providerId');
-        return null;
-      }
+  final jsSource = await registry.loadCachedProviderJs(providerId);
+  if (jsSource == null) {
+    Log.w(_tag, 'No cached JS for provider: $providerId');
+    return null;
+  }
 
-      try {
-        final instance = await engine.loadProvider(jsSource);
-        await instance.loadFlags();
-        return instance;
-      } catch (e) {
-        Log.e(_tag, 'Failed to load provider: $providerId', e);
-        return null;
-      }
-    });
+  try {
+    final instance = await engine.loadProvider(jsSource);
+    await instance.loadFlags();
+    return instance;
+  } catch (e) {
+    Log.e(_tag, 'Failed to load provider: $providerId', e);
+    return null;
+  }
+}

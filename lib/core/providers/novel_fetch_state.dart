@@ -1,4 +1,6 @@
-import 'package:flutter_riverpod/legacy.dart';
+import 'package:riverpod_annotation/riverpod_annotation.dart';
+
+part 'novel_fetch_state.g.dart';
 
 /// Lifecycle of a background novel detail/chapter-list fetch for one novel.
 enum NovelFetchPhase {
@@ -30,18 +32,14 @@ class NovelFetchState {
       NovelFetchState(phase: phase);
 }
 
-class NovelFetchStateNotifier extends StateNotifier<NovelFetchState> {
-  NovelFetchStateNotifier() : super(const NovelFetchState());
+@Riverpod(keepAlive: true)
+class NovelFetchStateNotifier extends _$NovelFetchStateNotifier {
+  @override
+  NovelFetchState build(int novelId) {
+    return const NovelFetchState();
+  }
 
   void set(NovelFetchPhase phase) {
-    if (mounted) state = state.copyWith(phase);
+    if (ref.mounted) state = state.copyWith(phase);
   }
 }
-
-/// Per-novel background fetch phase, updated by [NovelOpener] and consumed
-/// by surfaces that must distinguish "no chapters exist" from "chapters are
-/// still being fetched".
-final novelFetchStateProvider =
-    StateNotifierProvider.family<NovelFetchStateNotifier, NovelFetchState, int>(
-      (ref, novelId) => NovelFetchStateNotifier(),
-    );

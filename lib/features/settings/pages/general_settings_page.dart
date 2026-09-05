@@ -1,11 +1,10 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:flutter_riverpod/legacy.dart';
-import 'package:shared_preferences/shared_preferences.dart';
+import 'package:riverpod_annotation/riverpod_annotation.dart';
 
-import '../../../core/utils/logger.dart';
+import '../../../core/config/app_prefs.dart';
 
-const _tag = 'GeneralSettings';
+part 'general_settings_page.g.dart';
 
 class GeneralSettings {
   final int startupTab;
@@ -35,52 +34,37 @@ class GeneralSettings {
   }
 }
 
-final generalSettingsProvider =
-    StateNotifierProvider<GeneralSettingsNotifier, GeneralSettings>((ref) {
-      return GeneralSettingsNotifier();
-    });
-
-class GeneralSettingsNotifier extends StateNotifier<GeneralSettings> {
-  GeneralSettingsNotifier() : super(const GeneralSettings()) {
-    _load();
-  }
-
-  Future<void> _load() async {
-    try {
-      final p = await SharedPreferences.getInstance();
-      state = GeneralSettings(
-        startupTab: p.getInt('startup_tab') ?? 0,
-        defaultDisplayMode: p.getString('default_display_mode') ?? 'grid',
-        confirmExit: p.getBool('confirm_exit') ?? false,
-        showNsfw: p.getBool('show_nsfw') ?? false,
-      );
-    } catch (e) {
-      Log.e(_tag, 'Failed to load general settings', e);
-    }
+@Riverpod(keepAlive: true)
+class GeneralSettingsNotifier extends _$GeneralSettingsNotifier {
+  @override
+  GeneralSettings build() {
+    final p = ref.watch(appPrefsProvider);
+    return GeneralSettings(
+      startupTab: p.getInt('startup_tab') ?? 0,
+      defaultDisplayMode: p.getString('default_display_mode') ?? 'grid',
+      confirmExit: p.getBool('confirm_exit') ?? false,
+      showNsfw: p.getBool('show_nsfw') ?? false,
+    );
   }
 
   Future<void> setStartupTab(int tab) async {
     state = state.copyWith(startupTab: tab);
-    final p = await SharedPreferences.getInstance();
-    await p.setInt('startup_tab', tab);
+    await ref.read(appPrefsProvider).setInt('startup_tab', tab);
   }
 
   Future<void> setDefaultDisplayMode(String mode) async {
     state = state.copyWith(defaultDisplayMode: mode);
-    final p = await SharedPreferences.getInstance();
-    await p.setString('default_display_mode', mode);
+    await ref.read(appPrefsProvider).setString('default_display_mode', mode);
   }
 
   Future<void> setConfirmExit(bool value) async {
     state = state.copyWith(confirmExit: value);
-    final p = await SharedPreferences.getInstance();
-    await p.setBool('confirm_exit', value);
+    await ref.read(appPrefsProvider).setBool('confirm_exit', value);
   }
 
   Future<void> setShowNsfw(bool value) async {
     state = state.copyWith(showNsfw: value);
-    final p = await SharedPreferences.getInstance();
-    await p.setBool('show_nsfw', value);
+    await ref.read(appPrefsProvider).setBool('show_nsfw', value);
   }
 }
 

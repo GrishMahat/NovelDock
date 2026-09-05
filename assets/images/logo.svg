@@ -1,29 +1,11 @@
 <svg width="512" height="512" viewBox="0 0 512 512" xmlns="http://www.w3.org/2000/svg">
-  <defs>
-    <style>
-      .bg { fill: #F4F7FC; }
-      .blue {
-        stroke: #356AE6;
-        stroke-linecap: round;
-        stroke-linejoin: round;
-        fill: none;
-      }
-      .accent {
-        stroke: #B7C3D1;
-        stroke-width: 7;
-        stroke-linecap: round;
-        fill: none;
-      }
-    </style>
-  </defs>
-
   <!-- Clean rounded background canvas -->
-  <rect width="512" height="512" rx="110" class="bg"/>
+  <rect width="512" height="512" rx="110" fill="#F4F7FC"/>
 
   <!-- Centered, prominently scaled open book emblem -->
   <g transform="translate(256, 276) scale(1.65) translate(-256, -245)">
     <!-- Main book outline -->
-    <path class="blue" stroke-width="17"
+    <path stroke="#356AE6" stroke-width="17" stroke-linecap="round" stroke-linejoin="round" fill="none"
       d="M150 330
          L150 218
          C150 218 178 200 210 212
@@ -36,15 +18,15 @@
          Z"/>
 
     <!-- Spine -->
-    <path class="blue" stroke-width="11" d="M256 254 L256 312"/>
+    <path stroke="#356AE6" stroke-width="11" stroke-linecap="round" stroke-linejoin="round" fill="none" d="M256 254 L256 312"/>
 
     <!-- Page fold accents -->
-    <path class="accent" d="M200 230 C215 225 230 232 240 248"/>
-    <path class="accent" d="M312 230 C297 225 282 232 272 248"/>
+    <path stroke="#B7C3D1" stroke-width="7" stroke-linecap="round" fill="none" d="M200 230 C215 225 230 232 240 248"/>
+    <path stroke="#B7C3D1" stroke-width="7" stroke-linecap="round" fill="none" d="M312 230 C297 225 282 232 272 248"/>
 
     <!-- Dynamic page flow arcs -->
-    <path class="blue" stroke-width="15" opacity="1.0"  d="M300 205 C325 195 340 175 332 150"/>
-    <path class="blue" stroke-width="11" opacity="0.75" d="M282 192 C305 178 320 155 308 128"/>
-    <path class="blue" stroke-width="7"  opacity="0.5"  d="M264 182 C285 165 298 140 282 112"/>
+    <path stroke="#356AE6" stroke-width="15" stroke-linecap="round" stroke-linejoin="round" fill="none" opacity="1.0"  d="M300 205 C325 195 340 175 332 150"/>
+    <path stroke="#356AE6" stroke-width="11" stroke-linecap="round" stroke-linejoin="round" fill="none" opacity="0.75" d="M282 192 C305 178 320 155 308 128"/>
+    <path stroke="#356AE6" stroke-width="7"  stroke-linecap="round" stroke-linejoin="round" fill="none" opacity="0.5"  d="M264 182 C285 165 298 140 282 112"/>
   </g>
 </svg>

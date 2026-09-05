@@ -2,9 +2,8 @@ import 'dart:async';
 import 'dart:io';
 
 import 'package:anni_mpris_service/anni_mpris_service.dart';
-import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:flutter_riverpod/legacy.dart';
 import 'package:just_audio/just_audio.dart';
+import 'package:riverpod_annotation/riverpod_annotation.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 import '../../main.dart';
@@ -17,6 +16,8 @@ import 'engine/tts_engine.dart';
 import 'tts_mpris.dart';
 import '../utils/logger.dart';
 import '../utils/notification_permission.dart';
+
+part 'tts_manager.g.dart';
 
 const _tag = 'TtsManager';
 
@@ -125,9 +126,8 @@ class TtsManagerState {
   }
 }
 
-class TtsManager extends StateNotifier<TtsManagerState> {
-  final Ref ref;
-
+@Riverpod(keepAlive: true)
+class TtsManager extends _$TtsManager {
   TtsEngine _engine = EdgeTtsEngine();
   final TtsPlaybackController _controller = TtsPlaybackController();
 
@@ -204,8 +204,14 @@ class TtsManager extends StateNotifier<TtsManagerState> {
 
   static const _defaultVoice = 'en-US-BrianMultilingualNeural';
 
-  TtsManager(this.ref) : super(const TtsManagerState()) {
+  @override
+  TtsManagerState build() {
     _loadSettings();
+    ref.onDispose(() {
+      ++_sessionGeneration;
+      _controller.dispose();
+    });
+    return const TtsManagerState();
   }
 
   Future<void> _ensureNotifications() async {
@@ -858,16 +864,4 @@ class TtsManager extends StateNotifier<TtsManagerState> {
     _ttsChunks = [];
     _totalParagraphs = 0;
   }
-
-  @override
-  void dispose() {
-    ++_sessionGeneration;
-
-    _controller.dispose();
-    super.dispose();
-  }
 }
-
-final ttsManagerProvider = StateNotifierProvider<TtsManager, TtsManagerState>(
-  (ref) => TtsManager(ref),
-);

@@ -2,7 +2,7 @@ import 'dart:convert';
 import 'dart:typed_data';
 
 import 'package:dio/dio.dart';
-import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:riverpod_annotation/riverpod_annotation.dart';
 
 import '../../../core/providers/engine.dart';
 import '../../../core/providers/filters.dart';
@@ -11,6 +11,8 @@ import '../../../core/providers/database_providers.dart';
 import '../../../core/utils/logger.dart';
 
 import '../../settings/providers/provider_management_providers.dart';
+
+part 'search_providers.g.dart';
 
 const _tag = 'Search';
 
@@ -109,12 +111,8 @@ class SearchState {
 // Search history
 // ═══════════════════════════════════════════════════════════
 
-final searchHistoryProvider =
-    NotifierProvider<SearchHistoryNotifier, List<String>>(
-      SearchHistoryNotifier.new,
-    );
-
-class SearchHistoryNotifier extends Notifier<List<String>> {
+@Riverpod(keepAlive: true)
+class SearchHistoryNotifier extends _$SearchHistoryNotifier {
   static const _key = 'search_history';
   static const _maxEntries = 12;
 
@@ -203,12 +201,9 @@ class SearchHistoryNotifier extends Notifier<List<String>> {
 /// Before the user explicitly chooses providers, all enabled providers
 /// participate. Once the user explicitly chooses, the exact selected set
 /// is respected, including an intentionally empty set.
-final searchProviderSelectionProvider =
-    NotifierProvider<SearchProviderSelectionNotifier, Set<String>>(
-      SearchProviderSelectionNotifier.new,
-    );
-
-class SearchProviderSelectionNotifier extends Notifier<Set<String>> {
+@Riverpod(keepAlive: true)
+class SearchProviderSelectionNotifier
+    extends _$SearchProviderSelectionNotifier {
   static const _key = 'search_providers';
 
   bool _explicit = false;
@@ -296,7 +291,8 @@ class SearchProviderSelectionNotifier extends Notifier<Set<String>> {
 // Notifier
 // ═══════════════════════════════════════════════════════════
 
-class SearchNotifier extends Notifier<SearchState> {
+@Riverpod(keepAlive: true)
+class SearchNotifier extends _$SearchNotifier {
   @override
   SearchState build() => const SearchState();
 
@@ -881,7 +877,3 @@ Future<SearchResults?> postBrowse(
   Map<String, dynamic> config,
   int page,
 ) => postNovelList(instance, dio, config, page: page);
-
-final searchProvider = NotifierProvider<SearchNotifier, SearchState>(
-  SearchNotifier.new,
-);

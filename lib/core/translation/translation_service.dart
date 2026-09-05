@@ -1,12 +1,14 @@
 import 'dart:convert';
 import 'dart:io';
 
-import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:riverpod_annotation/riverpod_annotation.dart';
 import 'package:http/http.dart' as http;
 import 'package:path_provider/path_provider.dart';
 import 'package:path/path.dart' as p;
 
 import '../utils/logger.dart';
+
+part 'translation_service.g.dart';
 
 const _tag = 'Translation';
 
@@ -151,6 +153,7 @@ class TranslationService {
   int get cacheSize => _cache.length;
 }
 
-final translationServiceProvider = Provider<TranslationService>((ref) {
+@Riverpod(keepAlive: true)
+TranslationService translationService(Ref ref) {
   return TranslationService();
-});
+}

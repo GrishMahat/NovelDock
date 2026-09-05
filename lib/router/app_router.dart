@@ -1,6 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
-import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:riverpod_annotation/riverpod_annotation.dart';
 
 import '../app.dart';
 import '../features/search/search_results_screen.dart';
@@ -23,6 +23,12 @@ import '../features/settings/pages/log_viewer_page.dart';
 import '../features/settings/pages/general_settings_page.dart';
 import '../features/import/import_screen.dart';
 import '../main.dart' show sharedFilePath;
+import '../core/config/app_prefs.dart';
+
+part 'app_router.g.dart';
+
+/// Shell-tab locations indexed by the "Startup tab" general setting.
+const _tabLocations = ['/library', '/browse', '/history'];
 
 final GlobalKey<NavigatorState> _rootNavigatorKey = GlobalKey<NavigatorState>();
 final GlobalKey<NavigatorState> _shellNavigatorKey =
@@ -31,10 +37,13 @@ final GlobalKey<NavigatorState> _shellNavigatorKey =
 /// Routes nested under the shell (rail/top bar visible on desktop) are listed
 /// first; routes that must stay full-screen (e.g. the immersive reader) sit at
 /// the root navigator level.
-final routerProvider = Provider<GoRouter>((ref) {
+@Riverpod(keepAlive: true)
+GoRouter router(Ref ref) {
+  final startupTab = ref.watch(appPrefsProvider).getInt('startup_tab') ?? 0;
   return GoRouter(
     navigatorKey: _rootNavigatorKey,
-    initialLocation: '/library',
+    initialLocation:
+        _tabLocations[startupTab.clamp(0, _tabLocations.length - 1)],
     routes: [
       // Shell route wraps the 4 tabs AND every sub-page so the desktop rail +
       // top bar stay visible while navigating. On mobile, MainShell hides the
@@ -161,4 +170,4 @@ final routerProvider = Provider<GoRouter>((ref) {
       ),
     ],
   );
-});
+}

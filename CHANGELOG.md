@@ -3,6 +3,18 @@
 All notable changes to NovelDock are documented here.
 The format follows [Keep a Changelog](https://keepachangelog.com); versions aim for SemVer.
 
+## Unreleased
+
+### Fixed
+
+- The Startup Tab and Library Default View settings had no effect; the app now opens on the configured tab and the library seeds (and persists) its display mode from the setting
+- Settings screens could briefly show default values on cold start before persisted values loaded; preferences are now loaded before the first frame, so saved values render immediately
+- The app logo rendered without its colors and logged an `unhandled element <style/>` SVG warning; the logo's CSS classes were inlined as presentation attributes
+
+### Changed
+
+- All Riverpod providers were migrated from manual definitions to `@riverpod` codegen (riverpod_generator); no legacy `StateNotifierProvider`s remain. Provider behavior is unchanged
+
 ## 0.1.3-beta - 2026-09-05
 
 ### Fixed

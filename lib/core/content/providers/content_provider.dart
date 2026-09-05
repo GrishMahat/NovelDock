@@ -1,6 +1,5 @@
 import 'package:drift/drift.dart' show Value;
-import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:flutter_riverpod/legacy.dart';
+import 'package:riverpod_annotation/riverpod_annotation.dart';
 
 import '../../../core/database/database.dart';
 import '../../../core/providers/database_providers.dart';
@@ -10,6 +9,8 @@ import '../content_model.dart';
 import '../loaders/content_loader.dart';
 import '../loaders/downloaded_loader.dart';
 import '../loaders/loader_selector.dart';
+
+part 'content_provider.g.dart';
 
 const _tag = 'ContentProvider';
 const _maxCache = 20;
@@ -38,13 +39,14 @@ class ContentState {
   }
 }
 
-class ContentNotifier extends StateNotifier<ContentState> {
-  final Ref ref;
+@Riverpod(keepAlive: true)
+class ContentNotifier extends _$ContentNotifier {
   final LruCache<int, ChapterContent> _cache = LruCache(_maxCache);
   final Set<int> _loading = {};
   final LoaderSelector _selector = LoaderSelector();
 
-  ContentNotifier(this.ref) : super(const ContentState());
+  @override
+  ContentState build() => const ContentState();
 
   Future<void> loadChapter(int chapterId) async {
     if (state.chapters.containsKey(chapterId)) return;
@@ -126,9 +128,3 @@ class ContentNotifier extends StateNotifier<ContentState> {
     state = state.copyWith(chapters: {});
   }
 }
-
-final contentProvider = StateNotifierProvider<ContentNotifier, ContentState>((
-  ref,
-) {
-  return ContentNotifier(ref);
-});

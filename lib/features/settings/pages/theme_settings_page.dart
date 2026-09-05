@@ -1,70 +1,45 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:flutter_riverpod/legacy.dart';
-import 'package:shared_preferences/shared_preferences.dart';
+import 'package:riverpod_annotation/riverpod_annotation.dart';
 
 import '../../../theme/app_theme.dart';
 import '../../../theme/tokens.dart';
+import '../../../core/config/app_prefs.dart';
 import '../../../core/utils/logger.dart';
+
+part 'theme_settings_page.g.dart';
 
 const _tag = 'ThemeSettings';
 
-final themeModeProvider = StateNotifierProvider<ThemeModeNotifier, String>((
-  ref,
-) {
-  return ThemeModeNotifier();
-});
-
-class ThemeModeNotifier extends StateNotifier<String> {
-  ThemeModeNotifier() : super('system') {
-    _load();
-  }
-
-  Future<void> _load() async {
-    try {
-      final p = await SharedPreferences.getInstance();
-      state = p.getString('theme_mode') ?? 'system';
-    } catch (e) {
-      Log.e(_tag, 'Failed to load theme mode', e);
-    }
+@Riverpod(keepAlive: true)
+class ThemeModeNotifier extends _$ThemeModeNotifier {
+  @override
+  String build() {
+    return ref.watch(appPrefsProvider).getString('theme_mode') ?? 'system';
   }
 
   Future<void> setMode(String mode) async {
     state = mode;
     try {
-      final p = await SharedPreferences.getInstance();
-      await p.setString('theme_mode', mode);
+      await ref.read(appPrefsProvider).setString('theme_mode', mode);
     } catch (e) {
       Log.e(_tag, 'Failed to save theme mode', e);
     }
   }
 }
 
-final accentColorProvider = StateNotifierProvider<AccentColorNotifier, int>((
-  ref,
-) {
-  return AccentColorNotifier();
-});
-
-class AccentColorNotifier extends StateNotifier<int> {
-  AccentColorNotifier() : super(AppTheme.kPrimary.toARGB32()) {
-    _load();
-  }
-
-  Future<void> _load() async {
-    try {
-      final p = await SharedPreferences.getInstance();
-      state = p.getInt('accent_color') ?? AppTheme.kPrimary.toARGB32();
-    } catch (e) {
-      Log.e(_tag, 'Failed to load accent color', e);
-    }
+@Riverpod(keepAlive: true)
+class AccentColorNotifier extends _$AccentColorNotifier {
+  @override
+  int build() {
+    return ref.watch(appPrefsProvider).getInt('accent_color') ??
+        AppTheme.kPrimary.toARGB32();
   }
 
   Future<void> setColor(int color) async {
     state = color;
     try {
-      final p = await SharedPreferences.getInstance();
-      await p.setInt('accent_color', color);
+      await ref.read(appPrefsProvider).setInt('accent_color', color);
     } catch (e) {
       Log.e(_tag, 'Failed to save accent color', e);
     }

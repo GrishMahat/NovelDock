@@ -1,4 +1,4 @@
-import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:riverpod_annotation/riverpod_annotation.dart';
 
 import '../../../core/translation/translation_service.dart';
 import '../../../features/settings/pages/translation_settings_page.dart';
@@ -6,10 +6,10 @@ import '../markdown/md_ast.dart';
 import '../markdown/md_parser.dart';
 import 'content_provider.dart';
 
-final chapterTranslationProvider = FutureProvider.family<String?, int>((
-  ref,
-  chapterId,
-) async {
+part 'translation_provider.g.dart';
+
+@Riverpod(keepAlive: true)
+Future<String?> chapterTranslation(Ref ref, int chapterId) async {
   final content = ref.watch(contentProvider.notifier).getContentMd(chapterId);
   if (content == null) return null;
 
@@ -42,4 +42,4 @@ final chapterTranslationProvider = FutureProvider.family<String?, int>((
   }
 
   return translated.join('\n\n');
-});
+}

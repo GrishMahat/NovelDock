@@ -1,6 +1,9 @@
 import 'package:flutter/foundation.dart';
-import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:riverpod_annotation/riverpod_annotation.dart';
+
 import 'logger.dart';
+
+part 'log_buffer.g.dart';
 
 enum LogLevel { debug, info, warning, error }
 
@@ -69,13 +72,14 @@ class LogBuffer {
 final globalLogBuffer = LogBuffer();
 
 /// Riverpod provider that bridges the global log buffer.
-final logBufferProvider = StreamProvider<List<LogEntry>>((ref) {
+@Riverpod(keepAlive: true)
+Stream<List<LogEntry>> logBuffer(Ref ref) {
   ref.onDispose(() {});
   return Stream<List<LogEntry>>.periodic(
     const Duration(milliseconds: 200),
     (_) => globalLogBuffer.entries,
   ).distinct();
-});
+}
 
 /// Initialize log buffer — wires Log.onLog to the global buffer.
 void initLogBuffer() {

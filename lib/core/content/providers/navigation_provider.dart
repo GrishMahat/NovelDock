@@ -1,11 +1,12 @@
 import 'package:drift/drift.dart' show Value;
-import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:flutter_riverpod/legacy.dart';
+import 'package:riverpod_annotation/riverpod_annotation.dart';
 
 import '../../../core/database/database.dart';
 import '../../../core/providers/database_providers.dart';
 import '../../../core/utils/logger.dart';
 import 'content_provider.dart';
+
+part 'navigation_provider.g.dart';
 
 const _tag = 'ReaderNav';
 
@@ -51,11 +52,11 @@ class ReaderNavigationState {
       : null;
 }
 
-class ReaderNavigationNotifier extends StateNotifier<ReaderNavigationState> {
-  final Ref ref;
-
-  ReaderNavigationNotifier(this.ref, int novelId)
-    : super(ReaderNavigationState(novelId: novelId));
+@Riverpod(keepAlive: true)
+class ReaderNavigationNotifier extends _$ReaderNavigationNotifier {
+  @override
+  ReaderNavigationState build(int novelId) =>
+      ReaderNavigationState(novelId: novelId);
 
   Future<void> loadChapters(int startChapterId) async {
     try {
@@ -225,12 +226,3 @@ class ReaderNavigationNotifier extends StateNotifier<ReaderNavigationState> {
     );
   }
 }
-
-final readerNavigationProvider =
-    StateNotifierProvider.family<
-      ReaderNavigationNotifier,
-      ReaderNavigationState,
-      int
-    >((ref, novelId) {
-      return ReaderNavigationNotifier(ref, novelId);
-    });

@@ -14,6 +14,7 @@ import '../../widgets/max_width_box.dart';
 import '../../widgets/page_header.dart';
 import '../../widgets/shimmer_list.dart';
 import '../novel/widgets/status_picker_sheet.dart';
+import '../settings/pages/general_settings_page.dart';
 import 'widgets/library_grid_item.dart';
 
 class LibraryScreen extends ConsumerStatefulWidget {
@@ -51,6 +52,20 @@ class _LibraryScreenState extends ConsumerState<LibraryScreen>
   void initState() {
     super.initState();
     _tabController = TabController(length: _tabs.length, vsync: this);
+    // "Library Default View" general setting seeds the display mode.
+    final saved = ref.read(generalSettingsProvider).defaultDisplayMode;
+    _displayMode = DisplayMode.values.firstWhere(
+      (m) => m.name == saved,
+      orElse: () => DisplayMode.grid,
+    );
+  }
+
+  /// Cycle the display mode and persist it as the new library default.
+  void _cycleDisplayMode() {
+    setState(() => _displayMode = _displayMode.next);
+    ref
+        .read(generalSettingsProvider.notifier)
+        .setDefaultDisplayMode(_displayMode.name);
   }
 
   @override
@@ -79,8 +94,7 @@ class _LibraryScreenState extends ConsumerState<LibraryScreen>
                 ),
                 IconButton(
                   icon: Icon(_displayMode.icon),
-                  onPressed: () =>
-                      setState(() => _displayMode = _displayMode.next),
+                  onPressed: _cycleDisplayMode,
                   tooltip: 'Display mode',
                 ),
               ],
@@ -112,7 +126,7 @@ class _LibraryScreenState extends ConsumerState<LibraryScreen>
           ),
           IconButton(
             icon: Icon(_displayMode.icon),
-            onPressed: () => setState(() => _displayMode = _displayMode.next),
+            onPressed: _cycleDisplayMode,
             tooltip: 'Display mode',
           ),
         ],

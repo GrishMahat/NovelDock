@@ -760,9 +760,6 @@ class _ReaderScreenState extends ConsumerState<ReaderScreen> {
   }
 
   void _onTtsStateChanged(TtsManagerState? prev, TtsManagerState next) {
-    debugPrint(
-      'TTS State Changed: isSpeaking=${next.isSpeaking}, prevLine=${prev?.currentLineIndex}, nextLine=${next.currentLineIndex}',
-    );
     if (next.isSpeaking && prev?.currentLineIndex != next.currentLineIndex) {
       _scrollToTtsHighlight(next.currentLineIndex);
     }

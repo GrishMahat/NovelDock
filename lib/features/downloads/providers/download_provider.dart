@@ -1,12 +1,11 @@
 import 'dart:async';
 import 'dart:io';
 
-import 'package:drift/drift.dart' show Value;
-import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:flutter_riverpod/legacy.dart';
 import 'package:connectivity_plus/connectivity_plus.dart';
+import 'package:drift/drift.dart' show Value;
 import 'package:path_provider/path_provider.dart';
 import 'package:path/path.dart' as p;
+import 'package:riverpod_annotation/riverpod_annotation.dart';
 
 import '../../../core/content/markdown/html2md.dart';
 import '../../../core/database/database.dart';
@@ -17,6 +16,8 @@ import '../../../core/utils/logger.dart';
 import '../../../core/utils/notification_permission.dart';
 import '../../settings/pages/download_settings_page.dart';
 import 'download_notification.dart';
+
+part 'download_provider.g.dart';
 
 const _tag = 'Download';
 
@@ -57,17 +58,19 @@ class NovelDownloadProgress {
       totalChapters == 0 ? 0 : completedChapters / totalChapters;
 }
 
-class DownloadNotifier extends StateNotifier<Map<int, NovelDownloadProgress>> {
-  final Ref ref;
+@Riverpod(keepAlive: true)
+class DownloadNotifier extends _$DownloadNotifier {
   bool _isProcessing = false;
 
   /// The task currently being downloaded, if any. Closing its tile deletes
   /// its row; the pipeline checks row existence before touching disk or DB.
   int? _currentTaskId;
 
-  DownloadNotifier(this.ref) : super({}) {
+  @override
+  Map<int, NovelDownloadProgress> build() {
     // Route notification Cancel actions into the pipeline.
     DownloadNotification.onCancelRequest = cancelDownloads;
+    return {};
   }
 
   /// Download a single chapter
@@ -637,10 +640,3 @@ class DownloadNotifier extends StateNotifier<Map<int, NovelDownloadProgress>> {
     return file.exists();
   }
 }
-
-final downloadProvider =
-    StateNotifierProvider<DownloadNotifier, Map<int, NovelDownloadProgress>>((
-      ref,
-    ) {
-      return DownloadNotifier(ref);
-    });

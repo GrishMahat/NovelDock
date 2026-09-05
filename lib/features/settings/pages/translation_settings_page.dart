@@ -1,7 +1,10 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:flutter_riverpod/legacy.dart';
-import 'package:shared_preferences/shared_preferences.dart';
+import 'package:riverpod_annotation/riverpod_annotation.dart';
+
+import '../../../core/config/app_prefs.dart';
+
+part 'translation_settings_page.g.dart';
 
 /// Translation settings
 class TranslationSettings {
@@ -32,14 +35,12 @@ class TranslationSettings {
   }
 }
 
-class TranslationSettingsNotifier extends StateNotifier<TranslationSettings> {
-  TranslationSettingsNotifier() : super(const TranslationSettings()) {
-    _load();
-  }
-
-  Future<void> _load() async {
-    final p = await SharedPreferences.getInstance();
-    state = TranslationSettings(
+@Riverpod(keepAlive: true)
+class TranslationSettingsNotifier extends _$TranslationSettingsNotifier {
+  @override
+  TranslationSettings build() {
+    final p = ref.watch(appPrefsProvider);
+    return TranslationSettings(
       fromLanguage: p.getString('translation_from') ?? 'auto',
       toLanguage: p.getString('translation_to') ?? 'en',
       useOnlineTranslation: p.getBool('translation_online') ?? false,
@@ -48,7 +49,7 @@ class TranslationSettingsNotifier extends StateNotifier<TranslationSettings> {
   }
 
   Future<void> _save() async {
-    final p = await SharedPreferences.getInstance();
+    final p = ref.read(appPrefsProvider);
     await p.setString('translation_from', state.fromLanguage);
     await p.setString('translation_to', state.toLanguage);
     await p.setBool('translation_online', state.useOnlineTranslation);
@@ -68,13 +69,6 @@ class TranslationSettingsNotifier extends StateNotifier<TranslationSettings> {
   void toggleAutoTranslate() =>
       _update((s) => s.copyWith(autoTranslate: !s.autoTranslate));
 }
-
-final translationSettingsProvider =
-    StateNotifierProvider<TranslationSettingsNotifier, TranslationSettings>((
-      ref,
-    ) {
-      return TranslationSettingsNotifier();
-    });
 
 /// Supported languages for translation
 const _languages = [

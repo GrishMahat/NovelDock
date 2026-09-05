@@ -2,9 +2,8 @@ import 'dart:async';
 import 'dart:convert';
 import 'dart:io';
 
-import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:flutter_riverpod/legacy.dart';
 import 'package:path/path.dart' as p;
+import 'package:riverpod_annotation/riverpod_annotation.dart';
 
 import '../../../core/config/app_config.dart';
 import '../../../core/providers/engine.dart';
@@ -13,15 +12,13 @@ import '../../../core/providers/registry.dart';
 import '../../../core/providers/database_providers.dart';
 import '../../../core/utils/logger.dart';
 
+part 'provider_management_providers.g.dart';
+
 const _tag = 'Providers';
 
 /// List of registries the user has added — persisted to settings DB.
-final registriesProvider =
-    AsyncNotifierProvider<RegistriesNotifier, List<RegistryInfo>>(
-      RegistriesNotifier.new,
-    );
-
-class RegistriesNotifier extends AsyncNotifier<List<RegistryInfo>> {
+@Riverpod(keepAlive: true)
+class RegistriesNotifier extends _$RegistriesNotifier {
   @override
   Future<List<RegistryInfo>> build() async {
     return await _loadFromDb();
@@ -112,9 +109,8 @@ class RegistriesNotifier extends AsyncNotifier<List<RegistryInfo>> {
 }
 
 /// All available providers — from enabled registries only.
-final availableProvidersProvider = FutureProvider<List<ProviderMeta>>((
-  ref,
-) async {
+@Riverpod(keepAlive: true)
+Future<List<ProviderMeta>> availableProviders(Ref ref) async {
   final registriesAsync = ref.watch(registriesProvider);
   final registries = registriesAsync.value ?? [];
   final registryManager = await ref.watch(registryManagerProvider.future);
@@ -171,16 +167,11 @@ final availableProvidersProvider = FutureProvider<List<ProviderMeta>>((
   Log.ok(_tag, 'Total providers found: ${allProviders.length}');
 
   return allProviders;
-});
+}
 
 /// Set of enabled provider IDs — persisted to settings table.
-final enabledProvidersProvider =
-    StateNotifierProvider<EnabledProvidersNotifier, Set<String>>((ref) {
-      return EnabledProvidersNotifier(ref);
-    });
-
-class EnabledProvidersNotifier extends StateNotifier<Set<String>> {
-  final Ref ref;
+@Riverpod(keepAlive: true)
+class EnabledProvidersNotifier extends _$EnabledProvidersNotifier {
   final Completer<void> _ready = Completer<void>();
 
   /// Completes once the initial DB load has finished (or failed). Callers
@@ -189,8 +180,10 @@ class EnabledProvidersNotifier extends StateNotifier<Set<String>> {
   /// providers and silently return nothing.
   Future<void> get ready => _ready.future;
 
-  EnabledProvidersNotifier(this.ref) : super(const {}) {
+  @override
+  Set<String> build() {
     _loadFromDb();
+    return const {};
   }
 
   Future<void> _loadFromDb() async {

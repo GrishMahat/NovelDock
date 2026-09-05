@@ -2,13 +2,14 @@ import 'dart:io';
 
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:flutter_riverpod/legacy.dart';
 import 'package:go_router/go_router.dart';
-import 'package:shared_preferences/shared_preferences.dart';
-import 'package:path_provider/path_provider.dart';
+import 'package:riverpod_annotation/riverpod_annotation.dart';
 
 import '../../../theme/tokens.dart';
+import '../../../core/config/app_prefs.dart';
 import '../../../core/utils/logger.dart';
+
+part 'download_settings_page.g.dart';
 
 const _tag = 'DownloadSettings';
 
@@ -40,30 +41,24 @@ class DownloadSettings {
   }
 }
 
-class DownloadSettingsNotifier extends StateNotifier<DownloadSettings> {
-  DownloadSettingsNotifier() : super(const DownloadSettings()) {
-    _load();
-  }
-
-  Future<void> _load() async {
-    try {
-      final p = await SharedPreferences.getInstance();
-      final appDir = await getApplicationDocumentsDirectory();
-      state = DownloadSettings(
-        downloadPath:
-            p.getString('download_path') ?? '${appDir.path}/downloads',
-        wifiOnly: p.getBool('download_wifi_only') ?? false,
-        parallelDownloads: p.getInt('download_parallel') ?? 3,
-        autoDeleteRead: p.getBool('download_auto_delete') ?? false,
-      );
-    } catch (e) {
-      Log.e(_tag, 'Failed to load download settings', e);
-    }
+@Riverpod(keepAlive: true)
+class DownloadSettingsNotifier extends _$DownloadSettingsNotifier {
+  @override
+  DownloadSettings build() {
+    final p = ref.watch(appPrefsProvider);
+    return DownloadSettings(
+      downloadPath:
+          p.getString('download_path') ??
+          '${ref.watch(appDocumentsDirProvider).path}/downloads',
+      wifiOnly: p.getBool('download_wifi_only') ?? false,
+      parallelDownloads: p.getInt('download_parallel') ?? 3,
+      autoDeleteRead: p.getBool('download_auto_delete') ?? false,
+    );
   }
 
   Future<void> _save() async {
     try {
-      final p = await SharedPreferences.getInstance();
+      final p = ref.read(appPrefsProvider);
       await p.setString('download_path', state.downloadPath);
       await p.setBool('download_wifi_only', state.wifiOnly);
       await p.setInt('download_parallel', state.parallelDownloads);
@@ -86,11 +81,6 @@ class DownloadSettingsNotifier extends StateNotifier<DownloadSettings> {
   void toggleAutoDeleteRead() =>
       _update((s) => s.copyWith(autoDeleteRead: !s.autoDeleteRead));
 }
-
-final downloadSettingsProvider =
-    StateNotifierProvider<DownloadSettingsNotifier, DownloadSettings>((ref) {
-      return DownloadSettingsNotifier();
-    });
 
 class DownloadSettingsPage extends ConsumerWidget {
   const DownloadSettingsPage({super.key});

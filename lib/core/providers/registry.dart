@@ -2,13 +2,15 @@ import 'dart:convert';
 import 'dart:io';
 
 import 'package:dio/dio.dart';
-import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:path/path.dart' as p;
+import 'package:riverpod_annotation/riverpod_annotation.dart';
 
 import '../config/app_config.dart';
 import '../network/client.dart';
 import '../utils/logger.dart';
 import 'models.dart';
+
+part 'registry.g.dart';
 
 const _tag = 'Registry';
 
@@ -496,8 +498,9 @@ class RegistryManager {
 }
 
 /// Provider for RegistryManager
-final registryManagerProvider = FutureProvider<RegistryManager>((ref) async {
+@Riverpod(keepAlive: true)
+Future<RegistryManager> registryManager(Ref ref) async {
   final dio = await ref.watch(dioProvider.future);
   final config = await AppConfig.getInstance();
   return RegistryManager(dio, config);
-});
+}

@@ -2,24 +2,28 @@ import 'package:dio/dio.dart';
 import 'package:cookie_jar/cookie_jar.dart';
 import 'package:dio_cookie_manager/dio_cookie_manager.dart';
 import 'package:dio_http2_adapter/dio_http2_adapter.dart';
-import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:riverpod_annotation/riverpod_annotation.dart';
 
 import '../config/app_config.dart';
 import '../utils/logger.dart';
 import 'cloudflare.dart';
 
+part 'client.g.dart';
+
 const _tag = 'Network';
 
-final cookieJarProvider = FutureProvider<CookieJar>((ref) async {
+@Riverpod(keepAlive: true)
+Future<CookieJar> cookieJar(Ref ref) async {
   final config = await AppConfig.getInstance();
   Log.i(_tag, 'Cookie jar path: ${config.cookiesDir.path}');
   return PersistCookieJar(
     ignoreExpires: true,
     storage: FileStorage(config.cookiesDir.path),
   );
-});
+}
 
-final dioProvider = FutureProvider<Dio>((ref) async {
+@Riverpod(keepAlive: true)
+Future<Dio> dio(Ref ref) async {
   final cookieJar = await ref.watch(cookieJarProvider.future);
   Log.i(_tag, 'Initializing Dio HTTP client');
 
@@ -129,7 +133,7 @@ final dioProvider = FutureProvider<Dio>((ref) async {
 
   Log.ok(_tag, 'Dio HTTP client ready');
   return dio;
-});
+}
 
 bool _shouldRetry(DioException error) {
   return error.type == DioExceptionType.connectionTimeout ||
