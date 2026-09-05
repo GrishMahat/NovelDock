@@ -3,7 +3,7 @@
 All notable changes to NovelDock are documented here.
 The format follows [Keep a Changelog](https://keepachangelog.com); versions aim for SemVer.
 
-## Unreleased
+## 0.1.3-beta - 2026-09-05
 
 ### Fixed
 

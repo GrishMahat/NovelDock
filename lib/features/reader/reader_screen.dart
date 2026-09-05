@@ -668,7 +668,9 @@ class _ReaderScreenState extends ConsumerState<ReaderScreen> {
       if (box == null || !box.hasSize) continue;
       final top = box.localToGlobal(Offset.zero).dy;
       final bottom = top + box.size.height;
-      debugPrint('Block $blockIndex: top=$top, bottom=$bottom, viewportTop=$viewportTop, viewportBottom=$viewportBottom');
+      debugPrint(
+        'Block $blockIndex: top=$top, bottom=$bottom, viewportTop=$viewportTop, viewportBottom=$viewportBottom',
+      );
       if (bottom > viewportTop && top < viewportBottom) {
         return blockToParagraph[blockIndex]!;
       }
@@ -694,25 +696,25 @@ class _ReaderScreenState extends ConsumerState<ReaderScreen> {
       }
 
       final currentChapter = nav.currentChapter;
-      if (currentChapter != null) {
-        // Mark current chapter as TTS-read
-        await ref
-            .read(chapterDaoProvider)
-            .markChapterAsTtsRead(currentChapter.id);
-      }
-
       final nextChapter = nav.chapters[nav.currentIndex + 1];
-      
-      // Scroll to the next chapter if possible
-      final context = _chunkKeys['${nextChapter.id}-0']?.currentContext;
-      if (context != null) {
+
+      // Scroll to the next chapter if possible (before any async gap)
+      final nextContext =
+          _chunkKeys['${nextChapter.id}-0']?.currentContext;
+      if (nextContext != null) {
         Scrollable.ensureVisible(
-          context,
+          nextContext,
           duration: const Duration(milliseconds: 300),
           curve: Curves.easeOut,
         );
       } else {
         _goToNextChapter();
+      }
+
+      if (currentChapter != null) {
+        await ref
+            .read(chapterDaoProvider)
+            .markChapterAsTtsRead(currentChapter.id);
       }
 
       // Wait for chapter content to load
@@ -759,7 +761,9 @@ class _ReaderScreenState extends ConsumerState<ReaderScreen> {
   }
 
   void _onTtsStateChanged(TtsManagerState? prev, TtsManagerState next) {
-    debugPrint('TTS State Changed: isSpeaking=${next.isSpeaking}, prevLine=${prev?.currentLineIndex}, nextLine=${next.currentLineIndex}');
+    debugPrint(
+      'TTS State Changed: isSpeaking=${next.isSpeaking}, prevLine=${prev?.currentLineIndex}, nextLine=${next.currentLineIndex}',
+    );
     if (next.isSpeaking && prev?.currentLineIndex != next.currentLineIndex) {
       _scrollToTtsHighlight(next.currentLineIndex);
     }
