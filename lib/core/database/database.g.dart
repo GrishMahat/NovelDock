@@ -2810,6 +2810,516 @@ class BookmarksCompanion extends UpdateCompanion<Bookmark> {
   }
 }
 
+class $AnnotationsTable extends Annotations
+    with TableInfo<$AnnotationsTable, Annotation> {
+  @override
+  final GeneratedDatabase attachedDatabase;
+  final String? _alias;
+  $AnnotationsTable(this.attachedDatabase, [this._alias]);
+  static const VerificationMeta _idMeta = const VerificationMeta('id');
+  @override
+  late final GeneratedColumn<int> id = GeneratedColumn<int>(
+    'id',
+    aliasedName,
+    false,
+    hasAutoIncrement: true,
+    type: DriftSqlType.int,
+    requiredDuringInsert: false,
+    defaultConstraints: GeneratedColumn.constraintIsAlways(
+      'PRIMARY KEY AUTOINCREMENT',
+    ),
+  );
+  static const VerificationMeta _novelIdMeta = const VerificationMeta(
+    'novelId',
+  );
+  @override
+  late final GeneratedColumn<int> novelId = GeneratedColumn<int>(
+    'novel_id',
+    aliasedName,
+    false,
+    type: DriftSqlType.int,
+    requiredDuringInsert: true,
+    defaultConstraints: GeneratedColumn.constraintIsAlways(
+      'REFERENCES novels (id)',
+    ),
+  );
+  static const VerificationMeta _chapterIdMeta = const VerificationMeta(
+    'chapterId',
+  );
+  @override
+  late final GeneratedColumn<int> chapterId = GeneratedColumn<int>(
+    'chapter_id',
+    aliasedName,
+    false,
+    type: DriftSqlType.int,
+    requiredDuringInsert: true,
+    defaultConstraints: GeneratedColumn.constraintIsAlways(
+      'REFERENCES chapters (id)',
+    ),
+  );
+  static const VerificationMeta _chapterUrlMeta = const VerificationMeta(
+    'chapterUrl',
+  );
+  @override
+  late final GeneratedColumn<String> chapterUrl = GeneratedColumn<String>(
+    'chapter_url',
+    aliasedName,
+    false,
+    type: DriftSqlType.string,
+    requiredDuringInsert: true,
+  );
+  static const VerificationMeta _paragraphIndexMeta = const VerificationMeta(
+    'paragraphIndex',
+  );
+  @override
+  late final GeneratedColumn<int> paragraphIndex = GeneratedColumn<int>(
+    'paragraph_index',
+    aliasedName,
+    false,
+    type: DriftSqlType.int,
+    requiredDuringInsert: true,
+  );
+  static const VerificationMeta _quoteMeta = const VerificationMeta('quote');
+  @override
+  late final GeneratedColumn<String> quote = GeneratedColumn<String>(
+    'quote',
+    aliasedName,
+    false,
+    type: DriftSqlType.string,
+    requiredDuringInsert: true,
+  );
+  static const VerificationMeta _noteMeta = const VerificationMeta('note');
+  @override
+  late final GeneratedColumn<String> note = GeneratedColumn<String>(
+    'note',
+    aliasedName,
+    true,
+    type: DriftSqlType.string,
+    requiredDuringInsert: false,
+  );
+  static const VerificationMeta _createdAtMeta = const VerificationMeta(
+    'createdAt',
+  );
+  @override
+  late final GeneratedColumn<int> createdAt = GeneratedColumn<int>(
+    'created_at',
+    aliasedName,
+    false,
+    type: DriftSqlType.int,
+    requiredDuringInsert: true,
+  );
+  @override
+  List<GeneratedColumn> get $columns => [
+    id,
+    novelId,
+    chapterId,
+    chapterUrl,
+    paragraphIndex,
+    quote,
+    note,
+    createdAt,
+  ];
+  @override
+  String get aliasedName => _alias ?? actualTableName;
+  @override
+  String get actualTableName => $name;
+  static const String $name = 'annotations';
+  @override
+  VerificationContext validateIntegrity(
+    Insertable<Annotation> instance, {
+    bool isInserting = false,
+  }) {
+    final context = VerificationContext();
+    final data = instance.toColumns(true);
+    if (data.containsKey('id')) {
+      context.handle(_idMeta, id.isAcceptableOrUnknown(data['id']!, _idMeta));
+    }
+    if (data.containsKey('novel_id')) {
+      context.handle(
+        _novelIdMeta,
+        novelId.isAcceptableOrUnknown(data['novel_id']!, _novelIdMeta),
+      );
+    } else if (isInserting) {
+      context.missing(_novelIdMeta);
+    }
+    if (data.containsKey('chapter_id')) {
+      context.handle(
+        _chapterIdMeta,
+        chapterId.isAcceptableOrUnknown(data['chapter_id']!, _chapterIdMeta),
+      );
+    } else if (isInserting) {
+      context.missing(_chapterIdMeta);
+    }
+    if (data.containsKey('chapter_url')) {
+      context.handle(
+        _chapterUrlMeta,
+        chapterUrl.isAcceptableOrUnknown(data['chapter_url']!, _chapterUrlMeta),
+      );
+    } else if (isInserting) {
+      context.missing(_chapterUrlMeta);
+    }
+    if (data.containsKey('paragraph_index')) {
+      context.handle(
+        _paragraphIndexMeta,
+        paragraphIndex.isAcceptableOrUnknown(
+          data['paragraph_index']!,
+          _paragraphIndexMeta,
+        ),
+      );
+    } else if (isInserting) {
+      context.missing(_paragraphIndexMeta);
+    }
+    if (data.containsKey('quote')) {
+      context.handle(
+        _quoteMeta,
+        quote.isAcceptableOrUnknown(data['quote']!, _quoteMeta),
+      );
+    } else if (isInserting) {
+      context.missing(_quoteMeta);
+    }
+    if (data.containsKey('note')) {
+      context.handle(
+        _noteMeta,
+        note.isAcceptableOrUnknown(data['note']!, _noteMeta),
+      );
+    }
+    if (data.containsKey('created_at')) {
+      context.handle(
+        _createdAtMeta,
+        createdAt.isAcceptableOrUnknown(data['created_at']!, _createdAtMeta),
+      );
+    } else if (isInserting) {
+      context.missing(_createdAtMeta);
+    }
+    return context;
+  }
+
+  @override
+  Set<GeneratedColumn> get $primaryKey => {id};
+  @override
+  Annotation map(Map<String, dynamic> data, {String? tablePrefix}) {
+    final effectivePrefix = tablePrefix != null ? '$tablePrefix.' : '';
+    return Annotation(
+      id: attachedDatabase.typeMapping.read(
+        DriftSqlType.int,
+        data['${effectivePrefix}id'],
+      )!,
+      novelId: attachedDatabase.typeMapping.read(
+        DriftSqlType.int,
+        data['${effectivePrefix}novel_id'],
+      )!,
+      chapterId: attachedDatabase.typeMapping.read(
+        DriftSqlType.int,
+        data['${effectivePrefix}chapter_id'],
+      )!,
+      chapterUrl: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}chapter_url'],
+      )!,
+      paragraphIndex: attachedDatabase.typeMapping.read(
+        DriftSqlType.int,
+        data['${effectivePrefix}paragraph_index'],
+      )!,
+      quote: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}quote'],
+      )!,
+      note: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}note'],
+      ),
+      createdAt: attachedDatabase.typeMapping.read(
+        DriftSqlType.int,
+        data['${effectivePrefix}created_at'],
+      )!,
+    );
+  }
+
+  @override
+  $AnnotationsTable createAlias(String alias) {
+    return $AnnotationsTable(attachedDatabase, alias);
+  }
+}
+
+class Annotation extends DataClass implements Insertable<Annotation> {
+  final int id;
+  final int novelId;
+  final int chapterId;
+  final String chapterUrl;
+  final int paragraphIndex;
+  final String quote;
+  final String? note;
+  final int createdAt;
+  const Annotation({
+    required this.id,
+    required this.novelId,
+    required this.chapterId,
+    required this.chapterUrl,
+    required this.paragraphIndex,
+    required this.quote,
+    this.note,
+    required this.createdAt,
+  });
+  @override
+  Map<String, Expression> toColumns(bool nullToAbsent) {
+    final map = <String, Expression>{};
+    map['id'] = Variable<int>(id);
+    map['novel_id'] = Variable<int>(novelId);
+    map['chapter_id'] = Variable<int>(chapterId);
+    map['chapter_url'] = Variable<String>(chapterUrl);
+    map['paragraph_index'] = Variable<int>(paragraphIndex);
+    map['quote'] = Variable<String>(quote);
+    if (!nullToAbsent || note != null) {
+      map['note'] = Variable<String>(note);
+    }
+    map['created_at'] = Variable<int>(createdAt);
+    return map;
+  }
+
+  AnnotationsCompanion toCompanion(bool nullToAbsent) {
+    return AnnotationsCompanion(
+      id: Value(id),
+      novelId: Value(novelId),
+      chapterId: Value(chapterId),
+      chapterUrl: Value(chapterUrl),
+      paragraphIndex: Value(paragraphIndex),
+      quote: Value(quote),
+      note: note == null && nullToAbsent ? const Value.absent() : Value(note),
+      createdAt: Value(createdAt),
+    );
+  }
+
+  factory Annotation.fromJson(
+    Map<String, dynamic> json, {
+    ValueSerializer? serializer,
+  }) {
+    serializer ??= driftRuntimeOptions.defaultSerializer;
+    return Annotation(
+      id: serializer.fromJson<int>(json['id']),
+      novelId: serializer.fromJson<int>(json['novelId']),
+      chapterId: serializer.fromJson<int>(json['chapterId']),
+      chapterUrl: serializer.fromJson<String>(json['chapterUrl']),
+      paragraphIndex: serializer.fromJson<int>(json['paragraphIndex']),
+      quote: serializer.fromJson<String>(json['quote']),
+      note: serializer.fromJson<String?>(json['note']),
+      createdAt: serializer.fromJson<int>(json['createdAt']),
+    );
+  }
+  @override
+  Map<String, dynamic> toJson({ValueSerializer? serializer}) {
+    serializer ??= driftRuntimeOptions.defaultSerializer;
+    return <String, dynamic>{
+      'id': serializer.toJson<int>(id),
+      'novelId': serializer.toJson<int>(novelId),
+      'chapterId': serializer.toJson<int>(chapterId),
+      'chapterUrl': serializer.toJson<String>(chapterUrl),
+      'paragraphIndex': serializer.toJson<int>(paragraphIndex),
+      'quote': serializer.toJson<String>(quote),
+      'note': serializer.toJson<String?>(note),
+      'createdAt': serializer.toJson<int>(createdAt),
+    };
+  }
+
+  Annotation copyWith({
+    int? id,
+    int? novelId,
+    int? chapterId,
+    String? chapterUrl,
+    int? paragraphIndex,
+    String? quote,
+    Value<String?> note = const Value.absent(),
+    int? createdAt,
+  }) => Annotation(
+    id: id ?? this.id,
+    novelId: novelId ?? this.novelId,
+    chapterId: chapterId ?? this.chapterId,
+    chapterUrl: chapterUrl ?? this.chapterUrl,
+    paragraphIndex: paragraphIndex ?? this.paragraphIndex,
+    quote: quote ?? this.quote,
+    note: note.present ? note.value : this.note,
+    createdAt: createdAt ?? this.createdAt,
+  );
+  Annotation copyWithCompanion(AnnotationsCompanion data) {
+    return Annotation(
+      id: data.id.present ? data.id.value : this.id,
+      novelId: data.novelId.present ? data.novelId.value : this.novelId,
+      chapterId: data.chapterId.present ? data.chapterId.value : this.chapterId,
+      chapterUrl: data.chapterUrl.present
+          ? data.chapterUrl.value
+          : this.chapterUrl,
+      paragraphIndex: data.paragraphIndex.present
+          ? data.paragraphIndex.value
+          : this.paragraphIndex,
+      quote: data.quote.present ? data.quote.value : this.quote,
+      note: data.note.present ? data.note.value : this.note,
+      createdAt: data.createdAt.present ? data.createdAt.value : this.createdAt,
+    );
+  }
+
+  @override
+  String toString() {
+    return (StringBuffer('Annotation(')
+          ..write('id: $id, ')
+          ..write('novelId: $novelId, ')
+          ..write('chapterId: $chapterId, ')
+          ..write('chapterUrl: $chapterUrl, ')
+          ..write('paragraphIndex: $paragraphIndex, ')
+          ..write('quote: $quote, ')
+          ..write('note: $note, ')
+          ..write('createdAt: $createdAt')
+          ..write(')'))
+        .toString();
+  }
+
+  @override
+  int get hashCode => Object.hash(
+    id,
+    novelId,
+    chapterId,
+    chapterUrl,
+    paragraphIndex,
+    quote,
+    note,
+    createdAt,
+  );
+  @override
+  bool operator ==(Object other) =>
+      identical(this, other) ||
+      (other is Annotation &&
+          other.id == this.id &&
+          other.novelId == this.novelId &&
+          other.chapterId == this.chapterId &&
+          other.chapterUrl == this.chapterUrl &&
+          other.paragraphIndex == this.paragraphIndex &&
+          other.quote == this.quote &&
+          other.note == this.note &&
+          other.createdAt == this.createdAt);
+}
+
+class AnnotationsCompanion extends UpdateCompanion<Annotation> {
+  final Value<int> id;
+  final Value<int> novelId;
+  final Value<int> chapterId;
+  final Value<String> chapterUrl;
+  final Value<int> paragraphIndex;
+  final Value<String> quote;
+  final Value<String?> note;
+  final Value<int> createdAt;
+  const AnnotationsCompanion({
+    this.id = const Value.absent(),
+    this.novelId = const Value.absent(),
+    this.chapterId = const Value.absent(),
+    this.chapterUrl = const Value.absent(),
+    this.paragraphIndex = const Value.absent(),
+    this.quote = const Value.absent(),
+    this.note = const Value.absent(),
+    this.createdAt = const Value.absent(),
+  });
+  AnnotationsCompanion.insert({
+    this.id = const Value.absent(),
+    required int novelId,
+    required int chapterId,
+    required String chapterUrl,
+    required int paragraphIndex,
+    required String quote,
+    this.note = const Value.absent(),
+    required int createdAt,
+  }) : novelId = Value(novelId),
+       chapterId = Value(chapterId),
+       chapterUrl = Value(chapterUrl),
+       paragraphIndex = Value(paragraphIndex),
+       quote = Value(quote),
+       createdAt = Value(createdAt);
+  static Insertable<Annotation> custom({
+    Expression<int>? id,
+    Expression<int>? novelId,
+    Expression<int>? chapterId,
+    Expression<String>? chapterUrl,
+    Expression<int>? paragraphIndex,
+    Expression<String>? quote,
+    Expression<String>? note,
+    Expression<int>? createdAt,
+  }) {
+    return RawValuesInsertable({
+      if (id != null) 'id': id,
+      if (novelId != null) 'novel_id': novelId,
+      if (chapterId != null) 'chapter_id': chapterId,
+      if (chapterUrl != null) 'chapter_url': chapterUrl,
+      if (paragraphIndex != null) 'paragraph_index': paragraphIndex,
+      if (quote != null) 'quote': quote,
+      if (note != null) 'note': note,
+      if (createdAt != null) 'created_at': createdAt,
+    });
+  }
+
+  AnnotationsCompanion copyWith({
+    Value<int>? id,
+    Value<int>? novelId,
+    Value<int>? chapterId,
+    Value<String>? chapterUrl,
+    Value<int>? paragraphIndex,
+    Value<String>? quote,
+    Value<String?>? note,
+    Value<int>? createdAt,
+  }) {
+    return AnnotationsCompanion(
+      id: id ?? this.id,
+      novelId: novelId ?? this.novelId,
+      chapterId: chapterId ?? this.chapterId,
+      chapterUrl: chapterUrl ?? this.chapterUrl,
+      paragraphIndex: paragraphIndex ?? this.paragraphIndex,
+      quote: quote ?? this.quote,
+      note: note ?? this.note,
+      createdAt: createdAt ?? this.createdAt,
+    );
+  }
+
+  @override
+  Map<String, Expression> toColumns(bool nullToAbsent) {
+    final map = <String, Expression>{};
+    if (id.present) {
+      map['id'] = Variable<int>(id.value);
+    }
+    if (novelId.present) {
+      map['novel_id'] = Variable<int>(novelId.value);
+    }
+    if (chapterId.present) {
+      map['chapter_id'] = Variable<int>(chapterId.value);
+    }
+    if (chapterUrl.present) {
+      map['chapter_url'] = Variable<String>(chapterUrl.value);
+    }
+    if (paragraphIndex.present) {
+      map['paragraph_index'] = Variable<int>(paragraphIndex.value);
+    }
+    if (quote.present) {
+      map['quote'] = Variable<String>(quote.value);
+    }
+    if (note.present) {
+      map['note'] = Variable<String>(note.value);
+    }
+    if (createdAt.present) {
+      map['created_at'] = Variable<int>(createdAt.value);
+    }
+    return map;
+  }
+
+  @override
+  String toString() {
+    return (StringBuffer('AnnotationsCompanion(')
+          ..write('id: $id, ')
+          ..write('novelId: $novelId, ')
+          ..write('chapterId: $chapterId, ')
+          ..write('chapterUrl: $chapterUrl, ')
+          ..write('paragraphIndex: $paragraphIndex, ')
+          ..write('quote: $quote, ')
+          ..write('note: $note, ')
+          ..write('createdAt: $createdAt')
+          ..write(')'))
+        .toString();
+  }
+}
+
 class $SettingsTable extends Settings with TableInfo<$SettingsTable, Setting> {
   @override
   final GeneratedDatabase attachedDatabase;
@@ -4034,6 +4544,7 @@ abstract class _$AppDatabase extends GeneratedDatabase {
   late final $ReadingHistoryTable readingHistory = $ReadingHistoryTable(this);
   late final $DownloadsQueueTable downloadsQueue = $DownloadsQueueTable(this);
   late final $BookmarksTable bookmarks = $BookmarksTable(this);
+  late final $AnnotationsTable annotations = $AnnotationsTable(this);
   late final $SettingsTable settings = $SettingsTable(this);
   late final $ProviderCacheTable providerCache = $ProviderCacheTable(this);
   late final $NovelProgressTable novelProgress = $NovelProgressTable(this);
@@ -4065,12 +4576,17 @@ abstract class _$AppDatabase extends GeneratedDatabase {
     'bookmarks_novel_chapter',
     'CREATE INDEX bookmarks_novel_chapter ON bookmarks (novel_id, chapter_id)',
   );
+  late final Index annotationsNovelChapter = Index(
+    'annotations_novel_chapter',
+    'CREATE INDEX annotations_novel_chapter ON annotations (novel_id, chapter_id)',
+  );
   late final NovelDao novelDao = NovelDao(this as AppDatabase);
   late final ChapterDao chapterDao = ChapterDao(this as AppDatabase);
   late final LibraryDao libraryDao = LibraryDao(this as AppDatabase);
   late final HistoryDao historyDao = HistoryDao(this as AppDatabase);
   late final DownloadDao downloadDao = DownloadDao(this as AppDatabase);
   late final BookmarkDao bookmarkDao = BookmarkDao(this as AppDatabase);
+  late final AnnotationDao annotationDao = AnnotationDao(this as AppDatabase);
   late final SettingsDao settingsDao = SettingsDao(this as AppDatabase);
   late final ProviderCacheDao providerCacheDao = ProviderCacheDao(
     this as AppDatabase,
@@ -4089,6 +4605,7 @@ abstract class _$AppDatabase extends GeneratedDatabase {
     readingHistory,
     downloadsQueue,
     bookmarks,
+    annotations,
     settings,
     providerCache,
     novelProgress,
@@ -4099,6 +4616,7 @@ abstract class _$AppDatabase extends GeneratedDatabase {
     downloadsQueueStatus,
     downloadsQueueNovelChapter,
     bookmarksNovelChapter,
+    annotationsNovelChapter,
   ];
 }
 
@@ -4219,6 +4737,24 @@ final class $$NovelsTableReferences
     ).filter((f) => f.novelId.id.sqlEquals($_itemColumn<int>('id')!));
 
     final cache = $_typedResult.readTableOrNull(_bookmarksRefsTable($_db));
+    return ProcessedTableManager(
+      manager.$state.copyWith(prefetchedData: cache),
+    );
+  }
+
+  static MultiTypedResultKey<$AnnotationsTable, List<Annotation>>
+  _annotationsRefsTable(_$AppDatabase db) => MultiTypedResultKey.fromTable(
+    db.annotations,
+    aliasName: 'novels__id__annotations__novel_id',
+  );
+
+  $$AnnotationsTableProcessedTableManager get annotationsRefs {
+    final manager = $$AnnotationsTableTableManager(
+      $_db,
+      $_db.annotations,
+    ).filter((f) => f.novelId.id.sqlEquals($_itemColumn<int>('id')!));
+
+    final cache = $_typedResult.readTableOrNull(_annotationsRefsTable($_db));
     return ProcessedTableManager(
       manager.$state.copyWith(prefetchedData: cache),
     );
@@ -4418,6 +4954,31 @@ class $$NovelsTableFilterComposer
           }) => $$BookmarksTableFilterComposer(
             $db: $db,
             $table: $db.bookmarks,
+            $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
+            joinBuilder: joinBuilder,
+            $removeJoinBuilderFromRootComposer:
+                $removeJoinBuilderFromRootComposer,
+          ),
+    );
+    return f(composer);
+  }
+
+  Expression<bool> annotationsRefs(
+    Expression<bool> Function($$AnnotationsTableFilterComposer f) f,
+  ) {
+    final $$AnnotationsTableFilterComposer composer = $composerBuilder(
+      composer: this,
+      getCurrentColumn: (t) => t.id,
+      referencedTable: $db.annotations,
+      getReferencedColumn: (t) => t.novelId,
+      builder:
+          (
+            joinBuilder, {
+            $addJoinBuilderToRootComposer,
+            $removeJoinBuilderFromRootComposer,
+          }) => $$AnnotationsTableFilterComposer(
+            $db: $db,
+            $table: $db.annotations,
             $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
             joinBuilder: joinBuilder,
             $removeJoinBuilderFromRootComposer:
@@ -4681,6 +5242,31 @@ class $$NovelsTableAnnotationComposer
     return f(composer);
   }
 
+  Expression<T> annotationsRefs<T extends Object>(
+    Expression<T> Function($$AnnotationsTableAnnotationComposer a) f,
+  ) {
+    final $$AnnotationsTableAnnotationComposer composer = $composerBuilder(
+      composer: this,
+      getCurrentColumn: (t) => t.id,
+      referencedTable: $db.annotations,
+      getReferencedColumn: (t) => t.novelId,
+      builder:
+          (
+            joinBuilder, {
+            $addJoinBuilderToRootComposer,
+            $removeJoinBuilderFromRootComposer,
+          }) => $$AnnotationsTableAnnotationComposer(
+            $db: $db,
+            $table: $db.annotations,
+            $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
+            joinBuilder: joinBuilder,
+            $removeJoinBuilderFromRootComposer:
+                $removeJoinBuilderFromRootComposer,
+          ),
+    );
+    return f(composer);
+  }
+
   Expression<T> novelProgressRefs<T extends Object>(
     Expression<T> Function($$NovelProgressTableAnnotationComposer a) f,
   ) {
@@ -4726,6 +5312,7 @@ class $$NovelsTableTableManager
             bool readingHistoryRefs,
             bool downloadsQueueRefs,
             bool bookmarksRefs,
+            bool annotationsRefs,
             bool novelProgressRefs,
           })
         > {
@@ -4803,6 +5390,7 @@ class $$NovelsTableTableManager
                 readingHistoryRefs = false,
                 downloadsQueueRefs = false,
                 bookmarksRefs = false,
+                annotationsRefs = false,
                 novelProgressRefs = false,
               }) {
                 return PrefetchHooks(
@@ -4813,6 +5401,7 @@ class $$NovelsTableTableManager
                     if (readingHistoryRefs) db.readingHistory,
                     if (downloadsQueueRefs) db.downloadsQueue,
                     if (bookmarksRefs) db.bookmarks,
+                    if (annotationsRefs) db.annotations,
                     if (novelProgressRefs) db.novelProgress,
                   ],
                   addJoins: null,
@@ -4919,6 +5508,27 @@ class $$NovelsTableTableManager
                               ),
                           typedResults: items,
                         ),
+                      if (annotationsRefs)
+                        await $_getPrefetchedData<
+                          Novel,
+                          $NovelsTable,
+                          Annotation
+                        >(
+                          currentTable: table,
+                          referencedTable: $$NovelsTableReferences
+                              ._annotationsRefsTable(db),
+                          managerFromTypedResult: (p0) =>
+                              $$NovelsTableReferences(
+                                db,
+                                table,
+                                p0,
+                              ).annotationsRefs,
+                          referencedItemsForCurrentItem:
+                              (item, referencedItems) => referencedItems.where(
+                                (e) => e.novelId == item.id,
+                              ),
+                          typedResults: items,
+                        ),
                       if (novelProgressRefs)
                         await $_getPrefetchedData<
                           Novel,
@@ -4966,6 +5576,7 @@ typedef $$NovelsTableProcessedTableManager =
         bool readingHistoryRefs,
         bool downloadsQueueRefs,
         bool bookmarksRefs,
+        bool annotationsRefs,
         bool novelProgressRefs,
       })
     >;
@@ -5084,6 +5695,24 @@ final class $$ChaptersTableReferences
     ).filter((f) => f.chapterId.id.sqlEquals($_itemColumn<int>('id')!));
 
     final cache = $_typedResult.readTableOrNull(_bookmarksRefsTable($_db));
+    return ProcessedTableManager(
+      manager.$state.copyWith(prefetchedData: cache),
+    );
+  }
+
+  static MultiTypedResultKey<$AnnotationsTable, List<Annotation>>
+  _annotationsRefsTable(_$AppDatabase db) => MultiTypedResultKey.fromTable(
+    db.annotations,
+    aliasName: 'chapters__id__annotations__chapter_id',
+  );
+
+  $$AnnotationsTableProcessedTableManager get annotationsRefs {
+    final manager = $$AnnotationsTableTableManager(
+      $_db,
+      $_db.annotations,
+    ).filter((f) => f.chapterId.id.sqlEquals($_itemColumn<int>('id')!));
+
+    final cache = $_typedResult.readTableOrNull(_annotationsRefsTable($_db));
     return ProcessedTableManager(
       manager.$state.copyWith(prefetchedData: cache),
     );
@@ -5258,6 +5887,31 @@ class $$ChaptersTableFilterComposer
           }) => $$BookmarksTableFilterComposer(
             $db: $db,
             $table: $db.bookmarks,
+            $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
+            joinBuilder: joinBuilder,
+            $removeJoinBuilderFromRootComposer:
+                $removeJoinBuilderFromRootComposer,
+          ),
+    );
+    return f(composer);
+  }
+
+  Expression<bool> annotationsRefs(
+    Expression<bool> Function($$AnnotationsTableFilterComposer f) f,
+  ) {
+    final $$AnnotationsTableFilterComposer composer = $composerBuilder(
+      composer: this,
+      getCurrentColumn: (t) => t.id,
+      referencedTable: $db.annotations,
+      getReferencedColumn: (t) => t.chapterId,
+      builder:
+          (
+            joinBuilder, {
+            $addJoinBuilderToRootComposer,
+            $removeJoinBuilderFromRootComposer,
+          }) => $$AnnotationsTableFilterComposer(
+            $db: $db,
+            $table: $db.annotations,
             $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
             joinBuilder: joinBuilder,
             $removeJoinBuilderFromRootComposer:
@@ -5510,6 +6164,31 @@ class $$ChaptersTableAnnotationComposer
     );
     return f(composer);
   }
+
+  Expression<T> annotationsRefs<T extends Object>(
+    Expression<T> Function($$AnnotationsTableAnnotationComposer a) f,
+  ) {
+    final $$AnnotationsTableAnnotationComposer composer = $composerBuilder(
+      composer: this,
+      getCurrentColumn: (t) => t.id,
+      referencedTable: $db.annotations,
+      getReferencedColumn: (t) => t.chapterId,
+      builder:
+          (
+            joinBuilder, {
+            $addJoinBuilderToRootComposer,
+            $removeJoinBuilderFromRootComposer,
+          }) => $$AnnotationsTableAnnotationComposer(
+            $db: $db,
+            $table: $db.annotations,
+            $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
+            joinBuilder: joinBuilder,
+            $removeJoinBuilderFromRootComposer:
+                $removeJoinBuilderFromRootComposer,
+          ),
+    );
+    return f(composer);
+  }
 }
 
 class $$ChaptersTableTableManager
@@ -5531,6 +6210,7 @@ class $$ChaptersTableTableManager
             bool readingHistoryRefs,
             bool downloadsQueueRefs,
             bool bookmarksRefs,
+            bool annotationsRefs,
           })
         > {
   $$ChaptersTableTableManager(_$AppDatabase db, $ChaptersTable table)
@@ -5607,6 +6287,7 @@ class $$ChaptersTableTableManager
                 readingHistoryRefs = false,
                 downloadsQueueRefs = false,
                 bookmarksRefs = false,
+                annotationsRefs = false,
               }) {
                 return PrefetchHooks(
                   db: db,
@@ -5615,6 +6296,7 @@ class $$ChaptersTableTableManager
                     if (readingHistoryRefs) db.readingHistory,
                     if (downloadsQueueRefs) db.downloadsQueue,
                     if (bookmarksRefs) db.bookmarks,
+                    if (annotationsRefs) db.annotations,
                   ],
                   addJoins:
                       <
@@ -5734,6 +6416,27 @@ class $$ChaptersTableTableManager
                               ),
                           typedResults: items,
                         ),
+                      if (annotationsRefs)
+                        await $_getPrefetchedData<
+                          Chapter,
+                          $ChaptersTable,
+                          Annotation
+                        >(
+                          currentTable: table,
+                          referencedTable: $$ChaptersTableReferences
+                              ._annotationsRefsTable(db),
+                          managerFromTypedResult: (p0) =>
+                              $$ChaptersTableReferences(
+                                db,
+                                table,
+                                p0,
+                              ).annotationsRefs,
+                          referencedItemsForCurrentItem:
+                              (item, referencedItems) => referencedItems.where(
+                                (e) => e.chapterId == item.id,
+                              ),
+                          typedResults: items,
+                        ),
                     ];
                   },
                 );
@@ -5760,6 +6463,7 @@ typedef $$ChaptersTableProcessedTableManager =
         bool readingHistoryRefs,
         bool downloadsQueueRefs,
         bool bookmarksRefs,
+        bool annotationsRefs,
       })
     >;
 typedef $$LibraryTableCreateCompanionBuilder =
@@ -7437,6 +8141,464 @@ typedef $$BookmarksTableProcessedTableManager =
       Bookmark,
       PrefetchHooks Function({bool novelId, bool chapterId})
     >;
+typedef $$AnnotationsTableCreateCompanionBuilder =
+    AnnotationsCompanion Function({
+      Value<int> id,
+      required int novelId,
+      required int chapterId,
+      required String chapterUrl,
+      required int paragraphIndex,
+      required String quote,
+      Value<String?> note,
+      required int createdAt,
+    });
+typedef $$AnnotationsTableUpdateCompanionBuilder =
+    AnnotationsCompanion Function({
+      Value<int> id,
+      Value<int> novelId,
+      Value<int> chapterId,
+      Value<String> chapterUrl,
+      Value<int> paragraphIndex,
+      Value<String> quote,
+      Value<String?> note,
+      Value<int> createdAt,
+    });
+
+final class $$AnnotationsTableReferences
+    extends BaseReferences<_$AppDatabase, $AnnotationsTable, Annotation> {
+  $$AnnotationsTableReferences(super.$_db, super.$_table, super.$_typedResult);
+
+  static $NovelsTable _novelIdTable(_$AppDatabase db) =>
+      db.novels.createAlias('annotations__novel_id__novels__id');
+
+  $$NovelsTableProcessedTableManager get novelId {
+    final $_column = $_itemColumn<int>('novel_id')!;
+
+    final manager = $$NovelsTableTableManager(
+      $_db,
+      $_db.novels,
+    ).filter((f) => f.id.sqlEquals($_column));
+    final item = $_typedResult.readTableOrNull(_novelIdTable($_db));
+    if (item == null) return manager;
+    return ProcessedTableManager(
+      manager.$state.copyWith(prefetchedData: [item]),
+    );
+  }
+
+  static $ChaptersTable _chapterIdTable(_$AppDatabase db) =>
+      db.chapters.createAlias('annotations__chapter_id__chapters__id');
+
+  $$ChaptersTableProcessedTableManager get chapterId {
+    final $_column = $_itemColumn<int>('chapter_id')!;
+
+    final manager = $$ChaptersTableTableManager(
+      $_db,
+      $_db.chapters,
+    ).filter((f) => f.id.sqlEquals($_column));
+    final item = $_typedResult.readTableOrNull(_chapterIdTable($_db));
+    if (item == null) return manager;
+    return ProcessedTableManager(
+      manager.$state.copyWith(prefetchedData: [item]),
+    );
+  }
+}
+
+class $$AnnotationsTableFilterComposer
+    extends Composer<_$AppDatabase, $AnnotationsTable> {
+  $$AnnotationsTableFilterComposer({
+    required super.$db,
+    required super.$table,
+    super.joinBuilder,
+    super.$addJoinBuilderToRootComposer,
+    super.$removeJoinBuilderFromRootComposer,
+  });
+  ColumnFilters<int> get id => $composableBuilder(
+    column: $table.id,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get chapterUrl => $composableBuilder(
+    column: $table.chapterUrl,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<int> get paragraphIndex => $composableBuilder(
+    column: $table.paragraphIndex,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get quote => $composableBuilder(
+    column: $table.quote,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get note => $composableBuilder(
+    column: $table.note,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<int> get createdAt => $composableBuilder(
+    column: $table.createdAt,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  $$NovelsTableFilterComposer get novelId {
+    final $$NovelsTableFilterComposer composer = $composerBuilder(
+      composer: this,
+      getCurrentColumn: (t) => t.novelId,
+      referencedTable: $db.novels,
+      getReferencedColumn: (t) => t.id,
+      builder:
+          (
+            joinBuilder, {
+            $addJoinBuilderToRootComposer,
+            $removeJoinBuilderFromRootComposer,
+          }) => $$NovelsTableFilterComposer(
+            $db: $db,
+            $table: $db.novels,
+            $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
+            joinBuilder: joinBuilder,
+            $removeJoinBuilderFromRootComposer:
+                $removeJoinBuilderFromRootComposer,
+          ),
+    );
+    return composer;
+  }
+
+  $$ChaptersTableFilterComposer get chapterId {
+    final $$ChaptersTableFilterComposer composer = $composerBuilder(
+      composer: this,
+      getCurrentColumn: (t) => t.chapterId,
+      referencedTable: $db.chapters,
+      getReferencedColumn: (t) => t.id,
+      builder:
+          (
+            joinBuilder, {
+            $addJoinBuilderToRootComposer,
+            $removeJoinBuilderFromRootComposer,
+          }) => $$ChaptersTableFilterComposer(
+            $db: $db,
+            $table: $db.chapters,
+            $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
+            joinBuilder: joinBuilder,
+            $removeJoinBuilderFromRootComposer:
+                $removeJoinBuilderFromRootComposer,
+          ),
+    );
+    return composer;
+  }
+}
+
+class $$AnnotationsTableOrderingComposer
+    extends Composer<_$AppDatabase, $AnnotationsTable> {
+  $$AnnotationsTableOrderingComposer({
+    required super.$db,
+    required super.$table,
+    super.joinBuilder,
+    super.$addJoinBuilderToRootComposer,
+    super.$removeJoinBuilderFromRootComposer,
+  });
+  ColumnOrderings<int> get id => $composableBuilder(
+    column: $table.id,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get chapterUrl => $composableBuilder(
+    column: $table.chapterUrl,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<int> get paragraphIndex => $composableBuilder(
+    column: $table.paragraphIndex,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get quote => $composableBuilder(
+    column: $table.quote,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get note => $composableBuilder(
+    column: $table.note,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<int> get createdAt => $composableBuilder(
+    column: $table.createdAt,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  $$NovelsTableOrderingComposer get novelId {
+    final $$NovelsTableOrderingComposer composer = $composerBuilder(
+      composer: this,
+      getCurrentColumn: (t) => t.novelId,
+      referencedTable: $db.novels,
+      getReferencedColumn: (t) => t.id,
+      builder:
+          (
+            joinBuilder, {
+            $addJoinBuilderToRootComposer,
+            $removeJoinBuilderFromRootComposer,
+          }) => $$NovelsTableOrderingComposer(
+            $db: $db,
+            $table: $db.novels,
+            $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
+            joinBuilder: joinBuilder,
+            $removeJoinBuilderFromRootComposer:
+                $removeJoinBuilderFromRootComposer,
+          ),
+    );
+    return composer;
+  }
+
+  $$ChaptersTableOrderingComposer get chapterId {
+    final $$ChaptersTableOrderingComposer composer = $composerBuilder(
+      composer: this,
+      getCurrentColumn: (t) => t.chapterId,
+      referencedTable: $db.chapters,
+      getReferencedColumn: (t) => t.id,
+      builder:
+          (
+            joinBuilder, {
+            $addJoinBuilderToRootComposer,
+            $removeJoinBuilderFromRootComposer,
+          }) => $$ChaptersTableOrderingComposer(
+            $db: $db,
+            $table: $db.chapters,
+            $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
+            joinBuilder: joinBuilder,
+            $removeJoinBuilderFromRootComposer:
+                $removeJoinBuilderFromRootComposer,
+          ),
+    );
+    return composer;
+  }
+}
+
+class $$AnnotationsTableAnnotationComposer
+    extends Composer<_$AppDatabase, $AnnotationsTable> {
+  $$AnnotationsTableAnnotationComposer({
+    required super.$db,
+    required super.$table,
+    super.joinBuilder,
+    super.$addJoinBuilderToRootComposer,
+    super.$removeJoinBuilderFromRootComposer,
+  });
+  GeneratedColumn<int> get id =>
+      $composableBuilder(column: $table.id, builder: (column) => column);
+
+  GeneratedColumn<String> get chapterUrl => $composableBuilder(
+    column: $table.chapterUrl,
+    builder: (column) => column,
+  );
+
+  GeneratedColumn<int> get paragraphIndex => $composableBuilder(
+    column: $table.paragraphIndex,
+    builder: (column) => column,
+  );
+
+  GeneratedColumn<String> get quote =>
+      $composableBuilder(column: $table.quote, builder: (column) => column);
+
+  GeneratedColumn<String> get note =>
+      $composableBuilder(column: $table.note, builder: (column) => column);
+
+  GeneratedColumn<int> get createdAt =>
+      $composableBuilder(column: $table.createdAt, builder: (column) => column);
+
+  $$NovelsTableAnnotationComposer get novelId {
+    final $$NovelsTableAnnotationComposer composer = $composerBuilder(
+      composer: this,
+      getCurrentColumn: (t) => t.novelId,
+      referencedTable: $db.novels,
+      getReferencedColumn: (t) => t.id,
+      builder:
+          (
+            joinBuilder, {
+            $addJoinBuilderToRootComposer,
+            $removeJoinBuilderFromRootComposer,
+          }) => $$NovelsTableAnnotationComposer(
+            $db: $db,
+            $table: $db.novels,
+            $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
+            joinBuilder: joinBuilder,
+            $removeJoinBuilderFromRootComposer:
+                $removeJoinBuilderFromRootComposer,
+          ),
+    );
+    return composer;
+  }
+
+  $$ChaptersTableAnnotationComposer get chapterId {
+    final $$ChaptersTableAnnotationComposer composer = $composerBuilder(
+      composer: this,
+      getCurrentColumn: (t) => t.chapterId,
+      referencedTable: $db.chapters,
+      getReferencedColumn: (t) => t.id,
+      builder:
+          (
+            joinBuilder, {
+            $addJoinBuilderToRootComposer,
+            $removeJoinBuilderFromRootComposer,
+          }) => $$ChaptersTableAnnotationComposer(
+            $db: $db,
+            $table: $db.chapters,
+            $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
+            joinBuilder: joinBuilder,
+            $removeJoinBuilderFromRootComposer:
+                $removeJoinBuilderFromRootComposer,
+          ),
+    );
+    return composer;
+  }
+}
+
+class $$AnnotationsTableTableManager
+    extends
+        RootTableManager<
+          _$AppDatabase,
+          $AnnotationsTable,
+          Annotation,
+          $$AnnotationsTableFilterComposer,
+          $$AnnotationsTableOrderingComposer,
+          $$AnnotationsTableAnnotationComposer,
+          $$AnnotationsTableCreateCompanionBuilder,
+          $$AnnotationsTableUpdateCompanionBuilder,
+          (Annotation, $$AnnotationsTableReferences),
+          Annotation,
+          PrefetchHooks Function({bool novelId, bool chapterId})
+        > {
+  $$AnnotationsTableTableManager(_$AppDatabase db, $AnnotationsTable table)
+    : super(
+        TableManagerState(
+          db: db,
+          table: table,
+          createFilteringComposer: () =>
+              $$AnnotationsTableFilterComposer($db: db, $table: table),
+          createOrderingComposer: () =>
+              $$AnnotationsTableOrderingComposer($db: db, $table: table),
+          createComputedFieldComposer: () =>
+              $$AnnotationsTableAnnotationComposer($db: db, $table: table),
+          updateCompanionCallback:
+              ({
+                Value<int> id = const Value.absent(),
+                Value<int> novelId = const Value.absent(),
+                Value<int> chapterId = const Value.absent(),
+                Value<String> chapterUrl = const Value.absent(),
+                Value<int> paragraphIndex = const Value.absent(),
+                Value<String> quote = const Value.absent(),
+                Value<String?> note = const Value.absent(),
+                Value<int> createdAt = const Value.absent(),
+              }) => AnnotationsCompanion(
+                id: id,
+                novelId: novelId,
+                chapterId: chapterId,
+                chapterUrl: chapterUrl,
+                paragraphIndex: paragraphIndex,
+                quote: quote,
+                note: note,
+                createdAt: createdAt,
+              ),
+          createCompanionCallback:
+              ({
+                Value<int> id = const Value.absent(),
+                required int novelId,
+                required int chapterId,
+                required String chapterUrl,
+                required int paragraphIndex,
+                required String quote,
+                Value<String?> note = const Value.absent(),
+                required int createdAt,
+              }) => AnnotationsCompanion.insert(
+                id: id,
+                novelId: novelId,
+                chapterId: chapterId,
+                chapterUrl: chapterUrl,
+                paragraphIndex: paragraphIndex,
+                quote: quote,
+                note: note,
+                createdAt: createdAt,
+              ),
+          withReferenceMapper: (p0) => p0
+              .map(
+                (e) => (
+                  e.readTable<$AnnotationsTable, Annotation>(table),
+                  $$AnnotationsTableReferences(db, table, e),
+                ),
+              )
+              .toList(),
+          prefetchHooksCallback: ({novelId = false, chapterId = false}) {
+            return PrefetchHooks(
+              db: db,
+              explicitlyWatchedTables: [],
+              addJoins:
+                  <
+                    T extends TableManagerState<
+                      dynamic,
+                      dynamic,
+                      dynamic,
+                      dynamic,
+                      dynamic,
+                      dynamic,
+                      dynamic,
+                      dynamic,
+                      dynamic,
+                      dynamic,
+                      dynamic
+                    >
+                  >(state) {
+                    if (novelId) {
+                      state =
+                          state.withJoin(
+                                currentTable: table,
+                                currentColumn: table.novelId,
+                                referencedTable: $$AnnotationsTableReferences
+                                    ._novelIdTable(db),
+                                referencedColumn: $$AnnotationsTableReferences
+                                    ._novelIdTable(db)
+                                    .id,
+                              )
+                              as T;
+                    }
+                    if (chapterId) {
+                      state =
+                          state.withJoin(
+                                currentTable: table,
+                                currentColumn: table.chapterId,
+                                referencedTable: $$AnnotationsTableReferences
+                                    ._chapterIdTable(db),
+                                referencedColumn: $$AnnotationsTableReferences
+                                    ._chapterIdTable(db)
+                                    .id,
+                              )
+                              as T;
+                    }
+
+                    return state;
+                  },
+              getPrefetchedDataCallback: (items) async {
+                return [];
+              },
+            );
+          },
+        ),
+      );
+}
+
+typedef $$AnnotationsTableProcessedTableManager =
+    ProcessedTableManager<
+      _$AppDatabase,
+      $AnnotationsTable,
+      Annotation,
+      $$AnnotationsTableFilterComposer,
+      $$AnnotationsTableOrderingComposer,
+      $$AnnotationsTableAnnotationComposer,
+      $$AnnotationsTableCreateCompanionBuilder,
+      $$AnnotationsTableUpdateCompanionBuilder,
+      (Annotation, $$AnnotationsTableReferences),
+      Annotation,
+      PrefetchHooks Function({bool novelId, bool chapterId})
+    >;
 typedef $$SettingsTableCreateCompanionBuilder =
     SettingsCompanion Function({
       required String key,
@@ -8235,6 +9397,8 @@ class $AppDatabaseManager {
       $$DownloadsQueueTableTableManager(_db, _db.downloadsQueue);
   $$BookmarksTableTableManager get bookmarks =>
       $$BookmarksTableTableManager(_db, _db.bookmarks);
+  $$AnnotationsTableTableManager get annotations =>
+      $$AnnotationsTableTableManager(_db, _db.annotations);
   $$SettingsTableTableManager get settings =>
       $$SettingsTableTableManager(_db, _db.settings);
   $$ProviderCacheTableTableManager get providerCache =>

@@ -302,6 +302,15 @@ class _GeneralTab extends ConsumerWidget {
           settings,
           notifier,
         ),
+        _themeCircle(
+          context,
+          'E-ink',
+          'eink',
+          AppTheme.kReaderBgColors['eink']!,
+          AppTheme.kReaderTextColors['eink']!,
+          settings,
+          notifier,
+        ),
       ],
     );
   }
@@ -316,41 +325,48 @@ class _GeneralTab extends ConsumerWidget {
     ReaderSettingsNotifier notifier,
   ) {
     final isSelected = settings.readerTheme == themeKey;
-    return GestureDetector(
-      onTap: () => notifier.updateReaderTheme(themeKey),
-      child: Column(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          Container(
-            width: 40,
-            height: 40,
-            decoration: BoxDecoration(
-              color: bg,
-              shape: BoxShape.circle,
-              border: Border.all(
+    return Semantics(
+      button: true,
+      selected: isSelected,
+      label: '$label theme',
+      child: GestureDetector(
+        onTap: () => notifier.updateReaderTheme(themeKey),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Container(
+              width: 48,
+              height: 48,
+              decoration: BoxDecoration(
+                color: bg,
+                shape: BoxShape.circle,
+                border: Border.all(
+                  color: isSelected
+                      ? Theme.of(context).colorScheme.primary
+                      : Theme.of(context).colorScheme.outlineVariant,
+                  width: isSelected ? 3 : 1,
+                ),
+              ),
+              child: Center(
+                child: Text(
+                  'Aa',
+                  style: Theme.of(
+                    context,
+                  ).textTheme.labelMedium?.copyWith(color: text),
+                ),
+              ),
+            ),
+            const SizedBox(height: 4),
+            Text(
+              label,
+              style: Theme.of(context).textTheme.labelSmall?.copyWith(
                 color: isSelected
                     ? Theme.of(context).colorScheme.primary
-                    : Theme.of(context).colorScheme.outlineVariant,
-                width: isSelected ? 3 : 1,
+                    : null,
               ),
             ),
-            child: Center(
-              child: Text(
-                'Aa',
-                style: Theme.of(
-                  context,
-                ).textTheme.labelMedium?.copyWith(color: text),
-              ),
-            ),
-          ),
-          const SizedBox(height: 4),
-          Text(
-            label,
-            style: Theme.of(context).textTheme.labelSmall?.copyWith(
-              color: isSelected ? Theme.of(context).colorScheme.primary : null,
-            ),
-          ),
-        ],
+          ],
+        ),
       ),
     );
   }

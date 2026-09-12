@@ -34,6 +34,7 @@ class AppTheme {
     'sepia': Color(0xFFF4ECD8),
     'green': Color(0xFF1E2A38),
     'blue': Color(0xFF1A1A2F),
+    'eink': Color(0xFFFFFFFF),
   };
   static const Map<String, Color> kReaderTextColors = {
     'dark': Color(0xFFCCCCCC),
@@ -41,6 +42,7 @@ class AppTheme {
     'sepia': Color(0xFF3B3B2A),
     'green': Color(0xFF9FB8CC),
     'blue': Color(0xFFC8C8FF),
+    'eink': Color(0xFF000000),
   };
   static const Color kReaderBgDefault = Color(0xFF121212);
   static const Color kReaderTextDefault = Color(0xFFCCCCCC);

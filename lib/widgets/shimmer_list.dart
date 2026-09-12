@@ -55,21 +55,32 @@ class ShimmerBlock extends StatelessWidget {
   final double height;
   final double? width;
 
-  const ShimmerBlock({super.key, required this.height, this.width});
+  /// Animated shimmer. Disable on e-ink (static grey block instead): the
+  /// perpetual animation is pure battery burn on epaper panels.
+  final bool enabled;
+
+  const ShimmerBlock({
+    super.key,
+    required this.height,
+    this.width,
+    this.enabled = true,
+  });
 
   @override
   Widget build(BuildContext context) {
+    final block = Container(
+      height: height,
+      width: width,
+      decoration: BoxDecoration(
+        color: Theme.of(context).colorScheme.surfaceContainerHighest,
+        borderRadius: BorderRadius.all(Radii.sm),
+      ),
+    );
+    if (!enabled) return block;
     return Shimmer.fromColors(
       baseColor: Theme.of(context).colorScheme.surfaceContainerHighest,
       highlightColor: Theme.of(context).colorScheme.surfaceContainerLow,
-      child: Container(
-        height: height,
-        width: width,
-        decoration: BoxDecoration(
-          color: Theme.of(context).colorScheme.surfaceContainerHighest,
-          borderRadius: BorderRadius.all(Radii.sm),
-        ),
-      ),
+      child: block,
     );
   }
 }

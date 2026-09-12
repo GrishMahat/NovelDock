@@ -9,6 +9,7 @@ mixin _$ChapterDaoMixin on DatabaseAccessor<AppDatabase> {
   $ReadingHistoryTable get readingHistory => attachedDatabase.readingHistory;
   $DownloadsQueueTable get downloadsQueue => attachedDatabase.downloadsQueue;
   $BookmarksTable get bookmarks => attachedDatabase.bookmarks;
+  $AnnotationsTable get annotations => attachedDatabase.annotations;
   $LibraryTable get library => attachedDatabase.library;
   $NovelProgressTable get novelProgress => attachedDatabase.novelProgress;
   ChapterDaoManager get managers => ChapterDaoManager(this);
@@ -33,6 +34,8 @@ class ChapterDaoManager {
       );
   $$BookmarksTableTableManager get bookmarks =>
       $$BookmarksTableTableManager(_db.attachedDatabase, _db.bookmarks);
+  $$AnnotationsTableTableManager get annotations =>
+      $$AnnotationsTableTableManager(_db.attachedDatabase, _db.annotations);
   $$LibraryTableTableManager get library =>
       $$LibraryTableTableManager(_db.attachedDatabase, _db.library);
   $$NovelProgressTableTableManager get novelProgress =>

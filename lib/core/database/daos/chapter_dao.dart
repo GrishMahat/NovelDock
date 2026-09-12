@@ -13,6 +13,7 @@ part 'chapter_dao.g.dart';
     ReadingHistory,
     DownloadsQueue,
     Bookmarks,
+    Annotations,
     Library,
     NovelProgress,
   ],
@@ -183,6 +184,9 @@ class ChapterDao extends DatabaseAccessor<AppDatabase> with _$ChapterDaoMixin {
         )..where((t) => t.chapterId.isIn(chunk))).go();
         await (delete(
           db.bookmarks,
+        )..where((t) => t.chapterId.isIn(chunk))).go();
+        await (delete(
+          db.annotations,
         )..where((t) => t.chapterId.isIn(chunk))).go();
         await (update(db.library)..where(
               (t) => t.novelId.equals(novelId) & t.lastChapterId.isIn(chunk),

@@ -19,6 +19,9 @@ Widget buildChapterContent({
   required Map<String, GlobalKey> chunkKeys,
   required int settingsVersion,
   Map<int, int>? blockToParagraph,
+  Map<int, Annotation>? annotationsByParagraph,
+  void Function(int chapterId, int paragraphIndex, String text)?
+  onAnnotateParagraph,
 }) {
   if (content.isPdf) {
     return _buildPdfView(content.data, settings);
@@ -53,6 +56,8 @@ Widget buildChapterContent({
     chunkKeys: chunkKeys,
     settingsVersion: settingsVersion,
     blockToParagraph: blockToParagraph,
+    annotationsByParagraph: annotationsByParagraph,
+    onAnnotateParagraph: onAnnotateParagraph,
   );
 }
 
@@ -129,6 +134,9 @@ Widget buildContinuousContent({
   required int settingsVersion,
   required TtsManagerState ttsState,
   Map<int, int>? blockToParagraph,
+  Map<int, List<Annotation>>? annotationsByChapter,
+  void Function(int chapterId, int paragraphIndex, String text)?
+  onAnnotateParagraph,
 }) {
   return ListView.builder(
     controller: scrollController,
@@ -151,12 +159,16 @@ Widget buildContinuousContent({
         }
         // Prose-shaped shimmer like the far-chapter placeholder below: a
         // bare spinner here flashes layout on every chapter turn.
+        // Static on e-ink (no animation burn on epaper).
         final placeholderHeight = index == currentIndex + 1
             ? 320.0
             : 240.0 + ((chapterId * 37) % 5) * 32.0;
         return Padding(
           padding: const EdgeInsets.symmetric(vertical: 32),
-          child: ShimmerBlock(height: placeholderHeight),
+          child: ShimmerBlock(
+            height: placeholderHeight,
+            enabled: !settings.reduceMotion,
+          ),
         );
       }
 
@@ -220,6 +232,11 @@ Widget buildContinuousContent({
               chunkKeys: chunkKeys,
               settingsVersion: settingsVersion,
               blockToParagraph: blockToParagraph,
+              annotationsByParagraph: _annotationsFor(
+                annotationsByChapter,
+                chapterId,
+              ),
+              onAnnotateParagraph: onAnnotateParagraph,
             ),
           ],
         );
@@ -237,9 +254,25 @@ Widget buildContinuousContent({
         chunkKeys: chunkKeys,
         settingsVersion: settingsVersion,
         blockToParagraph: blockToParagraph,
+        annotationsByParagraph: _annotationsFor(
+          annotationsByChapter,
+          chapterId,
+        ),
+        onAnnotateParagraph: onAnnotateParagraph,
       );
     },
   );
+}
+
+/// Paragraph-indexed annotation lookup for one chapter. Null-safe: no
+/// annotations (or none for this chapter) means plain rendering.
+Map<int, Annotation>? _annotationsFor(
+  Map<int, List<Annotation>>? byChapter,
+  int chapterId,
+) {
+  final rows = byChapter?[chapterId];
+  if (rows == null || rows.isEmpty) return null;
+  return {for (final a in rows) a.paragraphIndex: a};
 }
 
 /// One failed chapter is a retryable event, not a dead end. Raw exception

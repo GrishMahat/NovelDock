@@ -70,6 +70,7 @@ class BackupRestorePage extends ConsumerWidget {
                   _bullet(context, 'Novels in your library'),
                   _bullet(context, 'Reading history'),
                   _bullet(context, 'Bookmarks'),
+                  _bullet(context, 'Reader highlights and notes'),
                   _bullet(context, 'Download queue state'),
                   _bullet(context, 'App settings'),
                   _bullet(context, 'Provider cache info'),
@@ -107,8 +108,10 @@ class BackupRestorePage extends ConsumerWidget {
   Future<void> _exportBackup(BuildContext context, WidgetRef ref) async {
     try {
       final novelDao = ref.read(novelDaoProvider);
+      final chapterDao = ref.read(chapterDaoProvider);
       final historyDao = ref.read(historyDaoProvider);
       final bookmarkDao = ref.read(bookmarkDaoProvider);
+      final annotationDao = ref.read(annotationDaoProvider);
       final downloadDao = ref.read(downloadDaoProvider);
       final settingsDao = ref.read(settingsDaoProvider);
       final providerCacheDao = ref.read(providerCacheDaoProvider);
@@ -119,7 +122,6 @@ class BackupRestorePage extends ConsumerWidget {
       final downloadEntries = await downloadDao.getAllDownloads();
       final settingsMap = await settingsDao.getAllSettings();
       final providerCache = await providerCacheDao.getAllProviders();
-
       // URL-keyed rows: integer row ids are meaningless in another database,
       // so history/bookmarks/downloads carry the novel + chapter URLs needed
       // to remap them on import. Rows whose targets no longer resolve are
@@ -168,6 +170,22 @@ class BackupRestorePage extends ConsumerWidget {
         });
       }
 
+      final annotationRows = <Map<String, dynamic>>[];
+      for (final novel in novels) {
+        final annotations = await annotationDao.getForNovel(novel.id);
+        for (final a in annotations) {
+          final chapter = await chapterDao.getChapterById(a.chapterId);
+          annotationRows.add({
+            'novelUrl': novel.url,
+            'chapterUrl': chapter?.url,
+            'paragraphIndex': a.paragraphIndex,
+            'quote': a.quote,
+            'note': a.note,
+            'createdAt': a.createdAt,
+          });
+        }
+      }
+
       final backup = {
         'version': 2,
         'exportedAt': DateTime.now().toIso8601String(),
@@ -188,6 +206,7 @@ class BackupRestorePage extends ConsumerWidget {
             .toList(),
         'history': historyRows,
         'bookmarks': bookmarkRows,
+        'annotations': annotationRows,
         'downloads': downloadRows,
         'settings': settingsMap,
         'providerCache': providerCache
@@ -259,6 +278,7 @@ class BackupRestorePage extends ConsumerWidget {
       final chapterDao = ref.read(chapterDaoProvider);
       final historyDao = ref.read(historyDaoProvider);
       final bookmarkDao = ref.read(bookmarkDaoProvider);
+      final annotationDao = ref.read(annotationDaoProvider);
       final downloadDao = ref.read(downloadDaoProvider);
       final settingsDao = ref.read(settingsDaoProvider);
       final db = ref.read(appDatabaseProvider);
@@ -391,6 +411,45 @@ class BackupRestorePage extends ConsumerWidget {
             );
           } catch (e) {
             Log.w(_tag, 'Failed to import bookmark: $e');
+          }
+        }
+
+        final annotationList = data['annotations'] as List? ?? [];
+        for (final a in annotationList) {
+          try {
+            final map = a as Map<String, dynamic>;
+            final novelUrl = map['novelUrl'] as String?;
+            final novelId = novelUrl == null ? null : novelIdsByUrl[novelUrl];
+            final chapterId = isV2
+                ? await resolveChapter(novelUrl, map['chapterUrl'] as String?)
+                : null;
+            final quote = map['quote'] as String?;
+            if (novelId == null || chapterId == null || quote == null) {
+              skippedRows++;
+              continue;
+            }
+            // Same position = same highlight: keep the import idempotent.
+            final dupe = await annotationDao.getForPosition(
+              novelId,
+              chapterId,
+              (map['paragraphIndex'] as num?)?.toInt() ?? 0,
+            );
+            if (dupe != null) continue;
+            await annotationDao.addAnnotation(
+              AnnotationsCompanion.insert(
+                novelId: novelId,
+                chapterId: chapterId,
+                chapterUrl: map['chapterUrl'] as String? ?? '',
+                paragraphIndex: (map['paragraphIndex'] as num?)?.toInt() ?? 0,
+                quote: quote,
+                note: Value(map['note'] as String?),
+                createdAt:
+                    (map['createdAt'] as num?)?.toInt() ??
+                    DateTime.now().millisecondsSinceEpoch,
+              ),
+            );
+          } catch (e) {
+            Log.w(_tag, 'Failed to import annotation: $e');
           }
         }
 

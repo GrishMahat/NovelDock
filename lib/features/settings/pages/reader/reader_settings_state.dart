@@ -99,6 +99,8 @@ class ReaderSettings {
         return AppTheme.kReaderBgColors['green']!;
       case 'blue':
         return AppTheme.kReaderBgColors['blue']!;
+      case 'eink':
+        return AppTheme.kReaderBgColors['eink']!;
       default:
         return AppTheme.kReaderBgDefault;
     }
@@ -114,10 +116,17 @@ class ReaderSettings {
         return AppTheme.kReaderTextColors['green']!;
       case 'blue':
         return AppTheme.kReaderTextColors['blue']!;
+      case 'eink':
+        return AppTheme.kReaderTextColors['eink']!;
       default:
         return AppTheme.kReaderTextDefault;
     }
   }
+
+  /// E-ink mode: pure black on white with all reader motion disabled.
+  /// Every animated reader path (auto-scroll glides, sidebar slide,
+  /// shimmer placeholders, page jumps) checks this and goes instant.
+  bool get reduceMotion => readerTheme == 'eink';
 }
 
 Future<List<String>> getSystemFonts() async {

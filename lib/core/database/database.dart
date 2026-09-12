@@ -12,6 +12,7 @@ import 'daos/library_dao.dart';
 import 'daos/history_dao.dart';
 import 'daos/download_dao.dart';
 import 'daos/bookmark_dao.dart';
+import 'daos/annotation_dao.dart';
 import 'daos/settings_dao.dart';
 import 'daos/provider_cache_dao.dart';
 import 'daos/novel_progress_dao.dart';
@@ -23,6 +24,7 @@ export 'daos/library_dao.dart';
 export 'daos/history_dao.dart';
 export 'daos/download_dao.dart';
 export 'daos/bookmark_dao.dart';
+export 'daos/annotation_dao.dart';
 export 'daos/settings_dao.dart';
 export 'daos/provider_cache_dao.dart';
 export 'daos/novel_progress_dao.dart';
@@ -37,6 +39,7 @@ part 'database.g.dart';
     ReadingHistory,
     DownloadsQueue,
     Bookmarks,
+    Annotations,
     Settings,
     ProviderCache,
     NovelProgress,
@@ -48,6 +51,7 @@ part 'database.g.dart';
     HistoryDao,
     DownloadDao,
     BookmarkDao,
+    AnnotationDao,
     SettingsDao,
     ProviderCacheDao,
     NovelProgressDao,
@@ -60,8 +64,7 @@ class AppDatabase extends _$AppDatabase {
   AppDatabase.withExecutor(super.e);
 
   @override
-  int get schemaVersion => 3;
-
+  int get schemaVersion => 4;
   @override
   MigrationStrategy get migration => MigrationStrategy(
     onCreate: (m) async {
@@ -125,6 +128,17 @@ class AppDatabase extends _$AppDatabase {
           } catch (e) {
             Log.e('DB', 'Migration v3 step failed: $indexSql', e);
           }
+        }
+      }
+      if (from < 4) {
+        try {
+          await m.createTable(annotations);
+        } catch (e) {
+          Log.e(
+            'DB',
+            'Migration v3->v4 step failed: createTable annotations',
+            e,
+          );
         }
       }
     },

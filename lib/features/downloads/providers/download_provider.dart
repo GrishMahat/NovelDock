@@ -250,6 +250,70 @@ class DownloadNotifier extends _$DownloadNotifier {
     }
   }
 
+  /// Auto-downloads the next chapters for the Reading list (see
+  /// DownloadSettings.autoDownloadCount, 0 disables). Wi-Fi/ethernet only
+  /// by definition — never burns mobile data. Bounded (200 chapters per
+  /// run), idempotent (skips downloaded/queued/local chapters), and cheap
+  /// when disabled (one prefs read). Called once per launch and when the
+  /// Downloads screen opens.
+  Future<void> autoDownloadNext() async {
+    final settings = ref.read(downloadSettingsProvider);
+    final count = settings.autoDownloadCount;
+    if (count <= 0) return;
+    if (!await _onWifi()) {
+      Log.i(_tag, 'Auto-download deferred: not on Wi-Fi');
+      return;
+    }
+
+    final libraryDao = ref.read(libraryDaoProvider);
+    final chapterDao = ref.read(chapterDaoProvider);
+    final downloadDao = ref.read(downloadDaoProvider);
+
+    const maxPerRun = 200;
+    var enqueued = 0;
+    final entries = await libraryDao.getAllLibraryEntries();
+    for (final entry in entries.where((e) => e.status == 'Reading')) {
+      if (enqueued >= maxPerRun) break;
+      final chapters = await chapterDao.getChaptersForNovel(entry.novelId);
+      if (chapters.isEmpty) continue;
+
+      // Resume point: after the last read chapter, else from the top.
+      var startIndex = -1.0;
+      if (entry.lastChapterId != null) {
+        for (final c in chapters) {
+          if (c.id == entry.lastChapterId) {
+            startIndex = c.index;
+            break;
+          }
+        }
+      }
+
+      final queued = (await downloadDao.getDownloadsForNovel(
+        entry.novelId,
+      )).map((d) => d.chapterId).toSet();
+      final fresh = <int>[];
+      for (final c in chapters) {
+        if (fresh.length >= count || enqueued + fresh.length >= maxPerRun) {
+          break;
+        }
+        if (c.index <= startIndex) continue;
+        if (c.downloaded || queued.contains(c.id)) continue;
+        // Imports live on disk already.
+        if (c.url.startsWith('epub://') || c.url.startsWith('pdf://')) {
+          continue;
+        }
+        fresh.add(c.id);
+      }
+      if (fresh.isEmpty) continue;
+      await _enqueueChapters(entry.novelId, fresh);
+      enqueued += fresh.length;
+    }
+
+    if (enqueued > 0) {
+      Log.ok(_tag, 'Auto-downloaded $enqueued chapter(s)');
+    }
+  }
+
   /// Requeues tasks stuck in 'downloading' from a previous session and
   /// restarts processing. Called when the Downloads screen opens.
   Future<void> resumePendingDownloads() async {

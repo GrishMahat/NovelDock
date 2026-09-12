@@ -35,6 +35,8 @@ class _DownloadsScreenState extends ConsumerState<DownloadsScreen> {
       ref.read(downloadProvider.notifier).resumePendingDownloads();
       // Heal download flags for files deleted outside the app.
       ref.read(downloadProvider.notifier).reconcileDownloads();
+      // Top up the Reading list when configured (Wi-Fi only, bounded).
+      ref.read(downloadProvider.notifier).autoDownloadNext();
     });
   }
 

@@ -205,7 +205,7 @@ void main() {
     });
   });
 
-  group('migration v1 -> v3', () {
+  group('migration v1 -> latest', () {
     test('legacy database upgrades with data intact', () async {
       final dir = await Directory.systemTemp.createTemp('noveldock-mig');
       final path = '${dir.path}/v1.sqlite';
@@ -293,6 +293,7 @@ void main() {
               .map((row) => row.read<String>('name'))
               .get();
           expect(tables, contains('novel_progress'));
+          expect(tables, contains('annotations'));
 
           final indexes = await appDb
               .customSelect(
@@ -318,7 +319,7 @@ void main() {
               .customSelect('PRAGMA user_version')
               .map((row) => row.read<int>('user_version'))
               .getSingle();
-          expect(version, 3);
+          expect(version, 4);
         } finally {
           await appDb.close();
         }

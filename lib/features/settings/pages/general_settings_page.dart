@@ -1,10 +1,15 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:riverpod_annotation/riverpod_annotation.dart';
+import 'package:webview_all/webview_all.dart';
 
 import '../../../core/config/app_prefs.dart';
+import '../../../core/network/client.dart' show cookieJarProvider;
+import '../../../core/utils/logger.dart';
 
 part 'general_settings_page.g.dart';
+
+const _tag = 'GeneralSettings';
 
 class GeneralSettings {
   final int startupTab;
@@ -159,9 +164,75 @@ class GeneralSettingsPage extends ConsumerWidget {
               }
             },
           ),
+          const Divider(),
+          _buildSection(context, 'Privacy'),
+          ListTile(
+            leading: const Icon(Icons.cleaning_services_outlined),
+            title: const Text('Clear site data'),
+            subtitle: const Text(
+              'Delete scraper cookies and in-app browser sessions. '
+              'You may need to solve Cloudflare checks again.',
+            ),
+            onTap: () => _confirmClearSiteData(context, ref),
+          ),
         ],
       ),
     );
+  }
+
+  Future<void> _confirmClearSiteData(
+    BuildContext context,
+    WidgetRef ref,
+  ) async {
+    final confirm = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: const Text('Clear site data?'),
+        content: const Text(
+          'This signs you out of novel sites inside the app and clears '
+          'saved verification cookies. Downloads and library are untouched.',
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(ctx, false),
+            child: const Text('Cancel'),
+          ),
+          FilledButton(
+            onPressed: () => Navigator.pop(ctx, true),
+            child: const Text('Clear'),
+          ),
+        ],
+      ),
+    );
+    if (confirm != true || !context.mounted) return;
+
+    var cleared = 0;
+    try {
+      final jar = await ref.read(cookieJarProvider.future);
+      await jar.deleteAll();
+      cleared++;
+    } catch (e) {
+      Log.w(_tag, 'Failed to clear scraper cookies: $e');
+    }
+    try {
+      await WebViewCookieManager().clearCookies();
+      cleared++;
+    } catch (e) {
+      Log.w(_tag, 'Failed to clear browser cookies: $e');
+    }
+
+    Log.i(_tag, 'Site data cleared ($cleared/2 stores)');
+    if (context.mounted) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(
+            cleared == 2
+                ? 'Site data cleared'
+                : 'Partially cleared — see logs for details',
+          ),
+        ),
+      );
+    }
   }
 
   Widget _buildSection(BuildContext context, String title) {

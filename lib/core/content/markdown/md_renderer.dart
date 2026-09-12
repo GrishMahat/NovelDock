@@ -4,6 +4,7 @@ import 'package:url_launcher/url_launcher.dart';
 
 import '../../tts/tts_manager.dart';
 import '../../../features/settings/pages/reader/reader_settings_state.dart';
+import '../../database/database.dart';
 import '../../../theme/app_theme.dart';
 import 'md_ast.dart';
 
@@ -40,10 +41,26 @@ Widget buildDocument({
   required Map<String, GlobalKey> chunkKeys,
   required int settingsVersion,
   Map<int, int>? blockToParagraph,
+  // Reader highlights, this chapter: paragraph ordinal -> row. Ordinals
+  // match ttsParagraphs (nth top-level ParagraphNode), so highlights and
+  // read-aloud agree on paragraph identity.
+  Map<int, Annotation>? annotationsByParagraph,
+  void Function(int chapterId, int paragraphIndex, String text)?
+  onAnnotateParagraph,
 }) {
   final textStyle = _buildTextStyle(settings);
   final align = _textAlign(settings.textAlignment);
   final isCurrentChapter = chapterId == currentChapterId;
+
+  // Paragraph ordinals (nth top-level ParagraphNode) computed eagerly:
+  // Builder closures below run lazily and repeatedly, so no counting there.
+  final paragraphOrdinals = <int, int>{};
+  var ordinal = 0;
+  for (var i = 0; i < doc.blocks.length; i++) {
+    if (doc.blocks[i] is ParagraphNode) {
+      paragraphOrdinals[i] = ordinal++;
+    }
+  }
 
   return Column(
     crossAxisAlignment: CrossAxisAlignment.start,
@@ -53,6 +70,7 @@ Widget buildDocument({
           doc.blocks[i],
           chapterId: chapterId,
           blockIndex: i,
+          paragraphIndex: paragraphOrdinals[i],
           textStyle: textStyle,
           align: align,
           settings: settings,
@@ -60,6 +78,10 @@ Widget buildDocument({
           ttsState: ttsState,
           chunkKeys: chunkKeys,
           blockToParagraph: blockToParagraph,
+          annotation: paragraphOrdinals[i] == null
+              ? null
+              : annotationsByParagraph?[paragraphOrdinals[i]!],
+          onAnnotateParagraph: onAnnotateParagraph,
         ),
     ],
   );
@@ -69,6 +91,7 @@ Widget _buildBlock(
   BlockNode block, {
   required int chapterId,
   required int blockIndex,
+  required int? paragraphIndex,
   required TextStyle textStyle,
   required TextAlign align,
   required ReaderSettings settings,
@@ -76,6 +99,9 @@ Widget _buildBlock(
   required TtsManagerState ttsState,
   required Map<String, GlobalKey> chunkKeys,
   Map<int, int>? blockToParagraph,
+  Annotation? annotation,
+  void Function(int chapterId, int paragraphIndex, String text)?
+  onAnnotateParagraph,
 }) {
   // TTS chunks are indexed by paragraph (skipping headings etc.), so map the
   // block index to its paragraph index before comparing with the current chunk.
@@ -97,6 +123,10 @@ Widget _buildBlock(
         settings: settings,
         isHighlighted: isHighlighted,
         ttsState: ttsState,
+        chapterId: chapterId,
+        paragraphIndex: paragraphIndex,
+        annotation: annotation,
+        onAnnotateParagraph: onAnnotateParagraph,
       ),
       HeadingNode() => _buildHeading(
         block,
@@ -130,19 +160,58 @@ Widget _buildParagraph(
   required ReaderSettings settings,
   required bool isHighlighted,
   required TtsManagerState ttsState,
+  int? chapterId,
+  int? paragraphIndex,
+  Annotation? annotation,
+  void Function(int chapterId, int paragraphIndex, String text)?
+  onAnnotateParagraph,
 }) {
+  // Plain paragraph text for quotes/long-press payloads.
+  String plainText() =>
+      node.children.whereType<TextNode>().map((n) => n.text).join().trim();
+
+  Widget frame(Widget content) {
+    // Reader highlight: distinct from the blue TTS tint so the two never
+    // visually collide (amber wash; greys gracefully on e-ink).
+    final annotated = annotation != null;
+    final framed = annotated
+        ? Container(
+            decoration: BoxDecoration(
+              color: const Color(0xFFE8B93C).withValues(alpha: 0.28),
+              borderRadius: BorderRadius.circular(4),
+            ),
+            child: content,
+          )
+        : content;
+    // Long-press to highlight/annotate. Only when the reader supplied a
+    // handler and this paragraph has a stable identity.
+    if (onAnnotateParagraph == null ||
+        chapterId == null ||
+        paragraphIndex == null) {
+      return framed;
+    }
+    return GestureDetector(
+      behavior: HitTestBehavior.translucent,
+      onLongPress: () =>
+          onAnnotateParagraph(chapterId, paragraphIndex, plainText()),
+      child: framed,
+    );
+  }
+
   return Padding(
     padding: EdgeInsets.only(bottom: settings.paragraphSpacing),
     child: Builder(
       builder: (context) {
         if (isHighlighted &&
             ttsState.highlightMode == TtsHighlightMode.sentence) {
-          return _highlightedRichText(
-            node.children,
-            textStyle: textStyle,
-            align: align,
-            settings: settings,
-            ttsState: ttsState,
+          return frame(
+            _highlightedRichText(
+              node.children,
+              textStyle: textStyle,
+              align: align,
+              settings: settings,
+              ttsState: ttsState,
+            ),
           );
         }
         if (isHighlighted &&
@@ -152,19 +221,23 @@ Widget _buildParagraph(
               color: AppTheme.kReaderAccent.withValues(alpha: 0.1),
               borderRadius: BorderRadius.circular(4),
             ),
-            child: _richText(
-              node.children,
-              textStyle: textStyle,
-              align: align,
-              settings: settings,
+            child: frame(
+              _richText(
+                node.children,
+                textStyle: textStyle,
+                align: align,
+                settings: settings,
+              ),
             ),
           );
         }
-        return _richText(
-          node.children,
-          textStyle: textStyle,
-          align: align,
-          settings: settings,
+        return frame(
+          _richText(
+            node.children,
+            textStyle: textStyle,
+            align: align,
+            settings: settings,
+          ),
         );
       },
     ),

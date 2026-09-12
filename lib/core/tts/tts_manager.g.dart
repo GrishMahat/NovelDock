@@ -41,7 +41,7 @@ final class TtsManagerProvider
   }
 }
 
-String _$ttsManagerHash() => r'5c405f9d0e7612fe9655f0383223ddc352c4ec7b';
+String _$ttsManagerHash() => r'8402dd275e09d54939274e8535bb2a92fd935646';
 
 abstract class _$TtsManager extends $Notifier<TtsManagerState> {
   TtsManagerState build();

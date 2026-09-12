@@ -655,6 +655,8 @@ class _ProviderRow extends ConsumerWidget {
                               height: 152,
                               imageHeaders: item.coverHeaders,
                               semanticLabel: 'Cover of ${item.title}',
+                              title: item.title,
+                              fontSize: 48,
                             ),
                           ),
                           const SizedBox(height: Insets.xs),

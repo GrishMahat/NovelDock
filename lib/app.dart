@@ -37,6 +37,7 @@ class _NovelDockAppState extends ConsumerState<NovelDockApp> {
       final downloads = ref.read(downloadProvider.notifier);
       unawaited(downloads.resumePendingDownloads());
       unawaited(downloads.reconcileDownloads());
+      unawaited(downloads.autoDownloadNext());
     });
   }
 

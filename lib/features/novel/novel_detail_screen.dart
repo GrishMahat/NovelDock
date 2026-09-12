@@ -1,9 +1,12 @@
 import 'dart:async';
+import 'dart:io';
 
 import 'package:dio/dio.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
+import 'package:path_provider/path_provider.dart';
+import 'package:share_plus/share_plus.dart';
 
 import '../../core/database/database.dart';
 import '../../core/network/client.dart' show dioProvider;
@@ -771,6 +774,7 @@ class _NovelDetailScreenState extends ConsumerState<NovelDetailScreen> {
                           ),
                         ),
                       ),
+                    _HighlightsSection(novel: novel, chapters: sortedChapters),
                     const SizedBox(height: 80),
                   ],
                 ),
@@ -829,6 +833,147 @@ class _NovelDetailScreenState extends ConsumerState<NovelDetailScreen> {
         ),
       ),
     );
+  }
+}
+
+/// Reader highlights for this novel, with Markdown export. Own widget so
+/// annotation changes rebuild only this section, not the detail body.
+class _HighlightsSection extends ConsumerWidget {
+  final Novel? novel;
+  final List<Chapter> chapters;
+
+  const _HighlightsSection({required this.novel, required this.chapters});
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final annotationsAsync = ref.watch(
+      novelAnnotationsProvider(novel?.id ?? -1),
+    );
+    final annotations = annotationsAsync.value ?? const <Annotation>[];
+    if (annotations.isEmpty) return const SizedBox.shrink();
+
+    final chapterNames = {for (final c in chapters) c.id: c.name};
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        const SizedBox(height: Insets.lg),
+        Row(
+          children: [
+            Expanded(
+              child: Text(
+                'Highlights (${annotations.length})',
+                style: Theme.of(context).textTheme.titleMedium,
+              ),
+            ),
+            IconButton(
+              icon: const Icon(Icons.share_outlined, size: 20),
+              tooltip: 'Export highlights',
+              onPressed: () =>
+                  _exportHighlights(context, ref, annotations, chapterNames),
+            ),
+          ],
+        ),
+        const SizedBox(height: Insets.sm),
+        for (final a in annotations)
+          ListTile(
+            contentPadding: EdgeInsets.zero,
+            dense: true,
+            title: Text(
+              '“${a.quote}”',
+              maxLines: 2,
+              overflow: TextOverflow.ellipsis,
+              style: Theme.of(
+                context,
+              ).textTheme.bodyMedium?.copyWith(fontStyle: FontStyle.italic),
+            ),
+            subtitle: Text(
+              [
+                chapterNames[a.chapterId] ?? 'Chapter',
+                if (a.note != null && a.note!.isNotEmpty) a.note!,
+              ].join(' · '),
+              maxLines: 2,
+              overflow: TextOverflow.ellipsis,
+            ),
+            trailing: IconButton(
+              icon: const Icon(Icons.delete_outline, size: 20),
+              tooltip: 'Delete highlight',
+              onPressed: () =>
+                  ref.read(annotationDaoProvider).removeAnnotation(a.id),
+            ),
+            onTap: a.note == null || a.note!.isEmpty
+                ? null
+                : () => _viewNote(context, a),
+          ),
+      ],
+    );
+  }
+
+  void _viewNote(BuildContext context, Annotation annotation) {
+    showDialog<void>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: const Text('Note'),
+        content: SingleChildScrollView(child: Text(annotation.note!)),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(ctx).pop(),
+            child: const Text('Close'),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Future<void> _exportHighlights(
+    BuildContext context,
+    WidgetRef ref,
+    List<Annotation> annotations,
+    Map<int, String> chapterNames,
+  ) async {
+    try {
+      final title = novel?.title ?? 'Novel';
+      final buf = StringBuffer(
+        '# Highlights — $title\n\n'
+        'Exported ${DateTime.now().toIso8601String().split('T').first} '
+        'from NovelDock\n',
+      );
+      var currentChapter = '';
+      for (final a in annotations) {
+        final chapter = chapterNames[a.chapterId] ?? 'Chapter';
+        if (chapter != currentChapter) {
+          currentChapter = chapter;
+          buf.writeln('\n## $chapter\n');
+        }
+        buf.writeln('> ${a.quote}\n');
+        if (a.note != null && a.note!.isNotEmpty) {
+          buf.writeln('Note: ${a.note}\n');
+        }
+      }
+
+      final dir = await getTemporaryDirectory();
+      final safeTitle = title
+          .replaceAll(RegExp(r'[^\w\s-]'), '')
+          .trim()
+          .replaceAll(RegExp(r'\s+'), '-')
+          .toLowerCase();
+      final file = File(
+        '${dir.path}/noveldock-highlights-${safeTitle.isEmpty ? 'novel' : safeTitle}.md',
+      );
+      await file.writeAsString(buf.toString());
+
+      await SharePlus.instance.share(
+        ShareParams(files: [XFile(file.path)], text: 'Highlights — $title'),
+      );
+      Log.i('NovelDetail', 'Exported ${annotations.length} highlight(s)');
+    } catch (e) {
+      Log.e('NovelDetail', 'Highlight export failed', e);
+      if (context.mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Export failed — see logs')),
+        );
+      }
+    }
   }
 }
 

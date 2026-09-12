@@ -22,6 +22,7 @@ import '../../theme/tokens.dart';
 import '../../widgets/max_width_box.dart';
 import '../settings/pages/reader/reader_settings_state.dart';
 import 'widgets/bookmark_sheet.dart';
+import 'widgets/annotation_sheet.dart';
 import 'widgets/chapter_sidebar.dart';
 import 'widgets/chapter_sheet.dart';
 import 'widgets/reader_content_view.dart';
@@ -434,6 +435,12 @@ class _ReaderScreenState extends ConsumerState<ReaderScreen> {
         (_scrollController.offset +
                 pages * _scrollController.position.viewportDimension * 0.85)
             .clamp(0.0, _scrollController.position.maxScrollExtent);
+    // E-ink: jumping avoids the full-screen refresh storm an animated glide
+    // causes on epaper panels.
+    if (ref.read(readerSettingsProvider).reduceMotion) {
+      _scrollController.jumpTo(target);
+      return;
+    }
     _scrollController.animateTo(
       target,
       duration: const Duration(milliseconds: 220),
@@ -590,10 +597,14 @@ class _ReaderScreenState extends ConsumerState<ReaderScreen> {
     }
 
     _lastAutoScrolledParagraph = paragraph;
+    // E-ink (and reduced motion): instant jump instead of a 320ms glide.
+    final reduceMotion = ref.read(readerSettingsProvider).reduceMotion;
     _autoScrollFuture =
         Scrollable.ensureVisible(
           targetContext,
-          duration: const Duration(milliseconds: 320),
+          duration: reduceMotion
+              ? Duration.zero
+              : const Duration(milliseconds: 320),
           curve: Curves.easeOutCubic,
           alignment: 0.22,
         ).whenComplete(() {
@@ -606,6 +617,12 @@ class _ReaderScreenState extends ConsumerState<ReaderScreen> {
 
   void _restoreLockedTtsScroll(double ceiling) {
     if (_restoringTtsScroll || !_scrollController.hasClients) return;
+    if (ref.read(readerSettingsProvider).reduceMotion) {
+      _scrollController.jumpTo(
+        ceiling.clamp(0.0, _scrollController.position.maxScrollExtent),
+      );
+      return;
+    }
     _restoringTtsScroll = true;
     _autoScrollFuture = _scrollController
         .animateTo(
@@ -801,6 +818,70 @@ class _ReaderScreenState extends ConsumerState<ReaderScreen> {
     }
   }
 
+  /// Long-press on a paragraph: highlight it, attach a note, or manage the
+  /// existing annotation. Rows carry the chapter URL (not just the row id)
+  /// so they stay meaningful across chapter-list refreshes.
+  Future<void> _onAnnotateParagraph(
+    int chapterId,
+    int paragraphIndex,
+    String text,
+  ) async {
+    if (text.isEmpty || !mounted) return;
+    var chapterUrl = '';
+    for (final c
+        in ref.read(readerNavigationProvider(widget.novelId)).chapters) {
+      if (c.id == chapterId) {
+        chapterUrl = c.url;
+        break;
+      }
+    }
+    final dao = ref.read(annotationDaoProvider);
+    final existing = await dao.getForPosition(
+      widget.novelId,
+      chapterId,
+      paragraphIndex,
+    );
+    if (!mounted) return;
+    final now = DateTime.now().millisecondsSinceEpoch;
+    await showAnnotationSheet(
+      context,
+      existing: existing,
+      quote: text,
+      onHighlight: () async {
+        await dao.addAnnotation(
+          AnnotationsCompanion.insert(
+            novelId: widget.novelId,
+            chapterId: chapterId,
+            chapterUrl: chapterUrl,
+            paragraphIndex: paragraphIndex,
+            quote: text,
+            createdAt: now,
+          ),
+        );
+      },
+      onSaveNote: (note) async {
+        if (existing == null) {
+          await dao.addAnnotation(
+            AnnotationsCompanion.insert(
+              novelId: widget.novelId,
+              chapterId: chapterId,
+              chapterUrl: chapterUrl,
+              paragraphIndex: paragraphIndex,
+              quote: text,
+              note: Value(note),
+              createdAt: now,
+            ),
+          );
+        } else {
+          await dao.updateNote(existing.id, note);
+        }
+      },
+      onRemove: () async {
+        if (existing != null) await dao.removeAnnotation(existing.id);
+      },
+    );
+  }
+
   void _addBookmark() async {
     final nav = ref.read(readerNavigationProvider(widget.novelId));
     final chapter = nav.currentChapter;
@@ -952,6 +1033,16 @@ class _ReaderScreenState extends ConsumerState<ReaderScreen> {
     final contentCache = _buildContentMap(contentState);
     final errorCache = _buildErrorMap(contentState);
 
+    // Reader highlights, grouped per chapter for the renderer. Rebuilt on
+    // annotation changes only (rare); the watch below is cheap otherwise.
+    final annotations =
+        ref.watch(novelAnnotationsProvider(widget.novelId)).value ??
+        const <Annotation>[];
+    final annotationsByChapter = <int, List<Annotation>>{};
+    for (final a in annotations) {
+      (annotationsByChapter[a.chapterId] ??= []).add(a);
+    }
+
     final readerBody = nav.isLoading
         ? _ReaderLoadingSkeleton(settings: settings)
         : nav.error != null
@@ -970,6 +1061,8 @@ class _ReaderScreenState extends ConsumerState<ReaderScreen> {
             settingsVersion: _settingsVersion,
             ttsState: ttsState,
             blockToParagraph: _blockToParagraph,
+            annotationsByChapter: annotationsByChapter,
+            onAnnotateParagraph: _onAnnotateParagraph,
           );
 
     return Scaffold(
@@ -1053,7 +1146,9 @@ class _ReaderScreenState extends ConsumerState<ReaderScreen> {
                       ),
                       // Floating chapter slider panel.
                       AnimatedPositioned(
-                        duration: Motion.base,
+                        duration: settings.reduceMotion
+                            ? Duration.zero
+                            : Motion.base,
                         curve: Curves.easeOutCubic,
                         top: 0,
                         bottom: 0,
@@ -1196,46 +1291,49 @@ class _ReaderLoadingSkeleton extends StatelessWidget {
   Widget build(BuildContext context) {
     final s = settings;
     final lineHeight = s.fontSize * 0.72;
+    final prose = ListView.builder(
+      physics: const NeverScrollableScrollPhysics(),
+      padding: EdgeInsets.symmetric(
+        horizontal: s.paddingH,
+        vertical: s.paddingV,
+      ),
+      itemCount: 14,
+      itemBuilder: (_, paragraph) => Padding(
+        padding: EdgeInsets.only(bottom: s.paragraphSpacing),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            for (var line = 0; line < 4; line++)
+              Container(
+                height: lineHeight,
+                margin: EdgeInsets.only(bottom: lineHeight * 0.45),
+                width: double.infinity,
+                decoration: BoxDecoration(
+                  color: s.textColor.withValues(alpha: 0.14),
+                  borderRadius: BorderRadius.circular(lineHeight / 2),
+                ),
+              ),
+            FractionallySizedBox(
+              widthFactor: 0.55 + ((paragraph * 37) % 30) / 100,
+              alignment: AlignmentDirectional.centerStart,
+              child: Container(
+                height: lineHeight,
+                decoration: BoxDecoration(
+                  color: s.textColor.withValues(alpha: 0.14),
+                  borderRadius: BorderRadius.circular(lineHeight / 2),
+                ),
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+    // E-ink: static blocks, no shimmer animation burn.
+    if (s.reduceMotion) return prose;
     return Shimmer.fromColors(
       baseColor: s.textColor.withValues(alpha: 0.08),
       highlightColor: s.textColor.withValues(alpha: 0.18),
-      child: ListView.builder(
-        physics: const NeverScrollableScrollPhysics(),
-        padding: EdgeInsets.symmetric(
-          horizontal: s.paddingH,
-          vertical: s.paddingV,
-        ),
-        itemCount: 14,
-        itemBuilder: (_, paragraph) => Padding(
-          padding: EdgeInsets.only(bottom: s.paragraphSpacing),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              for (var line = 0; line < 4; line++)
-                Container(
-                  height: lineHeight,
-                  margin: EdgeInsets.only(bottom: lineHeight * 0.45),
-                  width: double.infinity,
-                  decoration: BoxDecoration(
-                    color: s.textColor.withValues(alpha: 0.14),
-                    borderRadius: BorderRadius.circular(lineHeight / 2),
-                  ),
-                ),
-              FractionallySizedBox(
-                widthFactor: 0.55 + ((paragraph * 37) % 30) / 100,
-                alignment: AlignmentDirectional.centerStart,
-                child: Container(
-                  height: lineHeight,
-                  decoration: BoxDecoration(
-                    color: s.textColor.withValues(alpha: 0.14),
-                    borderRadius: BorderRadius.circular(lineHeight / 2),
-                  ),
-                ),
-              ),
-            ],
-          ),
-        ),
-      ),
+      child: prose,
     );
   }
 }

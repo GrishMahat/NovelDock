@@ -124,3 +124,20 @@ class ProviderCache extends Table {
   BoolColumn get enabled => boolean().withDefault(const Constant(false))();
   IntColumn get lastUpdated => integer()();
 }
+
+// ─── annotations (reader highlights + notes) ───────────────
+// Keyed by chapter row id for rendering, with chapterUrl + paragraphIndex
+// + quote so rows stay meaningful across chapter-list refreshes and can be
+// remapped on backup restore. paragraphIndex is the ordinal among the
+// chapter's ParagraphNodes — the same unit TTS speaks.
+@TableIndex(name: 'annotations_novel_chapter', columns: {#novelId, #chapterId})
+class Annotations extends Table {
+  IntColumn get id => integer().autoIncrement()();
+  IntColumn get novelId => integer().references(Novels, #id)();
+  IntColumn get chapterId => integer().references(Chapters, #id)();
+  TextColumn get chapterUrl => text()();
+  IntColumn get paragraphIndex => integer()();
+  TextColumn get quote => text()();
+  TextColumn get note => text().nullable()();
+  IntColumn get createdAt => integer()();
+}

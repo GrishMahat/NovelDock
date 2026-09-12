@@ -305,6 +305,47 @@ final class BookmarkDaoProvider
 
 String _$bookmarkDaoHash() => r'36dd1a3f2b03851dd4ef3c09f14edd5bb21c0853';
 
+@ProviderFor(annotationDao)
+final annotationDaoProvider = AnnotationDaoProvider._();
+
+final class AnnotationDaoProvider
+    extends $FunctionalProvider<AnnotationDao, AnnotationDao, AnnotationDao>
+    with $Provider<AnnotationDao> {
+  AnnotationDaoProvider._()
+    : super(
+        from: null,
+        argument: null,
+        retry: null,
+        name: r'annotationDaoProvider',
+        isAutoDispose: false,
+        dependencies: null,
+        $allTransitiveDependencies: null,
+      );
+
+  @override
+  String debugGetCreateSourceHash() => _$annotationDaoHash();
+
+  @$internal
+  @override
+  $ProviderElement<AnnotationDao> $createElement($ProviderPointer pointer) =>
+      $ProviderElement(pointer);
+
+  @override
+  AnnotationDao create(Ref ref) {
+    return annotationDao(ref);
+  }
+
+  /// {@macro riverpod.override_with_value}
+  Override overrideWithValue(AnnotationDao value) {
+    return $ProviderOverride(
+      origin: this,
+      providerOverride: $SyncValueProvider<AnnotationDao>(value),
+    );
+  }
+}
+
+String _$annotationDaoHash() => r'58f0ad5a9de051da8fc9b599f267ce97a018efe8';
+
 @ProviderFor(settingsDao)
 final settingsDaoProvider = SettingsDaoProvider._();
 

@@ -2,6 +2,7 @@ import 'package:cached_network_image/cached_network_image.dart';
 import 'package:flutter/material.dart';
 
 import '../../../core/database/database.dart';
+import '../../../widgets/cover_image.dart';
 
 /// List item for library screen. Cover thumbnail + title + author + play button.
 class LibraryListItem extends StatelessWidget {
@@ -61,25 +62,25 @@ class LibraryListItem extends StatelessWidget {
           fit: BoxFit.cover,
           excludeFromSemantics: true,
         ),
-        placeholder: (_, _) => Container(
+        placeholder: (_, _) => CoverMonogram(
+          title: novel.title,
           width: width,
           height: height,
-          color: Theme.of(context).colorScheme.surfaceContainerHighest,
-          child: const ExcludeSemantics(child: Icon(Icons.book, size: 32)),
+          fontSize: 24,
         ),
-        errorWidget: (_, _, _) => Container(
+        errorWidget: (_, _, _) => CoverMonogram(
+          title: novel.title,
           width: width,
           height: height,
-          color: Theme.of(context).colorScheme.surfaceContainerHighest,
-          child: const ExcludeSemantics(child: Icon(Icons.book, size: 32)),
+          fontSize: 24,
         ),
       );
     } else {
-      art = Container(
+      art = CoverMonogram(
+        title: novel.title,
         width: width,
         height: height,
-        color: Theme.of(context).colorScheme.surfaceContainerHighest,
-        child: const ExcludeSemantics(child: Icon(Icons.book, size: 32)),
+        fontSize: 24,
       );
     }
     return Semantics(image: true, label: 'Cover of ${novel.title}', child: art);

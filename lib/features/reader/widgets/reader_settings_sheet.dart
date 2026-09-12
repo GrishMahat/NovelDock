@@ -520,6 +520,14 @@ class _ReaderSettingsSheetState extends ConsumerState<ReaderSettingsSheet> {
           settings,
           notifier,
         ),
+        _themeCircle(
+          'E-ink',
+          'eink',
+          AppTheme.kReaderBgColors['eink']!,
+          AppTheme.kReaderTextColors['eink']!,
+          settings,
+          notifier,
+        ),
       ],
     );
   }

@@ -19,11 +19,16 @@ class DownloadSettings {
   final int parallelDownloads;
   final bool autoDeleteRead;
 
+  /// Auto-download the next N unread chapters per Reading novel on Wi-Fi.
+  /// 0 disables.
+  final int autoDownloadCount;
+
   const DownloadSettings({
     this.downloadPath = '',
     this.wifiOnly = false,
     this.parallelDownloads = 3,
     this.autoDeleteRead = false,
+    this.autoDownloadCount = 0,
   });
 
   DownloadSettings copyWith({
@@ -31,12 +36,14 @@ class DownloadSettings {
     bool? wifiOnly,
     int? parallelDownloads,
     bool? autoDeleteRead,
+    int? autoDownloadCount,
   }) {
     return DownloadSettings(
       downloadPath: downloadPath ?? this.downloadPath,
       wifiOnly: wifiOnly ?? this.wifiOnly,
       parallelDownloads: parallelDownloads ?? this.parallelDownloads,
       autoDeleteRead: autoDeleteRead ?? this.autoDeleteRead,
+      autoDownloadCount: autoDownloadCount ?? this.autoDownloadCount,
     );
   }
 }
@@ -53,6 +60,7 @@ class DownloadSettingsNotifier extends _$DownloadSettingsNotifier {
       wifiOnly: p.getBool('download_wifi_only') ?? false,
       parallelDownloads: p.getInt('download_parallel') ?? 3,
       autoDeleteRead: p.getBool('download_auto_delete') ?? false,
+      autoDownloadCount: p.getInt('download_auto_count') ?? 0,
     );
   }
 
@@ -63,6 +71,7 @@ class DownloadSettingsNotifier extends _$DownloadSettingsNotifier {
       await p.setBool('download_wifi_only', state.wifiOnly);
       await p.setInt('download_parallel', state.parallelDownloads);
       await p.setBool('download_auto_delete', state.autoDeleteRead);
+      await p.setInt('download_auto_count', state.autoDownloadCount);
     } catch (e) {
       Log.e(_tag, 'Failed to save download settings', e);
     }
@@ -80,6 +89,8 @@ class DownloadSettingsNotifier extends _$DownloadSettingsNotifier {
       _update((s) => s.copyWith(parallelDownloads: v));
   void toggleAutoDeleteRead() =>
       _update((s) => s.copyWith(autoDeleteRead: !s.autoDeleteRead));
+  void updateAutoDownloadCount(int v) =>
+      _update((s) => s.copyWith(autoDownloadCount: v));
 }
 
 class DownloadSettingsPage extends ConsumerWidget {
@@ -154,6 +165,37 @@ class DownloadSettingsPage extends ConsumerWidget {
             subtitle: const Text('Remove downloaded chapters after reading'),
             value: settings.autoDeleteRead,
             onChanged: (_) => notifier.toggleAutoDeleteRead(),
+          ),
+          const SizedBox(height: 16),
+          _section(context, 'Auto-download on Wi-Fi'),
+          Padding(
+            padding: const EdgeInsets.symmetric(vertical: 4),
+            child: Row(
+              children: [
+                const SizedBox(width: 80, child: Text('Next chapters')),
+                Expanded(
+                  child: SegmentedButton<int>(
+                    segments: const [
+                      ButtonSegment(value: 0, label: Text('Off')),
+                      ButtonSegment(value: 1, label: Text('1')),
+                      ButtonSegment(value: 3, label: Text('3')),
+                      ButtonSegment(value: 5, label: Text('5')),
+                      ButtonSegment(value: 10, label: Text('10')),
+                    ],
+                    selected: {settings.autoDownloadCount},
+                    onSelectionChanged: (s) =>
+                        notifier.updateAutoDownloadCount(s.first),
+                  ),
+                ),
+              ],
+            ),
+          ),
+          Text(
+            'Keeps the next chapters of Reading novels downloaded '
+            'whenever on Wi-Fi. Never uses mobile data.',
+            style: Theme.of(context).textTheme.bodySmall?.copyWith(
+              color: Theme.of(context).colorScheme.onSurfaceVariant,
+            ),
           ),
           const SizedBox(height: 16),
           _section(context, 'Parallel Downloads'),
