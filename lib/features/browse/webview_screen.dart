@@ -151,8 +151,14 @@ class _WebViewScreenState extends ConsumerState<WebViewScreen> {
   }
 
   /// Look for cf_clearance in the browser's native cookie store; when found,
-  /// copy all cookies for this domain into the app cookie jar and reload so
-  /// the challenge page resolves to the real content.
+  /// copy ONLY the clearance cookies into the app cookie jar and reload so
+  /// the challenge page resolves to the real content. The browser store may
+  /// hold site login sessions: copying everything would silently donate the
+  /// user's identity to the scraper jar (persisted past expiry on disk) and
+  /// attach it to every future provider fetch. Clearance needs cf_clearance
+  /// (+ Cloudflare's __cf_bm bot-manager cookie); nothing else crosses over.
+  static const _clearanceCookieNames = {'cf_clearance', '__cf_bm'};
+
   Future<void> _pollForClearance() async {
     final controller = _controller;
     if (controller == null || _reloadingAfterClearance) return;
@@ -165,17 +171,19 @@ class _WebViewScreenState extends ConsumerState<WebViewScreen> {
       );
       if (!mounted || _reloadingAfterClearance) return;
 
-      final hasClearance = cookies.any((c) => c.name == 'cf_clearance');
-      if (!hasClearance) return;
+      final clearance = <String, String>{
+        for (final c in cookies)
+          if (_clearanceCookieNames.contains(c.name)) c.name: c.value,
+      };
+      if (!clearance.containsKey('cf_clearance')) return;
 
       _clearanceTimer?.cancel();
       final jar = await ref.read(cookieJarProvider.future);
-      await CloudflareHandler.persistCookies(jar, cookieUri, {
-        for (final c in cookies) c.name: c.value,
-      });
+      await CloudflareHandler.persistCookies(jar, cookieUri, clearance);
       Log.ok(
         _tag,
-        'Captured ${cookies.length} cookies incl. cf_clearance for ${uri.host}',
+        'Captured clearance cookies for ${uri.host} '
+        '(${clearance.keys.join(', ')})',
       );
       _reloadingAfterClearance = true;
       await controller.reload();
@@ -271,7 +279,7 @@ class _WebViewScreenState extends ConsumerState<WebViewScreen> {
                         const SizedBox(width: Insets.sm),
                         Expanded(
                           child: Text(
-                            'Cloudflare verification required — completing it '
+                            'Cloudflare verification is required. Complete it '
                             'here, then chapters can load.',
                             style: Theme.of(context).textTheme.bodySmall
                                 ?.copyWith(color: scheme.onSecondaryContainer),

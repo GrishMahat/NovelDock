@@ -98,6 +98,7 @@ dependencies:
   dbus: ^0.7.14
   image: ^4.5.4
   flutter_tts: ^4.2.5
+  crypto: ^3.0.7
 
 dev_dependencies:
   flutter_test:
@@ -116,15 +117,22 @@ dev_dependencies:
 
 flutter_launcher_icons:
   android: true
-  ios: true
+  # No ios/macos/windows targets: those platform directories do not exist in
+  # this repo (Android + Linux only) and enabling them crashes generation.
+  # Re-enable if/when the platforms are scaffolded.
+  ios: false
   image_path: "assets/images/logo.png"
+  adaptive_icon_background: "#F5F7FA"
+  adaptive_icon_foreground: "assets/images/android-foreground.png"
+  adaptive_icon_foreground_inset: 8
+  adaptive_icon_monochrome: "assets/images/android-monochrome.png"
   min_sdk_android: 21
   windows:
-    generate: true
+    generate: false
     image_path: "assets/images/logo.png"
     icon_size: 48
   macos:
-    generate: true
+    generate: false
     image_path: "assets/images/logo.png"
 
 flutter:

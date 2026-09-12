@@ -5,6 +5,7 @@ import 'package:flutter_js/flutter_js.dart';
 import 'package:riverpod_annotation/riverpod_annotation.dart';
 
 import 'filters.dart';
+import 'registries.dart';
 import 'registry.dart';
 import '../utils/logger.dart';
 
@@ -103,6 +104,17 @@ class ProviderEngine {
     _runtimes.clear();
   }
 
+  /// Disposes one instance's runtime and drops it from the registry.
+  /// Wired to the cached family's onDispose so invalidated/removed
+  /// instances (registry update/removal, eviction) free their native
+  /// QuickJS context instead of accumulating for the session.
+  void disposeRuntime(ProviderInstance instance) {
+    _runtimes.remove(instance.runtime);
+    try {
+      instance.runtime.dispose();
+    } catch (_) {}
+  }
+
   /// Load a provider from JS source code.
   ///
   /// Each provider gets its own JS runtime. Providers are loaded into a
@@ -111,7 +123,15 @@ class ProviderEngine {
   Future<ProviderInstance> loadProvider(String jsSource) async {
     Log.i(_tag, 'Loading provider (${jsSource.length} chars)...');
 
-    final runtime = getJavascriptRuntime();
+    // Caged runtime: provider JS is a pure parser. No fetch/XHR (its URLs,
+    // headers and bodies drive the app's own Dio client instead) and a 30s
+    // execution watchdog so runaway scripts die instead of freezing the UI
+    // isolate. (No heap cap: the bundled native bridge does not export
+    // jsSetMemoryLimit — verified on-device. Shipped providers use none of
+    // the removed capabilities; third-party scripts lose exfiltration and
+    // hang primitives.)
+    final runtime = QuickJsRuntime2(stackSize: 1024 * 1024, timeout: 30000);
+    runtime.enableHandlePromises();
     _runtimes.add(runtime);
 
     final wrappedSource =
@@ -616,7 +636,14 @@ Future<ProviderInstance?> providerInstance(Ref ref, String providerId) async {
   final registry = await ref.watch(registryManagerProvider.future);
   final engine = ref.watch(providerEngineProvider);
 
-  final jsSource = await registry.loadCachedProviderJs(providerId);
+  // Resolve with the user's registry order (incumbent first) so the runtime
+  // loads the same registry's JS that availableProviders lists first: a
+  // later-added registry can never silently shadow an earlier one.
+  final registries = await ref.read(registriesProvider.future);
+  final jsSource = await registry.loadCachedProviderJs(
+    providerId,
+    preferRegistryOrder: enabledRegistryOrder(registries),
+  );
   if (jsSource == null) {
     Log.w(_tag, 'No cached JS for provider: $providerId');
     return null;
@@ -625,6 +652,15 @@ Future<ProviderInstance?> providerInstance(Ref ref, String providerId) async {
   try {
     final instance = await engine.loadProvider(jsSource);
     await instance.loadFlags();
+    if (ref.mounted) {
+      // Free the native runtime when this cached entry goes away
+      // (invalidate on registry update/removal, or a future eviction).
+      ref.onDispose(() => engine.disposeRuntime(instance));
+    } else {
+      // Invalidated while loading: don't leak the orphaned runtime.
+      engine.disposeRuntime(instance);
+      return null;
+    }
     return instance;
   } catch (e) {
     Log.e(_tag, 'Failed to load provider: $providerId', e);

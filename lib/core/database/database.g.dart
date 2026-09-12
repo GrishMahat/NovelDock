@@ -2867,7 +2867,7 @@ class $SettingsTable extends Settings with TableInfo<$SettingsTable, Setting> {
   }
 
   @override
-  Set<GeneratedColumn> get $primaryKey => const {};
+  Set<GeneratedColumn> get $primaryKey => {key};
   @override
   Setting map(Map<String, dynamic> data, {String? tablePrefix}) {
     final effectivePrefix = tablePrefix != null ? '$tablePrefix.' : '';
@@ -4037,6 +4037,34 @@ abstract class _$AppDatabase extends GeneratedDatabase {
   late final $SettingsTable settings = $SettingsTable(this);
   late final $ProviderCacheTable providerCache = $ProviderCacheTable(this);
   late final $NovelProgressTable novelProgress = $NovelProgressTable(this);
+  late final Index chaptersNovelDownloaded = Index(
+    'chapters_novel_downloaded',
+    'CREATE INDEX chapters_novel_downloaded ON chapters (novel_id, downloaded)',
+  );
+  late final Index chaptersNovelRead = Index(
+    'chapters_novel_read',
+    'CREATE INDEX chapters_novel_read ON chapters (novel_id, read)',
+  );
+  late final Index readingHistoryNovel = Index(
+    'reading_history_novel',
+    'CREATE INDEX reading_history_novel ON reading_history (novel_id, read_at)',
+  );
+  late final Index readingHistoryChapter = Index(
+    'reading_history_chapter',
+    'CREATE INDEX reading_history_chapter ON reading_history (chapter_id)',
+  );
+  late final Index downloadsQueueStatus = Index(
+    'downloads_queue_status',
+    'CREATE INDEX downloads_queue_status ON downloads_queue (status)',
+  );
+  late final Index downloadsQueueNovelChapter = Index(
+    'downloads_queue_novel_chapter',
+    'CREATE INDEX downloads_queue_novel_chapter ON downloads_queue (novel_id, chapter_id)',
+  );
+  late final Index bookmarksNovelChapter = Index(
+    'bookmarks_novel_chapter',
+    'CREATE INDEX bookmarks_novel_chapter ON bookmarks (novel_id, chapter_id)',
+  );
   late final NovelDao novelDao = NovelDao(this as AppDatabase);
   late final ChapterDao chapterDao = ChapterDao(this as AppDatabase);
   late final LibraryDao libraryDao = LibraryDao(this as AppDatabase);
@@ -4064,6 +4092,13 @@ abstract class _$AppDatabase extends GeneratedDatabase {
     settings,
     providerCache,
     novelProgress,
+    chaptersNovelDownloaded,
+    chaptersNovelRead,
+    readingHistoryNovel,
+    readingHistoryChapter,
+    downloadsQueueStatus,
+    downloadsQueueNovelChapter,
+    bookmarksNovelChapter,
   ];
 }
 

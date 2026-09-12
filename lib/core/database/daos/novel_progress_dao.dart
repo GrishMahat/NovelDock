@@ -16,52 +16,56 @@ class NovelProgressDao extends DatabaseAccessor<AppDatabase>
     int? ttsReadChapters,
     int? lastReadChapterId,
     int? lastTtsChapterId,
-  }) async {
-    final now = DateTime.now().millisecondsSinceEpoch;
-    final existing = await (select(
-      novelProgress,
-    )..where((t) => t.novelId.equals(novelId))).getSingleOrNull();
+  }) {
+    // Transacted: the select-then-write below must not interleave with a
+    // concurrent update or increments get lost.
+    return transaction(() async {
+      final now = DateTime.now().millisecondsSinceEpoch;
+      final existing = await (select(
+        novelProgress,
+      )..where((t) => t.novelId.equals(novelId))).getSingleOrNull();
 
-    if (existing != null) {
-      await update(novelProgress).replace(
-        NovelProgressCompanion(
-          novelId: Value(novelId),
-          totalChapters: Value(totalChapters),
-          readChapters: Value(readChapters ?? existing.readChapters),
-          ttsReadChapters: Value(ttsReadChapters ?? existing.ttsReadChapters),
-          lastReadChapterId: lastReadChapterId != null
-              ? Value(lastReadChapterId)
-              : const Value.absent(),
-          lastTtsChapterId: lastTtsChapterId != null
-              ? Value(lastTtsChapterId)
-              : const Value.absent(),
-          lastReadAt: Value(now),
-          lastTtsAt: lastTtsChapterId != null
-              ? Value(now)
-              : const Value.absent(),
-        ),
-      );
-      return 1;
-    } else {
-      return into(novelProgress).insert(
-        NovelProgressCompanion(
-          novelId: Value(novelId),
-          totalChapters: Value(totalChapters),
-          readChapters: Value(readChapters ?? 0),
-          ttsReadChapters: Value(ttsReadChapters ?? 0),
-          lastReadChapterId: lastReadChapterId != null
-              ? Value(lastReadChapterId)
-              : const Value.absent(),
-          lastTtsChapterId: lastTtsChapterId != null
-              ? Value(lastTtsChapterId)
-              : const Value.absent(),
-          lastReadAt: Value(now),
-          lastTtsAt: lastTtsChapterId != null
-              ? Value(now)
-              : const Value.absent(),
-        ),
-      );
-    }
+      if (existing != null) {
+        await update(novelProgress).replace(
+          NovelProgressCompanion(
+            novelId: Value(novelId),
+            totalChapters: Value(totalChapters),
+            readChapters: Value(readChapters ?? existing.readChapters),
+            ttsReadChapters: Value(ttsReadChapters ?? existing.ttsReadChapters),
+            lastReadChapterId: lastReadChapterId != null
+                ? Value(lastReadChapterId)
+                : const Value.absent(),
+            lastTtsChapterId: lastTtsChapterId != null
+                ? Value(lastTtsChapterId)
+                : const Value.absent(),
+            lastReadAt: Value(now),
+            lastTtsAt: lastTtsChapterId != null
+                ? Value(now)
+                : const Value.absent(),
+          ),
+        );
+        return 1;
+      } else {
+        return into(novelProgress).insert(
+          NovelProgressCompanion(
+            novelId: Value(novelId),
+            totalChapters: Value(totalChapters),
+            readChapters: Value(readChapters ?? 0),
+            ttsReadChapters: Value(ttsReadChapters ?? 0),
+            lastReadChapterId: lastReadChapterId != null
+                ? Value(lastReadChapterId)
+                : const Value.absent(),
+            lastTtsChapterId: lastTtsChapterId != null
+                ? Value(lastTtsChapterId)
+                : const Value.absent(),
+            lastReadAt: Value(now),
+            lastTtsAt: lastTtsChapterId != null
+                ? Value(now)
+                : const Value.absent(),
+          ),
+        );
+      }
+    });
   }
 
   Future<NovelProgressData?> getProgress(int novelId) {
@@ -81,9 +85,21 @@ class NovelProgressDao extends DatabaseAccessor<AppDatabase>
   }
 
   Future<void> incrementReadChapters(int novelId, int chapterId) async {
+    final chapter = await db.chapterDao.getChapterById(chapterId);
+    if (chapter == null) return;
     final existing = await getProgress(novelId);
     if (existing == null) return;
     final total = await db.chapterDao.getChapterCount(novelId);
+    if (chapter.read) {
+      // Already counted (e.g. re-marked after a sync): refresh totals and
+      // the anchor without double-counting.
+      await updateProgress(
+        novelId: novelId,
+        totalChapters: total,
+        lastReadChapterId: chapterId,
+      );
+      return;
+    }
     await updateProgress(
       novelId: novelId,
       totalChapters: total,
@@ -93,9 +109,19 @@ class NovelProgressDao extends DatabaseAccessor<AppDatabase>
   }
 
   Future<void> incrementTtsReadChapters(int novelId, int chapterId) async {
+    final chapter = await db.chapterDao.getChapterById(chapterId);
+    if (chapter == null) return;
     final existing = await getProgress(novelId);
     if (existing == null) return;
     final total = await db.chapterDao.getChapterCount(novelId);
+    if (chapter.ttsRead) {
+      await updateProgress(
+        novelId: novelId,
+        totalChapters: total,
+        lastTtsChapterId: chapterId,
+      );
+      return;
+    }
     await updateProgress(
       novelId: novelId,
       totalChapters: total,

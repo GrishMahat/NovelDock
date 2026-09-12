@@ -5,7 +5,45 @@ The format follows [Keep a Changelog](https://keepachangelog.com); versions aim 
 
 ## Unreleased
 
+### Added
+
+- Sleep timer for read-aloud: stop after 15/30/45/60/90 minutes or daily at a clock time (repeats every night, survives pause/stop, persists across restarts), from the Listen tab or reader settings Playback section
+
 ### Fixed
+
+- Source pages no longer spin forever when the network is dead: they fail fast offline with the cause (no connection, timeout, server status) and a Retry button instead of an endless spinner
+
+### Fixed
+
+- Background chapter sync could delete surviving chapters (and their read/download/bookmark state) by passing only new URLs to the replace-semantics sync; it now sends the full server list. Stale deletes also clean up dependent history, queue, bookmark, and anchor rows in the same transaction instead of stranding them
+- Re-importing an EPUB deleted and re-inserted every chapter, churning row ids and orphaning history/bookmarks/downloads; imports now diff-sync by URL like online refreshes
+- Provider runtimes leaked on every load and registry update; invalidated instances now dispose their native JS context, and background syncs reuse the shared cached instance
+- Provider JS ran with network access (fetch/XHR); runtimes are now network-less pure parsers (verified on-device), and invalidated instances dispose their native context instead of leaking. A heap cap and execution watchdog were attempted but the bundled native bridge exports neither symbol (verified on-device); isolate execution remains future work
+- Registries were trusted blindly: remote fetches are now https-only, registry file paths are validated against directory escape, cached JS is hash-pinned at sync and verified on load, duplicate provider ids resolve deterministically (first-added registry wins, logged), and adding the same repo twice via different URL spellings is rejected
+- Restoring a backup adopted its embedded source registries silently; the importer now lists them and asks before restoring (dismissal aborts the import)
+- Restoring history/bookmarks/downloads reused source-database row ids that are meaningless in the target database, writing dangling rows; v2 backups carry novel/chapter URLs and the importer remaps them, skipping unresolvable rows with a count instead of corrupting (v1 files import novels/settings only)
+- The in-app browser donated every site cookie (including login sessions) to the scraper jar; only Cloudflare clearance cookies (`cf_clearance`, `__cf_bm`) cross over now
+- The download notification Cancel button did nothing (response handler was never registered); tapping Cancel now cancels the novel's downloads
+- Queues interrupted by a killed app never resumed until the Downloads screen opened; stuck rows requeue and drain once per launch, after the first frame
+- Download progress sat at 0% for whole transfers; per-chapter progress now reports in 10% steps to the queue tile and the notification, and cancelling aborts mid-transfer instead of at the next checkpoint
+- Bulk downloads enqueued chapter-by-chapter with a progress recompute per chapter; ranges and select-all now batch in one pass
+- Wi-Fi loss mid-queue failed every remaining task; the gate is rechecked per claim and the rest defer
+- Tapping Listen while other audio played silently did nothing; a new request now steals cleanly after teardown. Skipping while paused no longer blips audio (muted transition)
+- Voice previews synthesized through the live playback engine session; previews now use a dedicated engine instance that is closed with the picker
+- Removed Paged reading mode, which silently broke resume anchors, bookmarks, and TTS follow; removed reader settings that were shown but never read (selectable text, clock/battery, orientation, scroll choice); Keep Screen On is now honored instead of unconditional
+- Per-chapter load failures were dead ends with raw exception text; they now show a human message with Retry, and loading chapters shimmer instead of flashing a spinner
+- Chapter links looked tappable but did nothing; they now open externally. Unrendered Word highlight mode removed from the options
+- Screen-reader gaps: chapter turns and resume restores announce, covers are labeled, sliders/theme choices expose names and selected state, icon-only buttons have tooltips
+- Translation cache keyed on the first 100 characters could serve one chapter's translation for another; keys are now exact, bounded, and saved atomically
+
+### Changed
+
+- Backup format is now v2 (URL-keyed history/bookmarks/downloads); v1 files still import (novels and settings)
+- The provider/registry provider module moved from `features/settings/providers/` to `lib/core/providers/registries.dart` (same provider names); core no longer imports from features
+- Per-novel/per-chapter provider families (reading progress, reader navigation, fetch state, chapter translation) now dispose with their screen instead of living forever; the log stream emits on write instead of polling 5 times a second
+- Library, history, and downloads screens memoize their streams/futures instead of resubscribing per rebuild; download progress aggregates use COUNT queries instead of full-table scans
+- Download queue state restores once per launch; notification permission is asked once per download run instead of per task
+- Media notification reports the real TTS speed instead of hardcoded 1.0x
 
 - The Startup Tab and Library Default View settings had no effect; the app now opens on the configured tab and the library seeds (and persists) its display mode from the setting
 - Settings screens could briefly show default values on cold start before persisted values loaded; preferences are now loaded before the first frame, so saved values render immediately

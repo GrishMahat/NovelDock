@@ -20,7 +20,7 @@ final class NovelFetchStateNotifierProvider
   }) : super(
          retry: null,
          name: r'novelFetchStateProvider',
-         isAutoDispose: false,
+         isAutoDispose: true,
          dependencies: null,
          $allTransitiveDependencies: null,
        );
@@ -60,7 +60,7 @@ final class NovelFetchStateNotifierProvider
 }
 
 String _$novelFetchStateNotifierHash() =>
-    r'2b80fd198a6f35dc93dd246d42e148cdda231743';
+    r'7280af6ca183f58863608e2f465a342ce1dd426e';
 
 final class NovelFetchStateNotifierFamily extends $Family
     with
@@ -77,7 +77,7 @@ final class NovelFetchStateNotifierFamily extends $Family
         name: r'novelFetchStateProvider',
         dependencies: null,
         $allTransitiveDependencies: null,
-        isAutoDispose: false,
+        isAutoDispose: true,
       );
 
   NovelFetchStateNotifierProvider call(int novelId) =>

@@ -7,15 +7,17 @@ import 'package:infinite_scroll_pagination/infinite_scroll_pagination.dart';
 import '../../core/providers/engine.dart';
 import '../../core/providers/filters.dart';
 import '../../core/network/client.dart';
+import '../../core/network/errors.dart';
 import '../../core/providers/novel_opener.dart';
 import '../../core/utils/logger.dart';
 import '../../core/utils/platform.dart';
 import '../../theme/tokens.dart';
+import '../../widgets/error_view.dart';
 import '../../widgets/max_width_box.dart';
 import '../../widgets/novel_card.dart';
 import '../search/providers/search_providers.dart';
 import '../search/widgets/filter_sheet.dart';
-import '../settings/providers/provider_management_providers.dart';
+import '../../core/providers/registries.dart';
 
 const _tag = 'ProviderScreen';
 
@@ -104,9 +106,20 @@ class _ProviderScreenState extends ConsumerState<ProviderScreen>
       '(mode: $_mode, query: "$_query")',
     );
 
+    // Fail fast offline: without this the 15s connect timeout plus retries
+    // burn minutes behind a spinner that never explains itself.
+    if (await isOffline()) {
+      throw NetworkFailure.offline();
+    }
+
     try {
       final instance = await _ensureLoaded();
-      if (instance == null) return [];
+      if (instance == null) {
+        throw const NetworkFailure(
+          'Source files missing',
+          'Re-sync this source from the Catalog tab, then retry.',
+        );
+      }
 
       final dio = await ref.read(dioProvider.future);
 
@@ -197,7 +210,10 @@ class _ProviderScreenState extends ConsumerState<ProviderScreen>
       return [];
     } catch (e) {
       Log.e(_tag, 'Error fetching page', e);
-      return [];
+      // Fail loud with a cause (offline/timeout/server + details) instead
+      // of an empty list: empty means "no results", an exception means the
+      // error builders show what happened with a retry.
+      throw NetworkFailure.from(e);
     }
   }
 
@@ -459,6 +475,8 @@ class _ProviderScreenState extends ConsumerState<ProviderScreen>
                                       (context) => const Center(
                                         child: CircularProgressIndicator(),
                                       ),
+                                  firstPageErrorIndicatorBuilder: (context) =>
+                                      _pageError(state.error),
                                   newPageProgressIndicatorBuilder: (context) =>
                                       const Padding(
                                         padding: EdgeInsets.all(16),
@@ -466,6 +484,8 @@ class _ProviderScreenState extends ConsumerState<ProviderScreen>
                                           child: CircularProgressIndicator(),
                                         ),
                                       ),
+                                  newPageErrorIndicatorBuilder: (context) =>
+                                      _nextPageError(),
                                 ),
                           );
                         }
@@ -488,6 +508,8 @@ class _ProviderScreenState extends ConsumerState<ProviderScreen>
                                     const Center(
                                       child: CircularProgressIndicator(),
                                     ),
+                                firstPageErrorIndicatorBuilder: (context) =>
+                                    _pageError(state.error),
                                 newPageProgressIndicatorBuilder: (context) =>
                                     const Padding(
                                       padding: EdgeInsets.all(16),
@@ -495,6 +517,8 @@ class _ProviderScreenState extends ConsumerState<ProviderScreen>
                                         child: CircularProgressIndicator(),
                                       ),
                                     ),
+                                newPageErrorIndicatorBuilder: (context) =>
+                                    _nextPageError(),
                               ),
                         );
                       },
@@ -512,5 +536,31 @@ class _ProviderScreenState extends ConsumerState<ProviderScreen>
 
   Widget _buildListItem(SearchResultItem item) {
     return NovelListTile(item: item, onTap: () => _openNovel(item));
+  }
+
+  /// First-page failure: full error state with the cause (offline, timeout,
+  /// server status) and a retry that refetches page one.
+  Widget _pageError(Object? error) {
+    final failure = NetworkFailure.from(error ?? 'Failed to load');
+    return ErrorView(
+      message: failure.message,
+      details: failure.details,
+      onRetry: () => _pagingController.refresh(),
+    );
+  }
+
+  /// Later-page failure: inline retry that resumes the list where it broke
+  /// instead of resetting to page one.
+  Widget _nextPageError() {
+    return Padding(
+      padding: const EdgeInsets.all(16),
+      child: Center(
+        child: OutlinedButton.icon(
+          onPressed: () => _pagingController.fetchNextPage(),
+          icon: const Icon(Icons.refresh, size: 18),
+          label: const Text('Retry'),
+        ),
+      ),
+    );
   }
 }

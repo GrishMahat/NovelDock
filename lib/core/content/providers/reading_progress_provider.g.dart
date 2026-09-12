@@ -20,7 +20,7 @@ final class ReadingProgressNotifierProvider
   }) : super(
          retry: null,
          name: r'readingProgressProvider',
-         isAutoDispose: false,
+         isAutoDispose: true,
          dependencies: null,
          $allTransitiveDependencies: null,
        );
@@ -60,7 +60,7 @@ final class ReadingProgressNotifierProvider
 }
 
 String _$readingProgressNotifierHash() =>
-    r'7530617de7ec25cf39f0298f417ed5770831e807';
+    r'8cc3cf7ad330e6c83778fb93b6c8075d72c2bbfc';
 
 final class ReadingProgressNotifierFamily extends $Family
     with
@@ -77,7 +77,7 @@ final class ReadingProgressNotifierFamily extends $Family
         name: r'readingProgressProvider',
         dependencies: null,
         $allTransitiveDependencies: null,
-        isAutoDispose: false,
+        isAutoDispose: true,
       );
 
   ReadingProgressNotifierProvider call(int novelId) =>

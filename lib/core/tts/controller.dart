@@ -396,6 +396,14 @@ class TtsPlaybackController {
     await _player.setSpeed(speed);
   }
 
+  /// Output gain. Used to mute skip-while-paused restarts (the new chunk
+  /// would otherwise blip before the pause lands).
+  Future<void> setVolume(double volume) async {
+    if (_disposed) return;
+
+    await _player.setVolume(volume);
+  }
+
   Future<void> setPitch(String pitch) async {
     _pitch = pitch;
   }
@@ -1223,6 +1231,10 @@ class TtsPlaybackController {
 
     try {
       await _player.stop();
+    } catch (_) {}
+
+    try {
+      await _player.dispose();
     } catch (_) {}
 
     final engine = _engine;

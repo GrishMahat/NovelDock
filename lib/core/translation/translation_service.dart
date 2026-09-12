@@ -18,10 +18,19 @@ class TranslationService {
   final Map<String, String> _cache = {};
   bool _cacheLoaded = false;
 
-  String _cacheKey(String text, String src, String tgt) {
-    // Use base64 of first 100 chars + lang pair as cache key
-    final prefix = text.length > 100 ? text.substring(0, 100) : text;
-    return base64.encode(utf8.encode('$src|$tgt|$prefix'));
+  /// Queued saver: concurrent translates chain whole-file writes instead of
+  /// racing each other on the cache file.
+  Future<void> _saveQueued = Future.value();
+
+  /// Insertion-ordered map doubles as an LRU-ish bound; translation chunks
+  /// are small but chapters are many.
+  static const int _maxEntries = 2000;
+
+  /// Exact key on the FULL text. A prefix-only key once returned one
+  /// chapter's translation for another whenever two texts shared a prefix;
+  /// this is the pinned contract (see translation_cache_test).
+  static String cacheKey(String text, String src, String tgt) {
+    return '$src|$tgt|${text.length}|$text';
   }
 
   Future<void> _loadCache() async {
@@ -44,13 +53,30 @@ class TranslationService {
   }
 
   Future<void> _saveCache() async {
+    // Atomic: write temp + rename so a crash mid-write never leaves a
+    // truncated cache file behind.
     try {
       final dir = await getApplicationSupportDirectory();
       final file = File(p.join(dir.path, 'translation_cache.json'));
-      await file.writeAsString(jsonEncode(_cache));
+      final tmp = File('${file.path}.tmp');
+      await tmp.writeAsString(jsonEncode(_cache));
+      await tmp.rename(file.path);
     } catch (e) {
       Log.w(_tag, 'Failed to save translation cache: $e');
     }
+  }
+
+  /// Enqueues a save behind any in-flight one. Fire-and-forget safe.
+  void _saveCacheQueued() {
+    _saveQueued = _saveQueued.then((_) => _saveCache());
+  }
+
+  void _store(String key, String value) {
+    if (!_cache.containsKey(key) && _cache.length >= _maxEntries) {
+      _cache.remove(_cache.keys.first);
+    }
+    _cache[key] = value;
+    _saveCacheQueued();
   }
 
   /// Translate text from [sourceLang] to [targetLang].
@@ -66,7 +92,7 @@ class TranslationService {
     await _loadCache();
 
     // Check cache first
-    final key = _cacheKey(text, sourceLang, targetLang);
+    final key = TranslationService.cacheKey(text, sourceLang, targetLang);
     if (_cache.containsKey(key)) {
       Log.d(_tag, 'Cache hit (${text.length} chars)');
       return _cache[key]!;
@@ -76,8 +102,7 @@ class TranslationService {
     const maxChunkSize = 450;
     if (text.length <= maxChunkSize) {
       final result = await _translateChunk(text, sourceLang, targetLang);
-      _cache[key] = result;
-      _saveCache();
+      _store(key, result);
       return result;
     }
 
@@ -88,8 +113,7 @@ class TranslationService {
       results.add(await _translateChunk(chunk, sourceLang, targetLang));
     }
     final combined = results.join(' ');
-    _cache[key] = combined;
-    _saveCache();
+    _store(key, combined);
     return combined;
   }
 
@@ -138,15 +162,19 @@ class TranslationService {
     return text;
   }
 
-  /// Clear the translation cache.
-  Future<void> clearCache() async {
-    _cache.clear();
-    try {
-      final dir = await getApplicationSupportDirectory();
-      final file = File(p.join(dir.path, 'translation_cache.json'));
-      if (await file.exists()) await file.delete();
-    } catch (_) {}
-    Log.i(_tag, 'Translation cache cleared');
+  /// Clear the translation cache. Runs behind queued saves so a stale
+  /// in-flight write cannot resurrect entries after the clear.
+  Future<void> clearCache() {
+    _saveQueued = _saveQueued.then((_) async {
+      _cache.clear();
+      try {
+        final dir = await getApplicationSupportDirectory();
+        final file = File(p.join(dir.path, 'translation_cache.json'));
+        if (await file.exists()) await file.delete();
+      } catch (_) {}
+      Log.i(_tag, 'Translation cache cleared');
+    });
+    return _saveQueued;
   }
 
   /// Get cache size.

@@ -7,7 +7,7 @@ import '../../../core/utils/logger.dart';
 import '../../../theme/app_theme.dart';
 import '../../../theme/tokens.dart';
 import '../../../widgets/shimmer_list.dart';
-import '../providers/provider_management_providers.dart';
+import '../../../core/providers/registries.dart';
 
 const _tag = 'Registries';
 

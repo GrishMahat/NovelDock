@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:cached_network_image/cached_network_image.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -30,6 +32,10 @@ class _LibraryScreenState extends ConsumerState<LibraryScreen>
   DisplayMode _displayMode = DisplayMode.grid;
   String _filterQuery = '';
 
+  /// Memoized per-tab streams: recreating them in _buildTabContent (called
+  /// per tab per build) resubscribes and flashes skeletons on every rebuild.
+  late final List<Stream<List<Novel>>> _tabStreams;
+
   static const _tabs = [
     'All',
     'Reading',
@@ -58,6 +64,13 @@ class _LibraryScreenState extends ConsumerState<LibraryScreen>
       (m) => m.name == saved,
       orElse: () => DisplayMode.grid,
     );
+    final libraryDao = ref.read(libraryDaoProvider);
+    _tabStreams = [
+      for (final status in _statusValues)
+        status == null
+            ? libraryDao.watchLibraryNovels()
+            : libraryDao.watchLibraryNovelsByStatus(status),
+    ];
   }
 
   /// Cycle the display mode and persist it as the new library default.
@@ -149,11 +162,7 @@ class _LibraryScreenState extends ConsumerState<LibraryScreen>
   }
 
   Widget _buildTabContent(int tabIndex) {
-    final libraryDao = ref.watch(libraryDaoProvider);
-    final status = _statusValues[tabIndex];
-    final stream = status == null
-        ? libraryDao.watchLibraryNovels()
-        : libraryDao.watchLibraryNovelsByStatus(status);
+    final stream = _tabStreams[tabIndex];
 
     return StreamBuilder<List<Novel>>(
       stream: stream,

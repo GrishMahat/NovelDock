@@ -36,6 +36,9 @@ class NovelDao extends DatabaseAccessor<AppDatabase> with _$NovelDaoMixin {
     return (select(novels)..where((t) => t.url.equals(url))).getSingleOrNull();
   }
 
+  /// Insert-or-get that survives concurrent calls: `insertOrIgnore` absorbs
+  /// the UNIQUE(url) race, then the winner's row is read back. Never throws
+  /// on duplicates, unlike select-then-insert.
   Future<int> insertOrGetNovel({
     required String providerId,
     required String url,
@@ -43,9 +46,7 @@ class NovelDao extends DatabaseAccessor<AppDatabase> with _$NovelDaoMixin {
     String? author,
     String? coverUrl,
   }) async {
-    final existing = await getNovelByUrl(url);
-    if (existing != null) return existing.id;
-    return insertNovel(
+    await into(novels).insert(
       NovelsCompanion(
         providerId: Value(providerId),
         url: Value(url),
@@ -54,31 +55,43 @@ class NovelDao extends DatabaseAccessor<AppDatabase> with _$NovelDaoMixin {
         coverUrl: Value(coverUrl),
         addedAt: Value(DateTime.now().millisecondsSinceEpoch),
       ),
+      mode: InsertMode.insertOrIgnore,
     );
+    final row = await getNovelByUrl(url);
+    // The row must exist: either we inserted it or a concurrent call did.
+    return row!.id;
   }
 
   /// Insert the novel if it does not exist yet and report whether the row
   /// was newly created (as opposed to an already-existing one).
+  /// `SELECT changes()` is connection-scoped, so inside one transaction it
+  /// reports exactly whether our insert wrote (1) or was ignored (0) —
+  /// unlike the insert rowid, which is undefined on conflict.
   Future<(int, bool)> insertOrGetNovelWithStatus({
     required String providerId,
     required String url,
     required String title,
     String? author,
     String? coverUrl,
-  }) async {
-    final existing = await getNovelByUrl(url);
-    if (existing != null) return (existing.id, false);
-    final id = await insertNovel(
-      NovelsCompanion(
-        providerId: Value(providerId),
-        url: Value(url),
-        title: Value(title),
-        author: Value(author),
-        coverUrl: Value(coverUrl),
-        addedAt: Value(DateTime.now().millisecondsSinceEpoch),
-      ),
-    );
-    return (id, true);
+  }) {
+    return transaction(() async {
+      await into(novels).insert(
+        NovelsCompanion(
+          providerId: Value(providerId),
+          url: Value(url),
+          title: Value(title),
+          author: Value(author),
+          coverUrl: Value(coverUrl),
+          addedAt: Value(DateTime.now().millisecondsSinceEpoch),
+        ),
+        mode: InsertMode.insertOrIgnore,
+      );
+      final wrote = await customSelect(
+        'SELECT changes() AS c',
+      ).map((row) => row.read<int>('c')).getSingle();
+      final row = await getNovelByUrl(url);
+      return (row!.id, wrote == 1);
+    });
   }
 
   Future<List<Novel>> getAllNovels() {

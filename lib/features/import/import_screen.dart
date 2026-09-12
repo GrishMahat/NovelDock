@@ -294,22 +294,21 @@ class _ImportScreenState extends ConsumerState<ImportScreen> {
         ),
       );
 
-      // Add chapters
+      // Add chapters via URL-diff sync, never delete-all + re-insert:
+      // re-importing the same file yields the same epub:// URLs, so rows
+      // (and the history/bookmarks/downloads keyed by them) survive.
       final chapterDao = ref.read(chapterDaoProvider);
-      // Delete existing chapters before re-inserting to prevent duplicates
-      await chapterDao.deleteChaptersForNovel(novelId);
       if (book.Chapters != null) {
-        for (var i = 0; i < book.Chapters!.length; i++) {
-          final ch = book.Chapters![i];
-          await chapterDao.insertChapter(
+        final chapterList = [
+          for (var i = 0; i < book.Chapters!.length; i++)
             ChaptersCompanion(
               novelId: Value(novelId),
-              name: Value(ch.Title ?? 'Chapter ${i + 1}'),
-              url: Value('epub://$filePath#${ch.Title ?? '$i'}'),
+              name: Value(book.Chapters![i].Title ?? 'Chapter ${i + 1}'),
+              url: Value('epub://$filePath#${book.Chapters![i].Title ?? '$i'}'),
               index: Value(i.toDouble()),
             ),
-          );
-        }
+        ];
+        await chapterDao.syncChaptersForNovel(novelId, chapterList);
         Log.ok(_tag, 'Added ${book.Chapters!.length} chapters from EPUB');
       }
     } catch (e) {

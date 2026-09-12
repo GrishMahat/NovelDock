@@ -32,7 +32,7 @@ class NovelFetchState {
       NovelFetchState(phase: phase);
 }
 
-@Riverpod(keepAlive: true)
+@Riverpod()
 class NovelFetchStateNotifier extends _$NovelFetchStateNotifier {
   @override
   NovelFetchState build(int novelId) {

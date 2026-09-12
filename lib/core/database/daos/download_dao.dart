@@ -13,6 +13,18 @@ class DownloadDao extends DatabaseAccessor<AppDatabase>
     return into(downloadsQueue).insert(entry, mode: InsertMode.insertOrReplace);
   }
 
+  /// Bulk enqueue in one batch. Callers dedupe first and kick the queue once
+  /// after (see DownloadNotifier._enqueueChapters): per-row progress updates
+  /// and pool kicks per chapter do not scale to 1000-chapter novels.
+  Future<void> enqueueAll(List<DownloadsQueueCompanion> entries) async {
+    if (entries.isEmpty) return;
+    await batch((b) {
+      for (final entry in entries) {
+        b.insert(downloadsQueue, entry, mode: InsertMode.insertOrReplace);
+      }
+    });
+  }
+
   Future<void> updateDownloadStatus(
     int id,
     String status, {
@@ -49,6 +61,34 @@ class DownloadDao extends DatabaseAccessor<AppDatabase>
     return (select(
       downloadsQueue,
     )..orderBy([(t) => OrderingTerm.desc(t.id)])).get();
+  }
+
+  /// Novel-scoped rows. Prefer this over getAllDownloads + Dart filtering:
+  /// the queue table grows with every novel ever downloaded.
+  Future<List<DownloadsQueueData>> getDownloadsForNovel(int novelId) {
+    return (select(
+      downloadsQueue,
+    )..where((t) => t.novelId.equals(novelId))).get();
+  }
+
+  /// Per-status counts for one novel in a single GROUP BY query. The queue
+  /// tile and notifications refresh on every task transition; full-table
+  /// scans there do not scale.
+  Future<Map<String, int>> countByStatus(int novelId) async {
+    final count = downloadsQueue.id.count();
+    final rows =
+        await (selectOnly(downloadsQueue)
+              ..where(downloadsQueue.novelId.equals(novelId))
+              ..addColumns([downloadsQueue.status, count])
+              ..groupBy([downloadsQueue.status]))
+            .map(
+              (row) => MapEntry(
+                row.read(downloadsQueue.status) ?? '',
+                row.read(count) ?? 0,
+              ),
+            )
+            .get();
+    return Map.fromEntries(rows);
   }
 
   Stream<List<DownloadsQueueData>> watchAllDownloads() {

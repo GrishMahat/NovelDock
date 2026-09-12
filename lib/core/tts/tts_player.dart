@@ -60,6 +60,13 @@ class TtsPlayer {
     await _player.setSpeed(speed);
   }
 
+  /// Output gain mute used to hide skip transitions (see TtsManager).
+  Future<void> setVolume(double volume) async {
+    if (_disposed) return;
+
+    await _player.setVolume(volume);
+  }
+
   Future<void> setLoopMode(LoopMode mode) async {
     if (_disposed) return;
 

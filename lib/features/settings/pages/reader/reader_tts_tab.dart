@@ -6,6 +6,7 @@ import '../../../../core/tts/engine/system_tts_engine.dart';
 import '../../../../core/tts/tts_manager.dart';
 import '../reader_helpers.dart';
 import 'reader_settings_state.dart';
+import 'sleep_timer_sheet.dart';
 import 'tts_voice_picker.dart';
 
 class TtsTab extends ConsumerWidget {
@@ -114,6 +115,20 @@ class TtsTab extends ConsumerWidget {
           },
         ),
 
+        tile(
+          context,
+          title: 'Sleep timer',
+          subtitle: describeSleepTimer(
+            mode: ttsState.sleepTimerMode,
+            minutes: ttsState.sleepMinutes,
+            hour: ttsState.sleepHour,
+            minute: ttsState.sleepMinute,
+            endsAt: ttsState.sleepEndsAt,
+            now: DateTime.now(),
+          ),
+          onTap: () => showSleepTimerSheet(context, ref),
+        ),
+
         const SizedBox(height: 16),
 
         // ── Voice ──
@@ -132,7 +147,7 @@ class TtsTab extends ConsumerWidget {
           subtitle: ttsState.voice.isEmpty
               ? (ttsState.engineId == 'system'
                     ? 'Device default'
-                    : 'Default (Brian)')
+                    : 'Default voice')
               : ttsState.voice,
           onTap: () => showTtsVoicePicker(context, ref),
         ),
@@ -156,16 +171,6 @@ class TtsTab extends ConsumerWidget {
           context,
           'Sentence',
           TtsHighlightMode.sentence,
-          ttsState.highlightMode,
-          (value) {
-            unawaited(ttsNotifier.updateHighlightMode(value));
-          },
-        ),
-
-        radioTts(
-          context,
-          'Word',
-          TtsHighlightMode.word,
           ttsState.highlightMode,
           (value) {
             unawaited(ttsNotifier.updateHighlightMode(value));

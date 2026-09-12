@@ -273,8 +273,10 @@ class _NovelDetailScreenState extends ConsumerState<NovelDetailScreen> {
 
   @override
   Widget build(BuildContext context) {
-    final chapterDao = ref.watch(chapterDaoProvider);
-    final libraryDao = ref.watch(libraryDaoProvider);
+    // Stable handles: one-shot calls only (the chapters stream is memoized
+    // separately). Watching would resubscribe work on every rebuild.
+    final chapterDao = ref.read(chapterDaoProvider);
+    final libraryDao = ref.read(libraryDaoProvider);
     final novel = _novel;
 
     final genres = novel?.genres != null
@@ -432,7 +434,7 @@ class _NovelDetailScreenState extends ConsumerState<NovelDetailScreen> {
   ) {
     return StreamBuilder<List<Chapter>>(
       stream: _chaptersStream ??= ref
-          .watch(chapterDaoProvider)
+          .read(chapterDaoProvider)
           .watchChaptersForNovel(widget.novelId),
       builder: (context, chapterSnapshot) {
         final chapters = chapterSnapshot.data ?? [];
@@ -752,7 +754,17 @@ class _NovelDetailScreenState extends ConsumerState<NovelDetailScreen> {
                                 context,
                               ).colorScheme.onSurfaceVariant,
                             ),
-                            onPressed: () {},
+                            tooltip: chapter.downloaded
+                                ? 'Downloaded'
+                                : 'Download chapter',
+                            onPressed: chapter.downloaded
+                                ? null
+                                : () => ref
+                                      .read(downloadProvider.notifier)
+                                      .downloadChapter(
+                                        widget.novelId,
+                                        chapter.id,
+                                      ),
                           ),
                           onTap: () => context.push(
                             '/reader/${widget.novelId}/${chapter.id}',

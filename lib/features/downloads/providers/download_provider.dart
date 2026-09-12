@@ -2,6 +2,7 @@ import 'dart:async';
 import 'dart:io';
 
 import 'package:connectivity_plus/connectivity_plus.dart';
+import 'package:dio/dio.dart';
 import 'package:drift/drift.dart' show Value;
 import 'package:path_provider/path_provider.dart';
 import 'package:path/path.dart' as p;
@@ -62,9 +63,14 @@ class NovelDownloadProgress {
 class DownloadNotifier extends _$DownloadNotifier {
   bool _isProcessing = false;
 
-  /// The task currently being downloaded, if any. Closing its tile deletes
-  /// its row; the pipeline checks row existence before touching disk or DB.
-  int? _currentTaskId;
+  /// Ids currently held by workers. Closing a tile deletes its row; the
+  /// pipeline checks row existence before touching disk or DB. (A single
+  /// slot was wrong the moment the pool grew past one worker.)
+  final Set<int> _inflightTaskIds = {};
+
+  /// Mid-transfer cancel: row deletion alone only stops work at
+  /// checkpoints. Cancelling the token aborts the Dio request itself.
+  final Map<int, CancelToken> _cancelTokens = {};
 
   @override
   Map<int, NovelDownloadProgress> build() {
@@ -109,9 +115,7 @@ class DownloadNotifier extends _$DownloadNotifier {
       'Downloading all ${chapters.length} chapters for novel $novelId',
     );
 
-    for (final chapter in chapters) {
-      await downloadChapter(novelId, chapter.id);
-    }
+    await _enqueueChapters(novelId, chapters.map((c) => c.id));
   }
 
   /// Download a range of chapters
@@ -127,9 +131,35 @@ class DownloadNotifier extends _$DownloadNotifier {
       'Downloading ${range.length} chapters (range $start-$end) for novel $novelId',
     );
 
-    for (final chapter in range) {
-      await downloadChapter(novelId, chapter.id);
+    await _enqueueChapters(novelId, range.map((c) => c.id));
+  }
+
+  /// Batch enqueue: one dedupe query, one batch insert, one progress update,
+  /// one pool kick. The old per-chapter loop paid a DB check + progress
+  /// recompute + queue scan per chapter (1000+ round trips per novel).
+  Future<void> _enqueueChapters(int novelId, Iterable<int> chapterIds) async {
+    final downloadDao = ref.read(downloadDaoProvider);
+    final existing = (await downloadDao.getDownloadsForNovel(
+      novelId,
+    )).map((d) => d.chapterId).toSet();
+    final fresh = [
+      for (final chapterId in chapterIds)
+        if (!existing.contains(chapterId))
+          DownloadsQueueCompanion(
+            novelId: Value(novelId),
+            chapterId: Value(chapterId),
+            status: const Value('queued'),
+            progress: const Value(0.0),
+          ),
+    ];
+    if (fresh.isEmpty) {
+      Log.d(_tag, 'Nothing new to enqueue for novel $novelId');
+      return;
     }
+    await downloadDao.enqueueAll(fresh);
+    Log.i(_tag, 'Enqueued ${fresh.length} chapters for novel $novelId');
+    await _updateProgress(novelId);
+    unawaited(_processQueue());
   }
 
   /// Process the download queue until it is empty.
@@ -158,6 +188,11 @@ class DownloadNotifier extends _$DownloadNotifier {
         return;
       }
 
+      // Lazily, once per pool run: never on cold start (the Android plugin
+      // can be slow), never per task (permission dialogs mid-queue).
+      await DownloadNotification.init();
+      await ensureNotificationPermission(DownloadNotification.plugin);
+
       final workers = List.generate(
         settings.parallelDownloads.clamp(1, 5),
         (_) => _worker(),
@@ -172,7 +207,7 @@ class DownloadNotifier extends _$DownloadNotifier {
       if (pending.isNotEmpty) {
         unawaited(_processQueue());
       } else {
-        _currentTaskId = null;
+        _inflightTaskIds.clear();
       }
     }
   }
@@ -180,16 +215,25 @@ class DownloadNotifier extends _$DownloadNotifier {
   /// Pulls claimable tasks until the queue runs dry.
   Future<void> _worker() async {
     final downloadDao = ref.read(downloadDaoProvider);
+    final settings = ref.read(downloadSettingsProvider);
 
     while (true) {
+      // Rechecked per claim, not once per pool run: a Wi-Fi drop mid-queue
+      // defers the rest instead of failing every remaining task through
+      // Dio retries, and flapping stops converting the queue into failures.
+      if (settings.wifiOnly && !await _onWifi()) {
+        Log.i(_tag, 'Wi-Fi lost mid-queue; deferring remaining tasks');
+        break;
+      }
+
       final task = await downloadDao.claimNextQueued();
       if (task == null) break;
 
-      _currentTaskId = task.id;
+      _inflightTaskIds.add(task.id);
       try {
         await _downloadTask(task);
       } finally {
-        if (_currentTaskId == task.id) _currentTaskId = null;
+        _inflightTaskIds.remove(task.id);
       }
     }
   }
@@ -232,9 +276,10 @@ class DownloadNotifier extends _$DownloadNotifier {
     unawaited(_processQueue());
   }
 
-  /// Removes one task. If it is the in-flight download, its remaining work
-  /// (file write, status updates) is skipped by the pipeline's checkpoints.
+  /// Removes one task. Cancels its in-flight request when one exists; row
+  /// deletion remains the durable cancel signal the pipeline checkpoints on.
   Future<void> cancelTask(int taskId) async {
+    _cancelTokens.remove(taskId)?.cancel('cancelled by user');
     await ref.read(downloadDaoProvider).removeDownload(taskId);
     unawaited(_processQueue());
   }
@@ -242,10 +287,8 @@ class DownloadNotifier extends _$DownloadNotifier {
   /// Re-queues every failed task of a novel and kicks processing.
   Future<void> retryFailed(int novelId) async {
     final downloadDao = ref.read(downloadDaoProvider);
-    final downloads = await downloadDao.getAllDownloads();
-    for (final d in downloads.where(
-      (d) => d.novelId == novelId && d.status == 'failed',
-    )) {
+    final downloads = await downloadDao.getDownloadsForNovel(novelId);
+    for (final d in downloads.where((d) => d.status == 'failed')) {
       await downloadDao.updateDownloadStatus(
         d.id,
         'queued',
@@ -261,6 +304,8 @@ class DownloadNotifier extends _$DownloadNotifier {
     final downloadDao = ref.read(downloadDaoProvider);
     final chapterDao = ref.read(chapterDaoProvider);
 
+    final cancelToken = CancelToken();
+    _cancelTokens[task.id] = cancelToken;
     try {
       // Row deleted while we waited on a worker slot: user cancelled it.
       if (await downloadDao.getDownloadById(task.id) == null) return;
@@ -341,9 +386,35 @@ class DownloadNotifier extends _$DownloadNotifier {
       // core/network/client.dart, so a failure here is final.
       String? html;
       try {
-        final response = await dio.get(contentUrl);
+        // Real progress (persisted at 10% steps, not per chunk: the queue
+        // screen and the notification read it from the row, and a write
+        // storm per TCP segment would thrash both).
+        var lastPersistedProgress = 0.0;
+        final response = await dio.get(
+          contentUrl,
+          cancelToken: cancelToken,
+          onReceiveProgress: (received, total) {
+            if (total <= 0) return;
+            final p = (received / total).clamp(0.0, 1.0);
+            if (p - lastPersistedProgress >= 0.1) {
+              lastPersistedProgress = p;
+              unawaited(
+                downloadDao.updateDownloadStatus(
+                  task.id,
+                  'downloading',
+                  progress: p,
+                ),
+              );
+            }
+          },
+        );
         html = response.data.toString();
       } catch (e) {
+        if (e is DioException && e.type == DioExceptionType.cancel) {
+          // Cancelled mid-transfer: the row is already gone by design, so
+          // fall through to the outer handler which returns without marking.
+          rethrow;
+        }
         Log.w(_tag, 'Download failed: $e');
       }
 
@@ -407,6 +478,12 @@ class DownloadNotifier extends _$DownloadNotifier {
 
       Log.ok(_tag, 'Chapter ${chapter.name} downloaded to ${file.path}');
     } catch (e, stackTrace) {
+      if (e is DioException && e.type == DioExceptionType.cancel) {
+        // User-cancelled mid-transfer: the row is gone, so there is nothing
+        // to mark — and marking it 'failed' would resurrect a deleted task.
+        Log.i(_tag, 'Task ${task.id} cancelled mid-transfer');
+        return;
+      }
       Log.e(_tag, 'Download failed for task ${task.id}: $e');
       Log.e(
         _tag,
@@ -418,6 +495,8 @@ class DownloadNotifier extends _$DownloadNotifier {
         error: e.toString(),
       );
       await _updateProgress(task.novelId);
+    } finally {
+      _cancelTokens.remove(task.id);
     }
   }
 
@@ -450,23 +529,21 @@ class DownloadNotifier extends _$DownloadNotifier {
     final downloadDao = ref.read(downloadDaoProvider);
     final chapterDao = ref.read(chapterDaoProvider);
 
-    final allChapters = await chapterDao.getChaptersForNovel(novelId);
-    final downloads = await downloadDao.getAllDownloads();
-    final novelDownloads = downloads
-        .where((d) => d.novelId == novelId)
-        .toList();
+    // Aggregates, not full rows: this runs on every task transition, and
+    // chapter/queue tables grow with the library.
+    final total = await chapterDao.getChapterCount(novelId);
+    final byStatus = await downloadDao.countByStatus(novelId);
 
-    final completed = novelDownloads.where((d) => d.status == 'done').length;
-    final failed = novelDownloads.where((d) => d.status == 'failed').length;
-    final isDownloading = novelDownloads.any(
-      (d) => d.status == 'downloading' || d.status == 'queued',
-    );
+    final completed = byStatus['done'] ?? 0;
+    final failed = byStatus['failed'] ?? 0;
+    final isDownloading =
+        (byStatus['downloading'] ?? 0) + (byStatus['queued'] ?? 0) > 0;
 
     state = {
       ...state,
       novelId: NovelDownloadProgress(
         novelId: novelId,
-        totalChapters: allChapters.length,
+        totalChapters: total,
         completedChapters: completed,
         failedChapters: failed,
         isDownloading: isDownloading,
@@ -475,9 +552,10 @@ class DownloadNotifier extends _$DownloadNotifier {
 
     // Initialize notifications only when a download needs them. This is
     // deliberately outside cold startup because the Android plugin can be
-    // slow and must remain on the main isolate.
+    // slow and must remain on the main isolate. Idempotent after the first
+    // call; the permission prompt lives once per pool run in _processQueue,
+    // not here on the per-task path.
     await DownloadNotification.init();
-    await ensureNotificationPermission(DownloadNotification.plugin);
     if (isDownloading) {
       final novelDao = ref.read(novelDaoProvider);
       final novel = await novelDao.getNovelById(novelId);
@@ -486,7 +564,7 @@ class DownloadNotifier extends _$DownloadNotifier {
         novelId: novelId,
         novelTitle: title,
         completed: completed,
-        total: allChapters.length,
+        total: total,
         failed: failed,
       );
     } else if (completed > 0) {
@@ -509,12 +587,11 @@ class DownloadNotifier extends _$DownloadNotifier {
   /// in-flight tasks notice and skip their remaining work.
   Future<void> cancelDownloads(int novelId) async {
     final downloadDao = ref.read(downloadDaoProvider);
-    final downloads = await downloadDao.getAllDownloads();
+    final downloads = await downloadDao.getDownloadsForNovel(novelId);
     for (final d in downloads.where(
-      (d) =>
-          d.novelId == novelId &&
-          (d.status == 'queued' || d.status == 'downloading'),
+      (d) => d.status == 'queued' || d.status == 'downloading',
     )) {
+      _cancelTokens.remove(d.id)?.cancel('cancelled by user');
       await downloadDao.removeDownload(d.id);
     }
     await _updateProgress(novelId);
@@ -537,8 +614,8 @@ class DownloadNotifier extends _$DownloadNotifier {
 
     // Clean up queue
     final downloadDao = ref.read(downloadDaoProvider);
-    final downloads = await downloadDao.getAllDownloads();
-    for (final d in downloads.where((d) => d.novelId == novelId)) {
+    final downloads = await downloadDao.getDownloadsForNovel(novelId);
+    for (final d in downloads) {
       await downloadDao.removeDownload(d.id);
     }
 

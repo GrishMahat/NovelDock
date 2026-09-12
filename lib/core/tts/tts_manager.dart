@@ -21,7 +21,71 @@ part 'tts_manager.g.dart';
 
 const _tag = 'TtsManager';
 
-enum TtsHighlightMode { paragraph, sentence, word }
+enum TtsHighlightMode { paragraph, sentence }
+
+/// Sleep timer mode: 'off', 'duration' (fire once, N minutes from arming),
+/// or 'clock' (fire daily at HH:MM — the nightly case).
+const String sleepTimerOff = 'off';
+const String sleepTimerDuration = 'duration';
+const String sleepTimerClock = 'clock';
+
+/// Pure next-fire computation for the sleep timer (unit-tested).
+/// Returns null when disarmed. Clock times that already passed today roll
+/// to tomorrow, which is what makes the nightly timer recurring.
+DateTime? computeSleepFireTime({
+  required String mode,
+  required int minutes,
+  required int hour,
+  required int minute,
+  required DateTime now,
+}) {
+  switch (mode) {
+    case sleepTimerDuration:
+      if (minutes <= 0) return null;
+      return now.add(Duration(minutes: minutes));
+    case sleepTimerClock:
+      var fire = DateTime(now.year, now.month, now.day, hour, minute);
+      if (!fire.isAfter(now)) {
+        fire = fire.add(const Duration(days: 1));
+      }
+      return fire;
+    default:
+      return null;
+  }
+}
+
+/// User-facing sleep timer status line (unit-tested).
+String describeSleepTimer({
+  required String mode,
+  required int minutes,
+  required int hour,
+  required int minute,
+  required DateTime? endsAt,
+  required DateTime now,
+}) {
+  String remaining(DateTime fire) {
+    final mins = (fire.difference(now).inSeconds / 60).ceil();
+    if (mins < 60) return '$mins min';
+    return '${mins ~/ 60}h ${mins % 60}m';
+  }
+
+  switch (mode) {
+    case sleepTimerDuration:
+      if (endsAt != null && endsAt.isAfter(now)) {
+        return 'Stops in ${remaining(endsAt)}';
+      }
+      return 'In $minutes min';
+    case sleepTimerClock:
+      final hh = hour.toString().padLeft(2, '0');
+      final mm = minute.toString().padLeft(2, '0');
+      if (endsAt != null && endsAt.isAfter(now)) {
+        return 'Daily at $hh:$mm · stops in ${remaining(endsAt)}';
+      }
+      return 'Daily at $hh:$mm';
+    default:
+      return 'Off';
+  }
+}
 
 class TtsManagerState {
   final bool isSpeaking;
@@ -57,6 +121,14 @@ class TtsManagerState {
   /// True only when every chunk finished naturally.
   final bool completedNaturally;
 
+  final String sleepTimerMode;
+  final int sleepMinutes;
+  final int sleepHour;
+  final int sleepMinute;
+
+  /// Armed fire time, null when disarmed or fired.
+  final DateTime? sleepEndsAt;
+
   const TtsManagerState({
     this.isSpeaking = false,
     this.isPaused = false,
@@ -76,6 +148,11 @@ class TtsManagerState {
     this.highlightMode = TtsHighlightMode.sentence,
     this.totalDuration = Duration.zero,
     this.completedNaturally = false,
+    this.sleepTimerMode = sleepTimerOff,
+    this.sleepMinutes = 30,
+    this.sleepHour = 21,
+    this.sleepMinute = 0,
+    this.sleepEndsAt,
   });
 
   int get currentLineIndex => currentChunkIndex;
@@ -100,6 +177,14 @@ class TtsManagerState {
     TtsHighlightMode? highlightMode,
     Duration? totalDuration,
     bool? completedNaturally,
+    String? sleepTimerMode,
+    int? sleepMinutes,
+    int? sleepHour,
+    int? sleepMinute,
+    DateTime? sleepEndsAt,
+    // copyWith cannot clear a nullable field with a null argument
+    // (null means "keep"), so clearing is explicit.
+    bool clearSleepEndsAt = false,
   }) {
     return TtsManagerState(
       isSpeaking: isSpeaking ?? this.isSpeaking,
@@ -122,6 +207,11 @@ class TtsManagerState {
       highlightMode: highlightMode ?? this.highlightMode,
       totalDuration: totalDuration ?? this.totalDuration,
       completedNaturally: completedNaturally ?? this.completedNaturally,
+      sleepTimerMode: sleepTimerMode ?? this.sleepTimerMode,
+      sleepMinutes: sleepMinutes ?? this.sleepMinutes,
+      sleepHour: sleepHour ?? this.sleepHour,
+      sleepMinute: sleepMinute ?? this.sleepMinute,
+      sleepEndsAt: clearSleepEndsAt ? null : sleepEndsAt ?? this.sleepEndsAt,
     );
   }
 }
@@ -134,7 +224,7 @@ class TtsManager extends _$TtsManager {
   /// The engine synthesis and voice discovery currently go through.
   TtsEngine get activeEngine => _engine;
 
-  static TtsEngine _buildEngine(String id) {
+  static TtsEngine buildEngine(String id) {
     if (id == 'system' && SystemTtsEngine.isSupported) {
       return SystemTtsEngine();
     }
@@ -153,11 +243,12 @@ class TtsManager extends _$TtsManager {
 
     await _engine.close();
 
-    var next = _buildEngine(target);
+    var next = buildEngine(target);
     try {
       await next.init();
     } catch (e) {
       Log.e(_tag, 'Failed to init $target engine; falling back to edge', e);
+      unawaited(next.close());
       next = EdgeTtsEngine();
       await next.init();
       target = 'edge';
@@ -192,6 +283,10 @@ class TtsManager extends _$TtsManager {
   /// Serializes settings writes.
   Future<void> _settingsSaveQueue = Future<void>.value();
 
+  /// Armed sleep timer, if any. Fires stop() then disarms (duration, once)
+  /// or re-arms for tomorrow (clock, nightly recurrence).
+  Timer? _sleepTimer;
+
   /// Paragraph-level display texts.
   List<String> _chunkTexts = [];
 
@@ -209,7 +304,15 @@ class TtsManager extends _$TtsManager {
     _loadSettings();
     ref.onDispose(() {
       ++_sessionGeneration;
+      _sleepTimer?.cancel();
+      _sleepTimer = null;
       _controller.dispose();
+      // The controller closes the engine it was started with, but the
+      // manager may hold a different (swapped, never-started) instance:
+      // close ours too. Both closes are idempotent. MPRIS unregisters here
+      // or it outlives the scope that owns it.
+      unawaited(_engine.close());
+      TtsMpris.dispose();
     });
     return const TtsManagerState();
   }
@@ -336,6 +439,7 @@ class TtsManager extends _$TtsManager {
         position: position,
         duration: duration,
         artUri: _coverArtUri,
+        speed: state.speed,
       );
     }
   }
@@ -359,11 +463,12 @@ class TtsManager extends _$TtsManager {
           engineId = 'edge';
         }
         final previous = _engine;
-        _engine = _buildEngine(engineId);
+        _engine = buildEngine(engineId);
         try {
           await _engine.init();
         } catch (e) {
           Log.e(_tag, 'Restored engine init failed; keeping edge', e);
+          unawaited(_engine.close());
           _engine = previous;
           engineId = _engine.id;
         }
@@ -382,7 +487,21 @@ class TtsManager extends _$TtsManager {
         voice: preferences.getString('tts_voice') ?? '',
         language: preferences.getString('tts_language') ?? 'en-US',
         highlightMode: TtsHighlightMode.values[modeIndex],
+        sleepTimerMode:
+            preferences.getString('tts_sleep_mode') ?? sleepTimerOff,
+        sleepMinutes: preferences.getInt('tts_sleep_minutes') ?? 30,
+        sleepHour: preferences.getInt('tts_sleep_hour') ?? 21,
+        sleepMinute: preferences.getInt('tts_sleep_minute') ?? 0,
       );
+
+      // A persisted nightly clock timer re-arms itself across restarts (it
+      // only ever fires stop(), a no-op when idle, so this cannot surprise).
+      // Duration timers stay disarmed until explicitly set each session.
+      if (state.sleepTimerMode == sleepTimerClock) {
+        _armSleepTimer();
+      } else if (state.sleepEndsAt != null) {
+        state = state.copyWith(clearSleepEndsAt: true);
+      }
     } catch (e) {
       Log.e(_tag, 'Failed to load TTS settings', e);
     }
@@ -404,6 +523,10 @@ class TtsManager extends _$TtsManager {
           'tts_highlight_mode',
           snapshot.highlightMode.index,
         );
+        await preferences.setString('tts_sleep_mode', snapshot.sleepTimerMode);
+        await preferences.setInt('tts_sleep_minutes', snapshot.sleepMinutes);
+        await preferences.setInt('tts_sleep_hour', snapshot.sleepHour);
+        await preferences.setInt('tts_sleep_minute', snapshot.sleepMinute);
 
         // Version is intentionally captured to document the snapshot
         // semantics. A later mutation simply gets its own queued write.
@@ -550,7 +673,12 @@ class TtsManager extends _$TtsManager {
     if (paragraphs.isEmpty) return;
 
     if (state.isSpeaking || state.isPaused) {
-      return;
+      // Steal: a new Listen request always wins over stale audio. The old
+      // behavior (silent no-op) left the previous chapter playing with no
+      // feedback; stop() is generation-guarded, so in-flight teardown cannot
+      // corrupt the session started below.
+      Log.i(_tag, 'Stopping current session for a new start request');
+      await stop();
     }
 
     final generation = ++_sessionGeneration;
@@ -752,11 +880,28 @@ class TtsManager extends _$TtsManager {
 
     if (chunkIndex < 0) return;
 
-    await _controller.skipTo(chunkIndex, keepEngine: true);
-
+    // Muted sandwich: the restarted pipeline starts audible playback before
+    // the pause below can land, leaking a blip on skip-while-paused. Muting
+    // first, pausing second, and unmuting last (while paused) keeps the whole
+    // transition silent. Volume restores in finally so errors can't strand
+    // playback muted.
     if (wasPaused) {
-      await _controller.pause();
-      state = state.copyWith(isPaused: true);
+      try {
+        await _controller.setVolume(0);
+      } catch (_) {}
+    }
+    try {
+      await _controller.skipTo(chunkIndex, keepEngine: true);
+      if (wasPaused) {
+        await _controller.pause();
+        state = state.copyWith(isPaused: true);
+      }
+    } finally {
+      if (wasPaused) {
+        try {
+          await _controller.setVolume(1);
+        } catch (_) {}
+      }
     }
   }
 
@@ -840,6 +985,81 @@ class TtsManager extends _$TtsManager {
     state = state.copyWith(highlightMode: mode);
 
     await _saveSettings();
+  }
+
+  /// Arms the sleep timer. Duration mode fires once, N minutes from now;
+  /// clock mode fires daily at HH:MM (re-armed every firing, so the nightly
+  /// stop survives across days). 'off' disarms. Survives pause/stop — only
+  /// a mode change, a firing duration timer, or dispose clears it.
+  Future<void> setSleepTimer({
+    required String mode,
+    int minutes = 30,
+    int hour = 21,
+    int minute = 0,
+  }) async {
+    _settingsMutationVersion++;
+
+    state = state.copyWith(
+      sleepTimerMode: mode == sleepTimerDuration || mode == sleepTimerClock
+          ? mode
+          : sleepTimerOff,
+      sleepMinutes: minutes > 0 ? minutes : 30,
+      sleepHour: hour % 24,
+      sleepMinute: minute % 60,
+    );
+    _armSleepTimer();
+
+    await _saveSettings();
+  }
+
+  /// (Re)arms the Dart timer from the current sleep state. Idempotent:
+  /// safe to call after every state change touching the timer.
+  void _armSleepTimer() {
+    _sleepTimer?.cancel();
+    _sleepTimer = null;
+
+    final fireAt = computeSleepFireTime(
+      mode: state.sleepTimerMode,
+      minutes: state.sleepMinutes,
+      hour: state.sleepHour,
+      minute: state.sleepMinute,
+      now: DateTime.now(),
+    );
+    if (fireAt == null) {
+      if (state.sleepEndsAt != null) {
+        state = state.copyWith(clearSleepEndsAt: true);
+      }
+      return;
+    }
+
+    state = state.copyWith(sleepEndsAt: fireAt);
+    final delay = fireAt.difference(DateTime.now());
+    _sleepTimer = Timer(
+      delay.isNegative ? Duration.zero : delay,
+      _onSleepTimerFire,
+    );
+    Log.i(_tag, 'Sleep timer armed, fires at $fireAt');
+  }
+
+  Future<void> _onSleepTimerFire() async {
+    _sleepTimer = null;
+    final mode = state.sleepTimerMode;
+    Log.i(_tag, 'Sleep timer fired (mode: $mode)');
+    try {
+      // stop() is a safe no-op when idle, so firing while not listening
+      // just disarms (duration) or re-arms (clock) silently.
+      await stop();
+    } finally {
+      if (mode == sleepTimerClock && state.sleepTimerMode == sleepTimerClock) {
+        _armSleepTimer();
+      } else {
+        state = state.copyWith(
+          sleepTimerMode: sleepTimerOff,
+          clearSleepEndsAt: true,
+        );
+        unawaited(_saveSettings());
+      }
+    }
   }
 
   Future<List<TtsEngineVoice>> getVoices() async {

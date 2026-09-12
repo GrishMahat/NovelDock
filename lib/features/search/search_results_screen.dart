@@ -11,7 +11,7 @@ import '../../widgets/cover_image.dart';
 import '../../widgets/max_width_box.dart';
 import '../../widgets/novel_card.dart';
 import '../../widgets/provider_avatar.dart';
-import '../settings/providers/provider_management_providers.dart';
+import '../../core/providers/registries.dart';
 import 'providers/search_providers.dart';
 import 'widgets/filter_sheet.dart';
 
@@ -116,7 +116,10 @@ class _SearchResultsScreenState extends ConsumerState<SearchResultsScreen> {
   Widget build(BuildContext context) {
     final providersAsync = ref.watch(availableProvidersProvider);
     final enabled = ref.watch(enabledProvidersProvider);
-    final searchState = ref.watch(searchProvider);
+    // Narrow watch: the scaffold chrome only needs the global spinner. Row
+    // structure derives below in _SearchRows; watching the whole state here
+    // would rebuild the entire screen on every provider's page append.
+    final searchLoading = ref.watch(searchProvider.select((s) => s.isLoading));
 
     final providers =
         providersAsync.value
@@ -158,7 +161,7 @@ class _SearchResultsScreenState extends ConsumerState<SearchResultsScreen> {
                       overflow: TextOverflow.ellipsis,
                     ),
               actions: [
-                if (searchState.isLoading)
+                if (searchLoading)
                   const Padding(
                     padding: EdgeInsets.only(right: 16),
                     child: Center(
@@ -216,7 +219,7 @@ class _SearchResultsScreenState extends ConsumerState<SearchResultsScreen> {
                       overflow: TextOverflow.ellipsis,
                     ),
                   ),
-                  if (searchState.isLoading)
+                  if (searchLoading)
                     const Padding(
                       padding: EdgeInsets.symmetric(horizontal: Insets.md),
                       child: SizedBox(
@@ -525,7 +528,12 @@ class _ProviderRow extends ConsumerWidget {
     // appears while more pages can still be fetched.
     final hasMorePreview = state.hasNextPage;
 
-    final providerState = ref.watch(searchProvider).stateFor(provider.id);
+    // Narrow watch: one provider's page append must not rebuild every
+    // other provider's section. stateFor returns the stored slice object,
+    // identical until that provider actually changes.
+    final providerState = ref.watch(
+      searchProvider.select((s) => s.stateFor(provider.id)),
+    );
 
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
@@ -646,6 +654,7 @@ class _ProviderRow extends ConsumerWidget {
                               width: 112,
                               height: 152,
                               imageHeaders: item.coverHeaders,
+                              semanticLabel: 'Cover of ${item.title}',
                             ),
                           ),
                           const SizedBox(height: Insets.xs),

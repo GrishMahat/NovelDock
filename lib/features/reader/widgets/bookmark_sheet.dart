@@ -131,7 +131,7 @@ void showBookmarkSheet({
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
                       Text(
-                        'Position: ${position.round()}% · $time',
+                        '${position.round()}% · $time',
                         style: Theme.of(context).textTheme.bodySmall,
                       ),
                       if (bm.note != null && bm.note!.isNotEmpty)
@@ -150,6 +150,7 @@ void showBookmarkSheet({
                   ),
                   trailing: IconButton(
                     icon: const Icon(Icons.delete_outline, size: 20),
+                    tooltip: 'Delete bookmark',
                     onPressed: () async {
                       await onDeleteBookmark(bm.id);
                     },

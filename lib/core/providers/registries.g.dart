@@ -1,6 +1,6 @@
 // GENERATED CODE - DO NOT MODIFY BY HAND
 
-part of 'provider_management_providers.dart';
+part of 'registries.dart';
 
 // **************************************************************************
 // RiverpodGenerator
@@ -105,7 +105,7 @@ final class AvailableProvidersProvider
 }
 
 String _$availableProvidersHash() =>
-    r'd247b67668e26fa288c09fade6ae241068964f19';
+    r'22905367332c11807894a70fb359f20862ea03bd';
 
 /// Set of enabled provider IDs — persisted to settings table.
 

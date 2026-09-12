@@ -26,6 +26,24 @@ Widget buildChapterContent({
 
   final doc = MDParser.parse(content.data);
 
+  // A 0-paragraph intake result is not a loading state: say so instead of
+  // rendering a blank that looks broken.
+  if (doc.blocks.isEmpty) {
+    return Padding(
+      padding: const EdgeInsets.symmetric(vertical: 64, horizontal: 24),
+      child: Center(
+        child: Text(
+          'This chapter has no readable text.',
+          textAlign: TextAlign.center,
+          style: TextStyle(
+            color: settings.textColor.withValues(alpha: 0.65),
+            fontSize: settings.fontSize,
+          ),
+        ),
+      ),
+    );
+  }
+
   return buildDocument(
     doc: doc,
     chapterId: content.chapterId,
@@ -69,7 +87,7 @@ Widget _buildPdfView(String filePath, ReaderSettings settings) {
           Text(
             _fileNameOf(filePath),
             style: Theme.of(context).textTheme.bodySmall?.copyWith(
-              color: settings.textColor.withValues(alpha: 0.5),
+              color: settings.textColor.withValues(alpha: 0.65),
             ),
           ),
           const SizedBox(height: 24),
@@ -131,14 +149,11 @@ Widget buildContinuousContent({
         if (index <= currentIndex + 3) {
           loadChapter(chapterId);
         }
-        if (index == currentIndex + 1) {
-          return const Padding(
-            padding: EdgeInsets.symmetric(vertical: 32),
-            child: Center(child: CircularProgressIndicator()),
-          );
-        }
-        // Organic-looking placeholder heights instead of a flat void.
-        final placeholderHeight = 240.0 + ((chapterId * 37) % 5) * 32.0;
+        // Prose-shaped shimmer like the far-chapter placeholder below: a
+        // bare spinner here flashes layout on every chapter turn.
+        final placeholderHeight = index == currentIndex + 1
+            ? 320.0
+            : 240.0 + ((chapterId * 37) % 5) * 32.0;
         return Padding(
           padding: const EdgeInsets.symmetric(vertical: 32),
           child: ShimmerBlock(height: placeholderHeight),
@@ -146,7 +161,11 @@ Widget buildContinuousContent({
       }
 
       if (chapterError != null) {
-        return _buildChapterError(chapterError, settings);
+        return _buildChapterError(
+          chapterError,
+          settings,
+          onRetry: () => loadChapter(chapterId),
+        );
       }
 
       final isEpub = chapters[index].url.startsWith('epub://');
@@ -171,7 +190,7 @@ Widget buildContinuousContent({
                   Text(
                     'Chapter ${index + 1}',
                     style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                      color: settings.textColor.withValues(alpha: 0.4),
+                      color: settings.textColor.withValues(alpha: 0.65),
                     ),
                   ),
                   const SizedBox(height: 8),
@@ -223,132 +242,66 @@ Widget buildContinuousContent({
   );
 }
 
-Widget _buildChapterError(String error, ReaderSettings settings) {
+/// One failed chapter is a retryable event, not a dead end. Raw exception
+/// strings (e.g. "Exception: Chapter 12 not found in database") are mapped
+/// to human language; the unmapped remainder is shown without the
+/// "Exception:" prefix.
+Widget _buildChapterError(
+  String error,
+  ReaderSettings settings, {
+  required VoidCallback onRetry,
+}) {
+  final message = _humanChapterError(error);
   return Center(
-    child: Column(
-      mainAxisAlignment: MainAxisAlignment.center,
-      children: [
-        const Icon(Icons.error_outline, size: 48, color: AppTheme.kReaderError),
-        const SizedBox(height: 16),
-        Text(
-          error,
-          style: TextStyle(color: settings.textColor),
-          textAlign: TextAlign.center,
-        ),
-        const SizedBox(height: 16),
-      ],
+    child: Padding(
+      padding: const EdgeInsets.symmetric(vertical: 48, horizontal: 24),
+      child: Column(
+        mainAxisAlignment: MainAxisAlignment.center,
+        children: [
+          const Icon(
+            Icons.error_outline,
+            size: 48,
+            color: AppTheme.kReaderError,
+          ),
+          const SizedBox(height: 16),
+          Text(
+            message,
+            style: TextStyle(color: settings.textColor),
+            textAlign: TextAlign.center,
+          ),
+          const SizedBox(height: 16),
+          OutlinedButton.icon(
+            onPressed: onRetry,
+            icon: const Icon(Icons.refresh),
+            label: const Text('Retry'),
+          ),
+        ],
+      ),
     ),
   );
 }
 
-// ─── Paged Mode ───────────────────────────────────────────
-
-Widget buildPagedContent({
-  required BuildContext context,
-  required ReaderSettings settings,
-  required List<Chapter> chapters,
-  required int currentIndex,
-  required Map<int, ChapterContent>? contentCache,
-  required Map<int, String>? errorCache,
-  required PageController pageController,
-  required void Function(int) onPageChanged,
-  required void Function(int) loadChapter,
-  required VoidCallback goToPreviousChapter,
-  required VoidCallback goToNextChapter,
-  required Map<String, GlobalKey> chunkKeys,
-  required int settingsVersion,
-  required TtsManagerState ttsState,
-  Map<int, int>? blockToParagraph,
-}) {
-  return Column(
-    children: [
-      Expanded(
-        child: PageView.builder(
-          controller: pageController,
-          itemCount: chapters.length,
-          onPageChanged: (index) {
-            onPageChanged(index);
-            loadChapter(chapters[index].id);
-            if (index > 0) loadChapter(chapters[index - 1].id);
-            if (index < chapters.length - 1) {
-              loadChapter(chapters[index + 1].id);
-            }
-          },
-          itemBuilder: (context, index) {
-            final chapterId = chapters[index].id;
-            final content = contentCache?[chapterId];
-            final error = errorCache?[chapterId];
-            if (content == null && error == null) {
-              return const Center(child: CircularProgressIndicator());
-            }
-            if (error != null) {
-              return _buildChapterError(error, settings);
-            }
-            final currentChapterId =
-                (chapters.isNotEmpty && currentIndex < chapters.length)
-                ? chapters[currentIndex].id
-                : -1;
-            return SingleChildScrollView(
-              padding: EdgeInsets.symmetric(
-                horizontal: settings.paddingH,
-                vertical: settings.paddingV,
-              ),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Padding(
-                    padding: const EdgeInsets.only(bottom: 16),
-                    child: Text(
-                      chapters[index].name,
-                      style: TextStyle(
-                        color: settings.textColor,
-                        fontSize: settings.fontSize + 4,
-                        fontWeight: FontWeight.bold,
-                      ),
-                    ),
-                  ),
-                  buildChapterContent(
-                    content: content!,
-                    currentChapterId: currentChapterId,
-                    settings: settings,
-                    ttsState: ttsState,
-                    chunkKeys: chunkKeys,
-                    settingsVersion: settingsVersion,
-                    blockToParagraph: blockToParagraph,
-                  ),
-                ],
-              ),
-            );
-          },
-        ),
-      ),
-      Container(
-        color: settings.bgColor,
-        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-        child: Row(
-          mainAxisAlignment: MainAxisAlignment.spaceBetween,
-          children: [
-            TextButton.icon(
-              onPressed: currentIndex > 0 ? goToPreviousChapter : null,
-              icon: const Icon(Icons.chevron_left, size: 20),
-              label: const Text('Previous'),
-            ),
-            Text(
-              '${currentIndex + 1} / ${chapters.length}',
-              style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                color: settings.textColor.withValues(alpha: 0.7),
-              ),
-            ),
-            TextButton.icon(
-              onPressed: currentIndex < chapters.length - 1
-                  ? goToNextChapter
-                  : null,
-              icon: const Icon(Icons.chevron_right, size: 20),
-              label: const Text('Next'),
-            ),
-          ],
-        ),
-      ),
-    ],
-  );
+String _humanChapterError(String error) {
+  final clean = error.replaceFirst(RegExp(r'^Exception:\s*'), '');
+  if (clean.contains('not found in database')) {
+    return 'This chapter is missing from the library. Pull to refresh the novel, then try again.';
+  }
+  if (clean.contains('Could not determine chapter URL')) {
+    return 'The source did not provide a readable address for this chapter.';
+  }
+  if (clean.contains('SocketException') ||
+      clean.contains('Connection refused') ||
+      clean.contains('Connection reset') ||
+      clean.contains('Failed host lookup') ||
+      clean.contains('TimeoutException') ||
+      clean.contains('timed out')) {
+    return 'Could not reach the source. Check your connection and retry.';
+  }
+  if (clean.contains('404')) {
+    return 'The source no longer has this chapter (404).';
+  }
+  if (clean.contains('403') || clean.contains('Cloudflare')) {
+    return 'The source blocked this request. Open it once in Browse so any verification completes, then retry.';
+  }
+  return clean;
 }

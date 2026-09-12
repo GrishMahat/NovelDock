@@ -8,7 +8,7 @@ import 'content_provider.dart';
 
 part 'translation_provider.g.dart';
 
-@Riverpod(keepAlive: true)
+@Riverpod()
 Future<String?> chapterTranslation(Ref ref, int chapterId) async {
   final content = ref.watch(contentProvider.notifier).getContentMd(chapterId);
   if (content == null) return null;

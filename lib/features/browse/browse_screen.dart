@@ -11,7 +11,7 @@ import '../../widgets/max_width_box.dart';
 import '../../widgets/page_header.dart';
 import '../../widgets/provider_avatar.dart';
 import '../../widgets/shimmer_list.dart';
-import '../settings/providers/provider_management_providers.dart';
+import '../../core/providers/registries.dart';
 import 'webview_screen.dart';
 
 /// Browse screen. Installed tab for browsing sources, Catalog tab for

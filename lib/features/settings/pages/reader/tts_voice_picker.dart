@@ -42,27 +42,61 @@ String ttsLanguageName(String code) {
 
 /// Opens the shared voice picker sheet (search, samples, selection).
 /// Used by the full TTS settings page and the in-reader Listen tab alike.
+///
+/// Samples synthesize through a dedicated preview engine of the same type —
+/// never the manager's live engine — so previewing voices mid-playback
+/// cannot hijack the active Edge session or race its single turn.
 Future<void> showTtsVoicePicker(BuildContext context, WidgetRef ref) async {
   final notifier = ref.read(ttsManagerProvider.notifier);
 
   final current = ref.read(ttsManagerProvider).voice;
+  final engineId = ref.read(ttsManagerProvider).engineId;
 
   final voices = await notifier.getVoices();
 
   if (!context.mounted) return;
 
-  await showModalBottomSheet<void>(
-    context: context,
-    isScrollControlled: true,
-    builder: (ctx) {
-      return TtsVoicePickerSheet(
-        voices: voices,
-        current: current,
-        notifier: notifier,
-        engine: notifier.activeEngine,
-      );
-    },
-  );
+  final previewEngine = TtsManager.buildEngine(engineId);
+  try {
+    await previewEngine.init();
+  } catch (e) {
+    Log.e('VoiceSample', 'Preview engine init failed; using live engine', e);
+    // Degraded: today's behavior. Better a working preview than none.
+    if (!context.mounted) return;
+    await showModalBottomSheet<void>(
+      context: context,
+      isScrollControlled: true,
+      builder: (ctx) {
+        return TtsVoicePickerSheet(
+          voices: voices,
+          current: current,
+          notifier: notifier,
+          engine: notifier.activeEngine,
+        );
+      },
+    );
+    return;
+  }
+
+  try {
+    if (!context.mounted) return;
+    await showModalBottomSheet<void>(
+      context: context,
+      isScrollControlled: true,
+      builder: (ctx) {
+        return TtsVoicePickerSheet(
+          voices: voices,
+          current: current,
+          notifier: notifier,
+          engine: previewEngine,
+        );
+      },
+    );
+  } finally {
+    try {
+      await previewEngine.close();
+    } catch (_) {}
+  }
 }
 
 /// Opens the shared language picker sheet.

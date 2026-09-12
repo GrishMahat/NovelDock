@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter/foundation.dart';
 import 'package:riverpod_annotation/riverpod_annotation.dart';
 
@@ -72,13 +74,23 @@ class LogBuffer {
 final globalLogBuffer = LogBuffer();
 
 /// Riverpod provider that bridges the global log buffer.
-@Riverpod(keepAlive: true)
+/// Listener-backed: emits only when entries are added (no polling), and
+/// auto-disposes with the log page. New listeners immediately get the
+/// current buffer so reopening the page never flashes empty.
+@Riverpod()
 Stream<List<LogEntry>> logBuffer(Ref ref) {
-  ref.onDispose(() {});
-  return Stream<List<LogEntry>>.periodic(
-    const Duration(milliseconds: 200),
-    (_) => globalLogBuffer.entries,
-  ).distinct();
+  final controller = StreamController<List<LogEntry>>.broadcast();
+  void emit() {
+    if (!controller.isClosed) controller.add(globalLogBuffer.entries);
+  }
+
+  controller.onListen = emit;
+  globalLogBuffer.addListener(emit);
+  ref.onDispose(() {
+    globalLogBuffer.removeListener(emit);
+    controller.close();
+  });
+  return controller.stream;
 }
 
 /// Initialize log buffer — wires Log.onLog to the global buffer.

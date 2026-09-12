@@ -20,7 +20,14 @@ class ProviderAvatar extends ConsumerWidget {
       loading: () => _letterAvatar(),
       error: (_, _) => _letterAvatar(),
       data: (registry) {
-        final iconFile = registry.loadCachedProviderIcon(provider.id);
+        // Prefer the winning registry's icon so art matches the code that
+        // actually runs (see availableProviders shadowing dedupe).
+        final iconFile = registry.loadCachedProviderIcon(
+          provider.id,
+          preferRegistryOrder: provider.registryId == null
+              ? null
+              : [provider.registryId!],
+        );
         if (iconFile != null) {
           return CircleAvatar(
             radius: radius,

@@ -45,7 +45,7 @@ class TtsMiniPlayer extends ConsumerWidget {
                   IconButton(
                     icon: const Icon(Icons.skip_previous_rounded, size: 22),
                     color: scheme.onSurfaceVariant,
-                    tooltip: 'Previous line',
+                    tooltip: 'Previous paragraph',
                     onPressed: () => ttsNotifier.skipBackward(),
                     padding: EdgeInsets.zero,
                     constraints: const BoxConstraints(minWidth: 44),

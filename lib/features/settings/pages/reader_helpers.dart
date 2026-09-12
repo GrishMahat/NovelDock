@@ -51,7 +51,14 @@ Widget slider(
           child: Text(label, style: Theme.of(context).textTheme.bodyMedium),
         ),
         Expanded(
-          child: Slider(value: value, min: min, max: max, onChanged: onChanged),
+          child: Slider(
+            value: value,
+            min: min,
+            max: max,
+            onChanged: onChanged,
+            label: display,
+            semanticFormatterCallback: (_) => '$label $display',
+          ),
         ),
         SizedBox(
           width: 50,

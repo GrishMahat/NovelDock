@@ -6,7 +6,6 @@ import 'package:riverpod_annotation/riverpod_annotation.dart';
 import '../../../core/database/database.dart';
 import '../../../core/providers/database_providers.dart';
 import '../../../core/providers/engine.dart';
-import '../../../core/providers/registry.dart';
 import '../../../core/utils/logger.dart';
 
 part 'reading_progress_provider.g.dart';
@@ -60,7 +59,7 @@ class ReadingProgressState {
   }
 }
 
-@Riverpod(keepAlive: true)
+@Riverpod()
 class ReadingProgressNotifier extends _$ReadingProgressNotifier {
   Timer? _syncTimer;
 
@@ -132,17 +131,18 @@ class ReadingProgressNotifier extends _$ReadingProgressNotifier {
       final novel = await novelDao.getNovelById(novelId);
       if (novel == null) return;
 
-      final registry = await ref.read(registryManagerProvider.future);
-      final engine = ref.read(providerEngineProvider);
-      final jsSource = await registry.loadCachedProviderJs(novel.providerId);
-      if (jsSource == null) {
+      // Reuse the shared cached instance: loading a throwaway runtime here
+      // on every sync leaked a native QuickJS context per run.
+      final provider = await ref.read(
+        providerInstanceProvider(novel.providerId).future,
+      );
+      if (provider == null) {
         state = state.copyWith(
           isSyncing: false,
           syncError: 'Provider not found',
         );
         return;
       }
-      final provider = await engine.loadProvider(jsSource);
 
       final result = await provider.call('getChapterList', [novel.url]);
       final chapterUrls = result as List<dynamic>?;
@@ -157,21 +157,23 @@ class ReadingProgressNotifier extends _$ReadingProgressNotifier {
       final existingChapters = await chapterDao.getChaptersForNovel(novelId);
       final existingUrls = existingChapters.map((c) => c.url).toSet();
 
-      // One diff-sync for the whole batch. The previous per-chapter loop
-      // called delete-all + insert-one on every iteration, which wiped the
-      // novel's entire chapter list and left only the last entry.
+      // syncChaptersForNovel treats anything absent from the incoming list
+      // as vanished and DELETES it, so it must receive the FULL server-side
+      // list here — never a delta. (Passing only-new URLs once wiped entire
+      // libraries on every background sync.)
       final chapterList = [
         for (final chapterUrl in chapterUrls)
-          if (!existingUrls.contains(chapterUrl['url']))
-            ChaptersCompanion(
-              novelId: Value(novelId),
-              name: Value(chapterUrl['name'] as String),
-              url: Value(chapterUrl['url'] as String),
-              index: Value((chapterUrl['index'] as num).toDouble()),
-            ),
+          ChaptersCompanion(
+            novelId: Value(novelId),
+            name: Value(chapterUrl['name'] as String),
+            url: Value(chapterUrl['url'] as String),
+            index: Value((chapterUrl['index'] as num).toDouble()),
+          ),
       ];
       await chapterDao.syncChaptersForNovel(novelId, chapterList);
-      final newChapters = chapterList.length;
+      final newChapters = chapterUrls
+          .where((c) => !existingUrls.contains(c['url']))
+          .length;
 
       await _loadProgress();
 

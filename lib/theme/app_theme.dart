@@ -82,32 +82,6 @@ class AppTheme {
     );
   }
 
-  /// Bionic reading: bold the first half of every word.
-  static TextSpan bionicText(String text, TextStyle style) {
-    final words = text.split(' ');
-    final spans = <TextSpan>[];
-    for (var i = 0; i < words.length; i++) {
-      final word = words[i];
-      if (word.isEmpty) continue;
-      final mid = (word.length / 2).ceil();
-      spans.add(
-        TextSpan(
-          children: [
-            TextSpan(
-              text: word.substring(0, mid),
-              style: style.copyWith(fontWeight: FontWeight.bold),
-            ),
-            TextSpan(text: word.substring(mid), style: style),
-          ],
-        ),
-      );
-      if (i < words.length - 1) {
-        spans.add(TextSpan(text: ' ', style: style));
-      }
-    }
-    return TextSpan(children: spans);
-  }
-
   static ThemeData dark({Color primary = kAccentSeed}) => _cached(
     'dark:$primary',
     () => _build(

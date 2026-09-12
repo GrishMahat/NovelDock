@@ -140,7 +140,7 @@ class _ChapterSidebarState extends State<ChapterSidebar> {
                   decoration: InputDecoration(
                     hintText: 'Filter chapters',
                     hintStyle: Theme.of(context).textTheme.bodySmall?.copyWith(
-                      color: s.textColor.withValues(alpha: 0.5),
+                      color: s.textColor.withValues(alpha: 0.65),
                     ),
                     prefixIcon: Icon(
                       Icons.search,
@@ -198,7 +198,7 @@ class _ChapterSidebarState extends State<ChapterSidebar> {
                                       : FontWeight.w400,
                                   color: isCurrent
                                       ? s.textColor
-                                      : s.textColor.withValues(alpha: 0.55),
+                                      : s.textColor.withValues(alpha: 0.75),
                                 ),
                           ),
                         ),

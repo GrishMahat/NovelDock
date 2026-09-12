@@ -33,6 +33,7 @@ class NovelGridCard extends StatelessWidget {
                 imageUrl: item.cover,
                 fit: BoxFit.cover,
                 imageHeaders: item.coverHeaders,
+                semanticLabel: 'Cover of ${item.title}',
               ),
             ),
             Padding(
@@ -89,6 +90,7 @@ class NovelListTile extends StatelessWidget {
           width: 48,
           height: 64,
           imageHeaders: item.coverHeaders,
+          semanticLabel: 'Cover of ${item.title}',
         ),
       ),
       title: Text(item.title, maxLines: 2, overflow: TextOverflow.ellipsis),
@@ -144,6 +146,7 @@ class NovelCompactTile extends StatelessWidget {
                 width: 28,
                 height: 38,
                 imageHeaders: item.coverHeaders,
+                semanticLabel: 'Cover of ${item.title}',
               ),
             ),
             const SizedBox(width: Insets.sm),

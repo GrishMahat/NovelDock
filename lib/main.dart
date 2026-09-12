@@ -52,9 +52,14 @@ void main() async {
   // appPrefsProvider, so the instance must be loaded before the first frame
   // (a small file read; keeps startup tab / theme / settings flash-free).
   // appDocumentsDirProvider is pre-warmed for the same reason (download
-  // settings default path).
-  final prefs = await SharedPreferences.getInstance();
-  final docsDir = await getApplicationDocumentsDirectory();
+  // settings default path). Both are independent plugin calls, so they load
+  // concurrently instead of serially to keep pre-frame work minimal.
+  final results = await Future.wait([
+    SharedPreferences.getInstance(),
+    getApplicationDocumentsDirectory(),
+  ]);
+  final prefs = results[0] as SharedPreferences;
+  final docsDir = results[1] as Directory;
 
   runApp(
     ProviderScope(

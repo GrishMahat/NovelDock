@@ -38,6 +38,7 @@ class LibraryListItem extends StatelessWidget {
       trailing: IconButton(
         icon: const Icon(Icons.play_circle_outline, size: 28),
         color: Theme.of(context).colorScheme.primary,
+        tooltip: 'Resume reading',
         onPressed: onPlay,
       ),
       onTap: onTap,
@@ -46,31 +47,41 @@ class LibraryListItem extends StatelessWidget {
   }
 
   Widget _buildCover(BuildContext context, double width, double height) {
+    Widget art;
     if (novel.coverUrl != null && novel.coverUrl!.isNotEmpty) {
-      return CachedNetworkImage(
+      art = CachedNetworkImage(
         imageUrl: novel.coverUrl!,
         width: width,
         height: height,
         fit: BoxFit.cover,
+        imageBuilder: (context, provider) => Image(
+          image: provider,
+          width: width,
+          height: height,
+          fit: BoxFit.cover,
+          excludeFromSemantics: true,
+        ),
         placeholder: (_, _) => Container(
           width: width,
           height: height,
           color: Theme.of(context).colorScheme.surfaceContainerHighest,
-          child: const Icon(Icons.book, size: 32),
+          child: const ExcludeSemantics(child: Icon(Icons.book, size: 32)),
         ),
         errorWidget: (_, _, _) => Container(
           width: width,
           height: height,
           color: Theme.of(context).colorScheme.surfaceContainerHighest,
-          child: const Icon(Icons.book, size: 32),
+          child: const ExcludeSemantics(child: Icon(Icons.book, size: 32)),
         ),
       );
+    } else {
+      art = Container(
+        width: width,
+        height: height,
+        color: Theme.of(context).colorScheme.surfaceContainerHighest,
+        child: const ExcludeSemantics(child: Icon(Icons.book, size: 32)),
+      );
     }
-    return Container(
-      width: width,
-      height: height,
-      color: Theme.of(context).colorScheme.surfaceContainerHighest,
-      child: const Icon(Icons.book, size: 32),
-    );
+    return Semantics(image: true, label: 'Cover of ${novel.title}', child: art);
   }
 }

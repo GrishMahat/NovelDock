@@ -10,7 +10,7 @@ import '../../../core/network/client.dart';
 import '../../../core/providers/database_providers.dart';
 import '../../../core/utils/logger.dart';
 
-import '../../settings/providers/provider_management_providers.dart';
+import '../../../core/providers/registries.dart';
 
 part 'search_providers.g.dart';
 

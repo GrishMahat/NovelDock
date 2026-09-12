@@ -1,4 +1,6 @@
+import 'package:flutter/gestures.dart';
 import 'package:flutter/material.dart';
+import 'package:url_launcher/url_launcher.dart';
 
 import '../../tts/tts_manager.dart';
 import '../../../features/settings/pages/reader/reader_settings_state.dart';
@@ -346,6 +348,17 @@ Widget _richText(
   );
 }
 
+/// Opens a chapter link externally. Links are styled as tappable affordances,
+/// so they must act like it; failed launches stay silent (logged) rather
+/// than stranding the reader on a dead tap.
+Future<void> _openLink(String url) async {
+  final uri = Uri.tryParse(url);
+  if (uri == null || !uri.hasScheme) return;
+  try {
+    await launchUrl(uri, mode: LaunchMode.externalApplication);
+  } catch (_) {}
+}
+
 List<InlineSpan> _buildSpans(
   InlineNode node,
   TextStyle baseStyle,
@@ -383,6 +396,7 @@ List<InlineSpan> _buildSpans(
           color: AppTheme.kReaderAccent,
           decoration: TextDecoration.underline,
         ),
+        recognizer: TapGestureRecognizer()..onTap = () => _openLink(node.url),
       ),
     ],
     CodeNode() => [

@@ -52,7 +52,7 @@ class ReaderNavigationState {
       : null;
 }
 
-@Riverpod(keepAlive: true)
+@Riverpod()
 class ReaderNavigationNotifier extends _$ReaderNavigationNotifier {
   @override
   ReaderNavigationState build(int novelId) =>

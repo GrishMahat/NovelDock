@@ -9,11 +9,14 @@ class SettingsDao extends DatabaseAccessor<AppDatabase>
     with _$SettingsDaoMixin {
   SettingsDao(super.db);
 
-  Future<void> setSetting(String key, String value) async {
-    await (delete(settings)..where((t) => t.key.equals(key))).go();
-    await into(
-      settings,
-    ).insert(SettingsCompanion(key: Value(key), value: Value(value)));
+  /// Single atomic upsert: the primary key on [Settings.key] (plus the
+  /// unique index created by the v3 migration on pre-existing databases)
+  /// makes duplicates impossible, so no delete + insert dance is needed.
+  Future<void> setSetting(String key, String value) {
+    return into(settings).insert(
+      SettingsCompanion(key: Value(key), value: Value(value)),
+      mode: InsertMode.insertOrReplace,
+    );
   }
 
   Future<String?> getSetting(String key) async {

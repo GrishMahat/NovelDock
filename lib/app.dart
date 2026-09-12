@@ -1,20 +1,47 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
 import 'core/utils/platform.dart';
+import 'features/downloads/providers/download_provider.dart';
 import 'features/settings/pages/theme_settings_page.dart';
 import 'router/app_router.dart';
 import 'theme/app_theme.dart';
 import 'theme/tokens.dart';
 import 'widgets/tts_mini_player.dart';
 
-class NovelDockApp extends ConsumerWidget {
+class NovelDockApp extends ConsumerStatefulWidget {
   const NovelDockApp({super.key});
 
   @override
-  Widget build(BuildContext context, WidgetRef ref) {
+  ConsumerState<NovelDockApp> createState() => _NovelDockAppState();
+}
+
+class _NovelDockAppState extends ConsumerState<NovelDockApp> {
+  bool _startupQueueKicked = false;
+
+  @override
+  void initState() {
+    super.initState();
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      // Heal interrupted download state once per launch: rows stuck in
+      // 'downloading' from a killed session requeue and drain, and flags
+      // are verified against disk. Post-frame and unawaited by design —
+      // cold start never waits on it. (The Downloads screen repeats both
+      // when opened; both entry points are idempotent.)
+      if (_startupQueueKicked) return;
+      _startupQueueKicked = true;
+      final downloads = ref.read(downloadProvider.notifier);
+      unawaited(downloads.resumePendingDownloads());
+      unawaited(downloads.reconcileDownloads());
+    });
+  }
+
+  @override
+  Widget build(BuildContext context) {
     final router = ref.watch(routerProvider);
     final themeModeStr = ref.watch(themeModeProvider);
     final accentColorInt = ref.watch(accentColorProvider);

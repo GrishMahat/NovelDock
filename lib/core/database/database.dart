@@ -4,6 +4,7 @@ import 'package:drift/drift.dart';
 import 'package:drift/native.dart';
 
 import '../config/app_config.dart';
+import '../utils/logger.dart';
 import 'tables.dart';
 import 'daos/novel_dao.dart';
 import 'daos/chapter_dao.dart';
@@ -59,7 +60,7 @@ class AppDatabase extends _$AppDatabase {
   AppDatabase.withExecutor(super.e);
 
   @override
-  int get schemaVersion => 2;
+  int get schemaVersion => 3;
 
   @override
   MigrationStrategy get migration => MigrationStrategy(
@@ -68,17 +69,63 @@ class AppDatabase extends _$AppDatabase {
     },
     onUpgrade: (m, from, to) async {
       if (from < 2) {
-        // Add new columns to Chapters table if they don't exist
+        // Add new columns to Chapters table if they don't exist.
+        // Best-effort with loud logging: a failed legacy step must never
+        // silently half-migrate, but it also must not brick the database.
+        for (final step in <String, Future<void> Function()>{
+          'addColumn chapters.ttsRead': () =>
+              m.addColumn(chapters, chapters.ttsRead),
+          'addColumn chapters.bookmarked': () =>
+              m.addColumn(chapters, chapters.bookmarked),
+          'createTable novelProgress': () => m.createTable(novelProgress),
+        }.entries) {
+          try {
+            await step.value();
+          } catch (e) {
+            Log.e('DB', 'Migration v1->v2 step failed: ${step.key}', e);
+          }
+        }
+      }
+      if (from < 3) {
+        // v3: hot-path indices + single-row settings invariant.
+        // The Settings primary key only takes effect on fresh installs
+        // (SQLite cannot add a PK to an existing table), so upgraded
+        // databases get the equivalent guarantee explicitly: dedupe first,
+        // then a UNIQUE index on key.
         try {
-          await m.addColumn(chapters, chapters.ttsRead);
-        } catch (_) {}
-        try {
-          await m.addColumn(chapters, chapters.bookmarked);
-        } catch (_) {}
-        // Create NovelProgress table
-        try {
-          await m.createTable(novelProgress);
-        } catch (_) {}
+          await m.database.customStatement(
+            'DELETE FROM settings WHERE rowid NOT IN '
+            '(SELECT MAX(rowid) FROM settings GROUP BY "key")',
+          );
+          await m.database.customStatement(
+            'CREATE UNIQUE INDEX IF NOT EXISTS settings_key_unique '
+            'ON settings ("key")',
+          );
+        } catch (e) {
+          Log.e('DB', 'Migration v3 step failed: settings key invariant', e);
+        }
+        for (final indexSql in <String>[
+          'CREATE INDEX IF NOT EXISTS reading_history_novel '
+              'ON reading_history (novel_id, read_at)',
+          'CREATE INDEX IF NOT EXISTS reading_history_chapter '
+              'ON reading_history (chapter_id)',
+          'CREATE INDEX IF NOT EXISTS downloads_queue_status '
+              'ON downloads_queue (status)',
+          'CREATE INDEX IF NOT EXISTS downloads_queue_novel_chapter '
+              'ON downloads_queue (novel_id, chapter_id)',
+          'CREATE INDEX IF NOT EXISTS bookmarks_novel_chapter '
+              'ON bookmarks (novel_id, chapter_id)',
+          'CREATE INDEX IF NOT EXISTS chapters_novel_downloaded '
+              'ON chapters (novel_id, downloaded)',
+          'CREATE INDEX IF NOT EXISTS chapters_novel_read '
+              'ON chapters (novel_id, "read")',
+        ]) {
+          try {
+            await m.database.customStatement(indexSql);
+          } catch (e) {
+            Log.e('DB', 'Migration v3 step failed: $indexSql', e);
+          }
+        }
       }
     },
   );

@@ -9,23 +9,26 @@ class LibraryDao extends DatabaseAccessor<AppDatabase> with _$LibraryDaoMixin {
   LibraryDao(super.db);
 
   Future<int> addToLibrary(int novelId, {String? status}) async {
-    final existing = await isInLibrary(novelId);
-    if (existing) {
-      await (update(library)..where((t) => t.novelId.equals(novelId))).write(
+    // Transacted: concurrent adds must not interleave into duplicate rows.
+    return transaction(() async {
+      final existing = await isInLibrary(novelId);
+      if (existing) {
+        await (update(library)..where((t) => t.novelId.equals(novelId))).write(
+          LibraryCompanion(
+            lastReadAt: Value(DateTime.now().millisecondsSinceEpoch),
+            status: Value(status ?? 'Reading'),
+          ),
+        );
+        return novelId;
+      }
+      return into(library).insert(
         LibraryCompanion(
+          novelId: Value(novelId),
           lastReadAt: Value(DateTime.now().millisecondsSinceEpoch),
           status: Value(status ?? 'Reading'),
         ),
       );
-      return novelId;
-    }
-    return into(library).insert(
-      LibraryCompanion(
-        novelId: Value(novelId),
-        lastReadAt: Value(DateTime.now().millisecondsSinceEpoch),
-        status: Value(status ?? 'Reading'),
-      ),
-    );
+    });
   }
 
   Future<void> updateStatus(int novelId, String? status) {
@@ -70,21 +73,14 @@ class LibraryDao extends DatabaseAccessor<AppDatabase> with _$LibraryDaoMixin {
     return select(library).watch();
   }
 
-  Future<List<Novel>> getLibraryNovels() async {
-    final entries = await (select(
-      library,
-    )..orderBy([(t) => OrderingTerm.desc(t.lastReadAt)])).get();
+  /// Joined single query (mirrors [watchLibraryNovels]); the old version
+  /// issued one query per library entry.
+  Future<List<Novel>> getLibraryNovels() {
+    final query = select(library).join([
+      innerJoin(novels, novels.id.equalsExp(library.novelId)),
+    ])..orderBy([OrderingTerm.desc(library.lastReadAt)]);
 
-    final novels = <Novel>[];
-    for (final entry in entries) {
-      final novel = await (select(
-        db.novels,
-      )..where((t) => t.id.equals(entry.novelId))).getSingleOrNull();
-      if (novel != null) {
-        novels.add(novel);
-      }
-    }
-    return novels;
+    return query.map((row) => row.readTable(novels)).get();
   }
 
   Stream<List<Novel>> watchLibraryNovels() {
@@ -122,18 +118,23 @@ class LibraryDao extends DatabaseAccessor<AppDatabase> with _$LibraryDaoMixin {
       final lastChapter = await (select(
         db.chapters,
       )..where((t) => t.id.equals(entry.lastChapterId!))).getSingleOrNull();
+      // Dangling anchor (chapter vanished before dependent cleanup ran):
+      // skip instead of counting the whole novel as unread.
       if (lastChapter == null) continue;
 
+      // COUNT, not full rows: only non-emptiness matters here.
       final unreadCount =
-          await (select(db.chapters)..where(
-                (t) =>
-                    t.novelId.equals(entry.novelId) &
-                    t.index.isBiggerThanValue(lastChapter.index) &
-                    t.read.equals(false),
-              ))
-              .get();
+          await (selectOnly(db.chapters)
+                ..where(
+                  db.chapters.novelId.equals(entry.novelId) &
+                      db.chapters.index.isBiggerThanValue(lastChapter.index) &
+                      db.chapters.read.equals(false),
+                )
+                ..addColumns([db.chapters.id.count()]))
+              .map((row) => row.read(db.chapters.id.count()) ?? 0)
+              .getSingle();
 
-      if (unreadCount.isNotEmpty) {
+      if (unreadCount > 0) {
         final novel = await (select(
           db.novels,
         )..where((t) => t.id.equals(entry.novelId))).getSingleOrNull();

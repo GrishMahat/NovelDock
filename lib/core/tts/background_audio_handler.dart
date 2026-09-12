@@ -32,6 +32,7 @@ class BackgroundAudioHandler extends BaseAudioHandler
     required Duration position,
     required Duration duration,
     String? artUri,
+    double speed = 1.0,
   }) {
     final safeDuration = duration < Duration.zero ? Duration.zero : duration;
 
@@ -67,7 +68,7 @@ class BackgroundAudioHandler extends BaseAudioHandler
         processingState: AudioProcessingState.ready,
         playing: isPlaying,
         updatePosition: safePosition,
-        speed: 1.0,
+        speed: speed > 0 ? speed : 1.0,
       ),
     );
   }

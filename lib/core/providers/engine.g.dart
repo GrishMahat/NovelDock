@@ -127,7 +127,7 @@ final class ProviderInstanceProvider
   }
 }
 
-String _$providerInstanceHash() => r'5d74ebc867158872021ae13e9f02c087b5422ebc';
+String _$providerInstanceHash() => r'f12d84f76538103d68b6ccff182618e1516afff5';
 
 /// Loads a provider's JS, evaluates it, and loads its feature flags.
 ///

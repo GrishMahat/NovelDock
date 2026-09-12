@@ -21,9 +21,14 @@ class DownloadsScreen extends ConsumerStatefulWidget {
 class _DownloadsScreenState extends ConsumerState<DownloadsScreen> {
   bool _showSettings = false;
 
+  /// Memoized: recreating this in build resubscribes and flashes the
+  /// skeleton on every rebuild (the queue list below says as much).
+  late final Stream<List<DownloadsQueueData>> _allDownloads;
+
   @override
   void initState() {
     super.initState();
+    _allDownloads = ref.read(downloadDaoProvider).watchAllDownloads();
     // Requeue tasks stuck in 'downloading' from a killed session and drain
     // anything still queued.
     WidgetsBinding.instance.addPostFrameCallback((_) {
@@ -55,7 +60,7 @@ class _DownloadsScreenState extends ConsumerState<DownloadsScreen> {
 
   Widget _clearActions() {
     return StreamBuilder<List<DownloadsQueueData>>(
-      stream: ref.watch(downloadDaoProvider).watchAllDownloads(),
+      stream: _allDownloads,
       builder: (context, snapshot) {
         final downloads = snapshot.data ?? [];
         if (downloads.isEmpty) return const SizedBox.shrink();
@@ -78,7 +83,6 @@ class _DownloadsScreenState extends ConsumerState<DownloadsScreen> {
 
   @override
   Widget build(BuildContext context) {
-    final downloadDao = ref.watch(downloadDaoProvider);
     final dlSettings = ref.watch(downloadSettingsProvider);
     final dlNotifier = ref.read(downloadSettingsProvider.notifier);
     final text = Theme.of(context).textTheme;
@@ -205,7 +209,7 @@ class _DownloadsScreenState extends ConsumerState<DownloadsScreen> {
           // ── Download queue ──
           Expanded(
             child: StreamBuilder<List<DownloadsQueueData>>(
-              stream: downloadDao.watchAllDownloads(),
+              stream: _allDownloads,
               builder: (context, snapshot) {
                 final downloads = snapshot.data ?? [];
 
@@ -264,22 +268,34 @@ class _DownloadsScreenState extends ConsumerState<DownloadsScreen> {
   }
 }
 
-class _DownloadTile extends ConsumerWidget {
+class _DownloadTile extends ConsumerStatefulWidget {
   final DownloadsQueueData download;
   const _DownloadTile({required this.download});
 
   @override
-  Widget build(BuildContext context, WidgetRef ref) {
-    final chapterDao = ref.watch(chapterDaoProvider);
-    final novelDao = ref.watch(novelDaoProvider);
+  ConsumerState<_DownloadTile> createState() => _DownloadTileState();
+}
 
+class _DownloadTileState extends ConsumerState<_DownloadTile> {
+  /// Memoized: building these futures in build() re-queries the database
+  /// on every parent rebuild (e.g. any row's progress tick).
+  late final Future<Chapter?> _chapter = ref
+      .read(chapterDaoProvider)
+      .getChapterById(widget.download.chapterId);
+  late final Future<Novel?> _novel = ref
+      .read(novelDaoProvider)
+      .getNovelById(widget.download.novelId);
+
+  @override
+  Widget build(BuildContext context) {
+    final download = widget.download;
     return FutureBuilder<Chapter?>(
-      future: chapterDao.getChapterById(download.chapterId),
+      future: _chapter,
       builder: (context, chapterSnapshot) {
         final chapter = chapterSnapshot.data;
 
         return FutureBuilder<Novel?>(
-          future: novelDao.getNovelById(download.novelId),
+          future: _novel,
           builder: (context, novelSnapshot) {
             final novel = novelSnapshot.data;
 

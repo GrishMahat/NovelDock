@@ -60,7 +60,7 @@ class _GeneralTab extends ConsumerWidget {
           settings.fontSize,
           10,
           30,
-          '${settings.fontSize.round()} sp',
+          '${settings.fontSize.round()}',
           (v) => notifier.updateFontSize(v),
         ),
         slider(
@@ -78,7 +78,7 @@ class _GeneralTab extends ConsumerWidget {
         section(context, 'Layout'),
         slider(
           context,
-          'H Padding',
+          'Side margins',
           settings.paddingH,
           0,
           50,
@@ -87,7 +87,7 @@ class _GeneralTab extends ConsumerWidget {
         ),
         slider(
           context,
-          'V Padding',
+          'Top and bottom margins',
           settings.paddingV,
           0,
           50,
@@ -119,28 +119,7 @@ class _GeneralTab extends ConsumerWidget {
           settings.bionicReading,
           (_) => notifier.toggleBionicReading(),
         ),
-        switchTile(
-          context,
-          'Selectable Text',
-          null,
-          settings.selectableText,
-          (_) => notifier.toggleSelectableText(),
-        ),
-        switchTile(
-          context,
-          'Show Time',
-          null,
-          settings.showTime,
-          (_) => notifier.toggleShowTime(),
-        ),
-        if (!Platform.isLinux && !Platform.isMacOS && !Platform.isWindows) ...[
-          switchTile(
-            context,
-            'Show Battery',
-            null,
-            settings.showBattery,
-            (_) => notifier.toggleShowBattery(),
-          ),
+        if (!Platform.isLinux && !Platform.isMacOS && !Platform.isWindows)
           switchTile(
             context,
             'Keep Screen On',
@@ -148,49 +127,6 @@ class _GeneralTab extends ConsumerWidget {
             settings.keepScreenOn,
             (_) => notifier.toggleKeepScreenOn(),
           ),
-        ],
-
-        const SizedBox(height: 16),
-        // ── Scroll ──
-        section(context, 'Scroll'),
-        RadioGroup<String>(
-          groupValue: settings.scrollMode,
-          onChanged: (v) => notifier.updateScrollMode(v!),
-          child: Column(
-            children: [
-              radio(
-                'Continuous',
-                'continuous',
-                () => notifier.updateScrollMode('continuous'),
-              ),
-              radio('Paged', 'paged', () => notifier.updateScrollMode('paged')),
-            ],
-          ),
-        ),
-
-        if (!Platform.isLinux && !Platform.isMacOS && !Platform.isWindows) ...[
-          const SizedBox(height: 16),
-          section(context, 'Orientation'),
-          RadioGroup<String>(
-            groupValue: settings.orientation,
-            onChanged: (v) => notifier.updateOrientation(v!),
-            child: Column(
-              children: [
-                radio('Auto', 'auto', () => notifier.updateOrientation('auto')),
-                radio(
-                  'Portrait',
-                  'portrait',
-                  () => notifier.updateOrientation('portrait'),
-                ),
-                radio(
-                  'Landscape',
-                  'landscape',
-                  () => notifier.updateOrientation('landscape'),
-                ),
-              ],
-            ),
-          ),
-        ],
 
         const SizedBox(height: 16),
         // ── Theme ──
@@ -428,7 +364,10 @@ class _GeneralTab extends ConsumerWidget {
       children: [
         SizedBox(
           width: 80,
-          child: Text('Align', style: Theme.of(context).textTheme.bodyMedium),
+          child: Text(
+            'Alignment',
+            style: Theme.of(context).textTheme.bodyMedium,
+          ),
         ),
         Expanded(
           child: SegmentedButton<String>(
@@ -436,18 +375,22 @@ class _GeneralTab extends ConsumerWidget {
               ButtonSegment(
                 value: 'left',
                 icon: Icon(Icons.format_align_left, size: 18),
+                tooltip: 'Align left',
               ),
               ButtonSegment(
                 value: 'center',
                 icon: Icon(Icons.format_align_center, size: 18),
+                tooltip: 'Align center',
               ),
               ButtonSegment(
                 value: 'right',
                 icon: Icon(Icons.format_align_right, size: 18),
+                tooltip: 'Align right',
               ),
               ButtonSegment(
                 value: 'justify',
                 icon: Icon(Icons.format_align_justify, size: 18),
+                tooltip: 'Justify',
               ),
             ],
             selected: {settings.textAlignment},

@@ -11,6 +11,11 @@ class ProviderMeta {
   final bool nsfw;
   final String? registryId;
 
+  /// Hex sha256 of the exact JS bytes the app cached. Written by the app at
+  /// sync time (registries don't publish it yet); verified on every load so
+  /// post-sync modification of cached files is detected instead of executed.
+  final String? sha256;
+
   const ProviderMeta({
     required this.id,
     required this.name,
@@ -22,6 +27,7 @@ class ProviderMeta {
     this.icon,
     this.nsfw = false,
     this.registryId,
+    this.sha256,
   });
 
   factory ProviderMeta.fromJson(Map<String, dynamic> json) {
@@ -36,6 +42,7 @@ class ProviderMeta {
       icon: json['icon'] as String?,
       nsfw: json['nsfw'] as bool? ?? false,
       registryId: json['registryId'] as String?,
+      sha256: json['sha256'] as String?,
     );
   }
 
@@ -50,6 +57,7 @@ class ProviderMeta {
     if (icon != null) 'icon': icon,
     if (nsfw) 'nsfw': true,
     if (registryId != null) 'registryId': registryId,
+    if (sha256 != null) 'sha256': sha256,
   };
 }
 

@@ -21,7 +21,7 @@ final class ChapterTranslationProvider
   }) : super(
          retry: null,
          name: r'chapterTranslationProvider',
-         isAutoDispose: false,
+         isAutoDispose: true,
          dependencies: null,
          $allTransitiveDependencies: null,
        );
@@ -59,7 +59,7 @@ final class ChapterTranslationProvider
 }
 
 String _$chapterTranslationHash() =>
-    r'af8e7e447288427faa9532d1913c9ff80ec7e076';
+    r'5be381c3493c72312e20d33ee8ab5b77da4f255e';
 
 final class ChapterTranslationFamily extends $Family
     with $FunctionalFamilyOverride<FutureOr<String?>, int> {
@@ -69,7 +69,7 @@ final class ChapterTranslationFamily extends $Family
         name: r'chapterTranslationProvider',
         dependencies: null,
         $allTransitiveDependencies: null,
-        isAutoDispose: false,
+        isAutoDispose: true,
       );
 
   ChapterTranslationProvider call(int chapterId) =>

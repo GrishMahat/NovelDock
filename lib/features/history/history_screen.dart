@@ -29,10 +29,16 @@ class _HistoryScreenState extends ConsumerState<HistoryScreen> {
       .read(novelDaoProvider)
       .getAllNovels();
 
+  /// Memoized: recreating this in build resubscribes and flashes the
+  /// skeleton on every rebuild (e.g. keystrokes in the filter field).
+  late final Stream<List<ReadingHistoryData>> _historyStream = ref
+      .read(historyDaoProvider)
+      .watchAllHistory();
+
   @override
   Widget build(BuildContext context) {
-    final historyDao = ref.watch(historyDaoProvider);
-    final novelDao = ref.watch(novelDaoProvider);
+    final historyDao = ref.read(historyDaoProvider);
+    final novelDao = ref.read(novelDaoProvider);
 
     final historyList = FutureBuilder<List<Novel>>(
       future: _novelsFuture,
@@ -41,7 +47,7 @@ class _HistoryScreenState extends ConsumerState<HistoryScreen> {
           for (final n in novelsSnap.data ?? const <Novel>[]) n.id: n,
         };
         return StreamBuilder<List<ReadingHistoryData>>(
-          stream: historyDao.watchAllHistory(),
+          stream: _historyStream,
           builder: (context, snapshot) {
             if (snapshot.connectionState == ConnectionState.waiting) {
               return const ShimmerList();
@@ -181,6 +187,7 @@ class _HistoryScreenState extends ConsumerState<HistoryScreen> {
                 suffixIcon: _searchQuery.isNotEmpty
                     ? IconButton(
                         icon: const Icon(Icons.close),
+                        tooltip: 'Clear filter',
                         onPressed: () => setState(() => _searchQuery = ''),
                       )
                     : null,
@@ -391,6 +398,7 @@ class _HistoryTile extends ConsumerWidget {
               ),
               trailing: IconButton(
                 icon: const Icon(Icons.delete_outline, size: 20),
+                tooltip: 'Delete entry',
                 onPressed: onDelete,
               ),
               onTap: () =>

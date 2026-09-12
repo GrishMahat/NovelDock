@@ -46,9 +46,10 @@ class DownloadNotification {
   /// Bridge into the download pipeline; assigned by the provider layer.
   static Future<void> Function(int novelId)? onCancelRequest;
 
-  /// Handles notification taps/actions. Registered once in main.dart's
-  /// `_initNotifications` (the single owner of `initialize`) so responses are
-  /// never lost to callback re-registration.
+  /// Handles notification taps/actions. Registered in [_initialize] below —
+  /// the single owner of `initialize` — so responses are never lost to
+  /// callback re-registration, and the Cancel action routes into the
+  /// pipeline via [onCancelRequest] (assigned by the download provider).
   @pragma('vm:entry-point')
   static Future<void> handleNotificationResponse(
     NotificationResponse response,
@@ -94,6 +95,19 @@ class DownloadNotification {
 
   static Future<void> _initialize() async {
     try {
+      // Full initialize, not just the channel: without the response handler
+      // the notification Cancel action fires into the void (the channel
+      // alone was all this ever registered — the button was dead).
+      await _plugin.initialize(
+        settings: const InitializationSettings(
+          android: AndroidInitializationSettings('@mipmap/ic_launcher'),
+          iOS: DarwinInitializationSettings(),
+          linux: LinuxInitializationSettings(defaultActionName: 'Open'),
+        ),
+        onDidReceiveNotificationResponse: handleNotificationResponse,
+        onDidReceiveBackgroundNotificationResponse: handleNotificationResponse,
+      );
+
       if (Platform.isAndroid) {
         final android = _plugin
             .resolvePlatformSpecificImplementation<

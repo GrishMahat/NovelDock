@@ -159,6 +159,7 @@ class _LogViewerPageState extends ConsumerState<LogViewerPage> {
                 suffixIcon: _filterText.isNotEmpty
                     ? IconButton(
                         icon: const Icon(Icons.clear, size: 18),
+                        tooltip: 'Clear filter',
                         onPressed: () {
                           _filterController.clear();
                           setState(() => _filterText = '');

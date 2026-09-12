@@ -20,7 +20,7 @@ final class ReaderNavigationNotifierProvider
   }) : super(
          retry: null,
          name: r'readerNavigationProvider',
-         isAutoDispose: false,
+         isAutoDispose: true,
          dependencies: null,
          $allTransitiveDependencies: null,
        );
@@ -60,7 +60,7 @@ final class ReaderNavigationNotifierProvider
 }
 
 String _$readerNavigationNotifierHash() =>
-    r'90292541870ed32ac193cf839dc4ade06f752494';
+    r'3b2394f2bc36fc04612ad925272c9a4d45650a66';
 
 final class ReaderNavigationNotifierFamily extends $Family
     with
@@ -77,7 +77,7 @@ final class ReaderNavigationNotifierFamily extends $Family
         name: r'readerNavigationProvider',
         dependencies: null,
         $allTransitiveDependencies: null,
-        isAutoDispose: false,
+        isAutoDispose: true,
       );
 
   ReaderNavigationNotifierProvider call(int novelId) =>

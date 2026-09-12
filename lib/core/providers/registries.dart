@@ -5,14 +5,14 @@ import 'dart:io';
 import 'package:path/path.dart' as p;
 import 'package:riverpod_annotation/riverpod_annotation.dart';
 
-import '../../../core/config/app_config.dart';
-import '../../../core/providers/engine.dart';
-import '../../../core/providers/models.dart';
-import '../../../core/providers/registry.dart';
-import '../../../core/providers/database_providers.dart';
-import '../../../core/utils/logger.dart';
+import '../config/app_config.dart';
+import 'database_providers.dart';
+import 'engine.dart';
+import 'models.dart';
+import 'registry.dart';
+import '../utils/logger.dart';
 
-part 'provider_management_providers.g.dart';
+part 'registries.g.dart';
 
 const _tag = 'Providers';
 
@@ -108,6 +108,12 @@ class RegistriesNotifier extends _$RegistriesNotifier {
   }
 }
 
+/// Local file registries are the dev-edit loop: re-synced once per process
+/// so JS edits take effect without a manual sync, but never again on
+/// rebuilds/invalidations (the old code re-ran file I/O on every build of
+/// this provider, which browse/search/provider screens all trigger).
+bool _localRegistriesResynced = false;
+
 /// All available providers — from enabled registries only.
 @Riverpod(keepAlive: true)
 Future<List<ProviderMeta>> availableProviders(Ref ref) async {
@@ -122,17 +128,20 @@ Future<List<ProviderMeta>> availableProviders(Ref ref) async {
     'Loading providers from ${enabledRegistries.length}/${registries.length} enabled registries...',
   );
 
-  // Local file registries are the source of truth: always re-sync on
-  // startup so JS edits take effect without a manual sync.
-  for (final registry in enabledRegistries) {
-    if (!_isLocalRegistryUrl(registry.url)) continue;
-    try {
-      final sourceFile = File(registry.url);
-      if (!await sourceFile.exists()) continue;
-      Log.i(_tag, 'Re-syncing local registry "${registry.id}"...');
-      await registryManager.syncRegistryFromFile(registry.id, registry.url);
-    } catch (e) {
-      Log.w(_tag, 'Auto re-sync failed for ${registry.id}: $e');
+  // Local file registries are the source of truth: re-sync once per process
+  // so JS edits take effect without a manual sync.
+  if (!_localRegistriesResynced) {
+    _localRegistriesResynced = true;
+    for (final registry in enabledRegistries) {
+      if (!_isLocalRegistryUrl(registry.url)) continue;
+      try {
+        final sourceFile = File(registry.url);
+        if (!await sourceFile.exists()) continue;
+        Log.i(_tag, 'Re-syncing local registry "${registry.id}"...');
+        await registryManager.syncRegistryFromFile(registry.id, registry.url);
+      } catch (e) {
+        Log.w(_tag, 'Auto re-sync failed for ${registry.id}: $e');
+      }
     }
   }
 
@@ -166,7 +175,29 @@ Future<List<ProviderMeta>> availableProviders(Ref ref) async {
 
   Log.ok(_tag, 'Total providers found: ${allProviders.length}');
 
-  return allProviders;
+  // Dedupe by provider id: the FIRST enabled registry in list order
+  // (incumbent, i.e. earliest added) wins. Without this, any later-added
+  // registry could silently shadow an official provider id, and the winner
+  // would depend on filesystem mtimes. The same order drives JS resolution
+  // (loadCachedProviderJs), so the UI list and the runtime always agree.
+  final seenIds = <String>{};
+  final deduped = <ProviderMeta>[];
+  for (final provider in allProviders) {
+    if (seenIds.add(provider.id)) {
+      deduped.add(provider);
+    } else {
+      Log.w(
+        _tag,
+        'Shadowed duplicate provider "${provider.id}" from registry '
+        '"${provider.registryId}" (kept first occurrence)',
+      );
+    }
+  }
+  if (deduped.length != allProviders.length) {
+    Log.i(_tag, 'Providers after shadowing dedupe: ${deduped.length}');
+  }
+
+  return deduped;
 }
 
 /// Set of enabled provider IDs — persisted to settings table.
@@ -242,6 +273,15 @@ class EnabledProvidersNotifier extends _$EnabledProvidersNotifier {
   }
 }
 
+/// Ids of enabled registries in user (list) order, incumbent first.
+/// Drives JS resolution priority (loadCachedProviderJs) so it agrees with
+/// the [availableProviders] dedupe: a later-added registry never shadows an
+/// earlier one.
+List<String> enabledRegistryOrder(List<RegistryInfo> registries) => [
+  for (final r in registries)
+    if (r.enabled) r.id,
+];
+
 /// Add a new registry from a URL: fetch JSON, sync providers, add to list.
 /// Returns null on success, or an error message string on failure.
 ///
@@ -250,13 +290,32 @@ class EnabledProvidersNotifier extends _$EnabledProvidersNotifier {
 Future<String?> addRegistry(String url, ProviderContainer ref) async {
   final registryManager = await ref.read(registryManagerProvider.future);
 
-  final id = Uri.parse(url).pathSegments.where((s) => s.isNotEmpty).join('-');
+  final parsed = Uri.tryParse(url);
+  if (parsed == null || !parsed.hasScheme) {
+    return 'Invalid URL format';
+  }
+  // Canonicalize for duplicate detection: github.com and
+  // raw.githubusercontent.com spellings (plus trailing-slash/query
+  // variants) of the same repo must not become two entries that every
+  // id-based operation then hits twice.
+  final resolved = RegistryManager.resolveRawUrl(url);
+
+  final id = parsed.pathSegments.where((s) => s.isNotEmpty).join('-');
+  if (id.isEmpty) {
+    return 'Invalid URL format';
+  }
 
   // Two different URLs can normalize to the same id (and re-adding the same
   // URL would produce a duplicate list entry that all id-based operations
   // would then hit twice).
   final existing = ref.read(registriesProvider).value ?? const [];
-  if (existing.any((r) => r.id == id || r.url == url)) {
+  bool sameRepo(RegistryInfo r) {
+    if (r.url == url) return true;
+    if (_isLocalRegistryUrl(r.url) || resolved == null) return false;
+    return RegistryManager.resolveRawUrl(r.url) == resolved;
+  }
+
+  if (existing.any((r) => r.id == id || sameRepo(r))) {
     return 'Registry already added';
   }
 

@@ -1,10 +1,22 @@
+import 'dart:math';
+
 import 'package:drift/drift.dart';
 
 import '../database.dart';
 
 part 'chapter_dao.g.dart';
 
-@DriftAccessor(tables: [Chapters, Novels])
+@DriftAccessor(
+  tables: [
+    Chapters,
+    Novels,
+    ReadingHistory,
+    DownloadsQueue,
+    Bookmarks,
+    Library,
+    NovelProgress,
+  ],
+)
 class ChapterDao extends DatabaseAccessor<AppDatabase> with _$ChapterDaoMixin {
   ChapterDao(super.db);
 
@@ -35,6 +47,14 @@ class ChapterDao extends DatabaseAccessor<AppDatabase> with _$ChapterDaoMixin {
     return (select(
       chapters,
     )..where((t) => t.url.equals(url))).getSingleOrNull();
+  }
+
+  /// Scoped lookup used by backup restore: chapter URLs are unique per
+  /// novel, not globally, so remapping must match within the novel.
+  Future<Chapter?> getChapterByNovelAndUrl(int novelId, String url) {
+    return (select(chapters)
+          ..where((t) => t.novelId.equals(novelId) & t.url.equals(url)))
+        .getSingleOrNull();
   }
 
   Future<List<Chapter>> getChaptersForNovel(int novelId) {
@@ -103,7 +123,12 @@ class ChapterDao extends DatabaseAccessor<AppDatabase> with _$ChapterDaoMixin {
   /// bookmarked / downloaded). Instead this diffs by URL:
   /// - new URLs are inserted,
   /// - existing URLs keep their row (name/index updated in place),
-  /// - vanished URLs are deleted.
+  /// - vanished URLs are deleted **along with their dependent rows**
+  ///   (history, queue, bookmarks) and any library/progress anchors pointing
+  ///   at them, all inside the same transaction.
+  ///
+  /// [chapterList] must be the FULL server-side list, not a delta: anything
+  /// absent from it is treated as vanished.
   Future<void> syncChaptersForNovel(
     int novelId,
     List<ChaptersCompanion> chapterList,
@@ -143,10 +168,40 @@ class ChapterDao extends DatabaseAccessor<AppDatabase> with _$ChapterDaoMixin {
           if (!incomingUrls.contains(c.url)) c.id,
       ];
 
-      if (staleIds.isNotEmpty) {
+      // Chunked: SQLite caps bound variables (~999), so very large removals
+      // must not go out in a single isIn list.
+      const chunkSize = 500;
+      for (var i = 0; i < staleIds.length; i += chunkSize) {
+        final chunk = staleIds.sublist(i, min(i + chunkSize, staleIds.length));
+        // Dependents first (logical order; also future-proof if FK
+        // enforcement is ever enabled), chapters last.
+        await (delete(
+          db.readingHistory,
+        )..where((t) => t.chapterId.isIn(chunk))).go();
+        await (delete(
+          db.downloadsQueue,
+        )..where((t) => t.chapterId.isIn(chunk))).go();
+        await (delete(
+          db.bookmarks,
+        )..where((t) => t.chapterId.isIn(chunk))).go();
+        await (update(db.library)..where(
+              (t) => t.novelId.equals(novelId) & t.lastChapterId.isIn(chunk),
+            ))
+            .write(const LibraryCompanion(lastChapterId: Value(null)));
+        await (update(db.novelProgress)..where(
+              (t) =>
+                  t.novelId.equals(novelId) & t.lastReadChapterId.isIn(chunk),
+            ))
+            .write(
+              const NovelProgressCompanion(lastReadChapterId: Value(null)),
+            );
+        await (update(db.novelProgress)..where(
+              (t) => t.novelId.equals(novelId) & t.lastTtsChapterId.isIn(chunk),
+            ))
+            .write(const NovelProgressCompanion(lastTtsChapterId: Value(null)));
         await (delete(
           chapters,
-        )..where((t) => t.novelId.equals(novelId) & t.id.isIn(staleIds))).go();
+        )..where((t) => t.novelId.equals(novelId) & t.id.isIn(chunk))).go();
       }
     });
   }

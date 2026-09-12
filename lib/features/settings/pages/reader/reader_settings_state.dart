@@ -20,18 +20,13 @@ class ReaderSettings {
   final double lineHeight;
   final double paddingH;
   final double paddingV;
-  final String scrollMode;
   final String textAlignment;
   final double paragraphSpacing;
   final bool bionicReading;
-  final bool showTime;
-  final bool showBattery;
   final bool keepScreenOn;
-  final bool selectableText;
   final bool ttsAutoScroll;
   final bool ttsScrollLock;
   final bool ttsAutoAdvance;
-  final String orientation;
   final String readerTheme;
   final String leftTapAction;
   final String centerTapAction;
@@ -43,18 +38,13 @@ class ReaderSettings {
     this.lineHeight = 1.6,
     this.paddingH = 24.0,
     this.paddingV = 24.0,
-    this.scrollMode = 'continuous',
     this.textAlignment = 'justify',
     this.paragraphSpacing = 12.0,
     this.bionicReading = false,
-    this.showTime = true,
-    this.showBattery = true,
     this.keepScreenOn = true,
-    this.selectableText = false,
     this.ttsAutoScroll = true,
     this.ttsScrollLock = false,
     this.ttsAutoAdvance = true,
-    this.orientation = 'auto',
     this.readerTheme = 'dark',
     this.leftTapAction = 'previous',
     this.centerTapAction = 'menu',
@@ -67,18 +57,13 @@ class ReaderSettings {
     double? lineHeight,
     double? paddingH,
     double? paddingV,
-    String? scrollMode,
     String? textAlignment,
     double? paragraphSpacing,
     bool? bionicReading,
-    bool? showTime,
-    bool? showBattery,
     bool? keepScreenOn,
-    bool? selectableText,
     bool? ttsAutoScroll,
     bool? ttsScrollLock,
     bool? ttsAutoAdvance,
-    String? orientation,
     String? readerTheme,
     String? leftTapAction,
     String? centerTapAction,
@@ -90,18 +75,13 @@ class ReaderSettings {
       lineHeight: lineHeight ?? this.lineHeight,
       paddingH: paddingH ?? this.paddingH,
       paddingV: paddingV ?? this.paddingV,
-      scrollMode: scrollMode ?? this.scrollMode,
       textAlignment: textAlignment ?? this.textAlignment,
       paragraphSpacing: paragraphSpacing ?? this.paragraphSpacing,
       bionicReading: bionicReading ?? this.bionicReading,
-      showTime: showTime ?? this.showTime,
-      showBattery: showBattery ?? this.showBattery,
       keepScreenOn: keepScreenOn ?? this.keepScreenOn,
-      selectableText: selectableText ?? this.selectableText,
       ttsAutoScroll: ttsAutoScroll ?? this.ttsAutoScroll,
       ttsScrollLock: ttsScrollLock ?? this.ttsScrollLock,
       ttsAutoAdvance: ttsAutoAdvance ?? this.ttsAutoAdvance,
-      orientation: orientation ?? this.orientation,
       readerTheme: readerTheme ?? this.readerTheme,
       leftTapAction: leftTapAction ?? this.leftTapAction,
       centerTapAction: centerTapAction ?? this.centerTapAction,
@@ -209,18 +189,13 @@ class ReaderSettingsNotifier extends _$ReaderSettingsNotifier {
       lineHeight: p.getDouble('reader_line_height') ?? 1.6,
       paddingH: p.getDouble('reader_padding_h') ?? 24.0,
       paddingV: p.getDouble('reader_padding_v') ?? 24.0,
-      scrollMode: p.getString('reader_scroll_mode') ?? 'continuous',
       textAlignment: p.getString('reader_text_alignment') ?? 'justify',
       paragraphSpacing: p.getDouble('reader_paragraph_spacing') ?? 12.0,
       bionicReading: p.getBool('reader_bionic_reading') ?? false,
-      showTime: p.getBool('reader_show_time') ?? true,
-      showBattery: p.getBool('reader_show_battery') ?? true,
       keepScreenOn: p.getBool('reader_keep_screen_on') ?? true,
-      selectableText: p.getBool('reader_selectable_text') ?? false,
       ttsAutoScroll: p.getBool('reader_tts_autoscroll') ?? true,
       ttsScrollLock: p.getBool('reader_tts_scroll_lock') ?? false,
       ttsAutoAdvance: p.getBool('reader_tts_autoadvance') ?? true,
-      orientation: p.getString('reader_orientation') ?? 'auto',
       readerTheme: p.getString('reader_theme') ?? 'dark',
       leftTapAction: p.getString('reader_left_tap') ?? 'previous',
       centerTapAction: p.getString('reader_center_tap') ?? 'menu',
@@ -236,18 +211,13 @@ class ReaderSettingsNotifier extends _$ReaderSettingsNotifier {
       await p.setDouble('reader_line_height', state.lineHeight);
       await p.setDouble('reader_padding_h', state.paddingH);
       await p.setDouble('reader_padding_v', state.paddingV);
-      await p.setString('reader_scroll_mode', state.scrollMode);
       await p.setString('reader_text_alignment', state.textAlignment);
       await p.setDouble('reader_paragraph_spacing', state.paragraphSpacing);
       await p.setBool('reader_bionic_reading', state.bionicReading);
-      await p.setBool('reader_show_time', state.showTime);
-      await p.setBool('reader_show_battery', state.showBattery);
       await p.setBool('reader_keep_screen_on', state.keepScreenOn);
-      await p.setBool('reader_selectable_text', state.selectableText);
       await p.setBool('reader_tts_autoscroll', state.ttsAutoScroll);
       await p.setBool('reader_tts_scroll_lock', state.ttsScrollLock);
       await p.setBool('reader_tts_autoadvance', state.ttsAutoAdvance);
-      await p.setString('reader_orientation', state.orientation);
       await p.setString('reader_theme', state.readerTheme);
       await p.setString('reader_left_tap', state.leftTapAction);
       await p.setString('reader_center_tap', state.centerTapAction);
@@ -267,24 +237,16 @@ class ReaderSettingsNotifier extends _$ReaderSettingsNotifier {
   void updateLineHeight(double v) => _update((s) => s.copyWith(lineHeight: v));
   void updatePaddingH(double v) => _update((s) => s.copyWith(paddingH: v));
   void updatePaddingV(double v) => _update((s) => s.copyWith(paddingV: v));
-  void updateScrollMode(String v) => _update((s) => s.copyWith(scrollMode: v));
   void updateTextAlignment(String v) =>
       _update((s) => s.copyWith(textAlignment: v));
   void updateParagraphSpacing(double v) =>
       _update((s) => s.copyWith(paragraphSpacing: v));
-  void updateOrientation(String v) =>
-      _update((s) => s.copyWith(orientation: v));
   void updateReaderTheme(String v) =>
       _update((s) => s.copyWith(readerTheme: v));
   void toggleBionicReading() =>
       _update((s) => s.copyWith(bionicReading: !s.bionicReading));
-  void toggleShowTime() => _update((s) => s.copyWith(showTime: !s.showTime));
-  void toggleShowBattery() =>
-      _update((s) => s.copyWith(showBattery: !s.showBattery));
   void toggleKeepScreenOn() =>
       _update((s) => s.copyWith(keepScreenOn: !s.keepScreenOn));
-  void toggleSelectableText() =>
-      _update((s) => s.copyWith(selectableText: !s.selectableText));
   void toggleTtsAutoScroll() =>
       _update((s) => s.copyWith(ttsAutoScroll: !s.ttsAutoScroll));
   void toggleTtsScrollLock() =>

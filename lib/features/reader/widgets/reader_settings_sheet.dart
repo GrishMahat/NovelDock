@@ -9,6 +9,7 @@ import '../../../core/tts/tts_manager.dart';
 import '../../../theme/app_theme.dart';
 import '../../../theme/tokens.dart';
 import '../../settings/pages/reader/tts_voice_picker.dart';
+import '../../settings/pages/reader/sleep_timer_sheet.dart';
 import '../../settings/pages/reader_helpers.dart';
 import '../../settings/pages/reader/reader_settings_state.dart';
 
@@ -127,7 +128,7 @@ class _ReaderSettingsSheetState extends ConsumerState<ReaderSettingsSheet> {
         settings.fontSize,
         10,
         30,
-        '${settings.fontSize.round()} sp',
+        '${settings.fontSize.round()}',
         (v) => notifier.updateFontSize(v),
       ),
       slider(
@@ -145,7 +146,7 @@ class _ReaderSettingsSheetState extends ConsumerState<ReaderSettingsSheet> {
       section(context, 'Layout'),
       slider(
         context,
-        'H Padding',
+        'Side margins',
         settings.paddingH,
         0,
         50,
@@ -154,7 +155,7 @@ class _ReaderSettingsSheetState extends ConsumerState<ReaderSettingsSheet> {
       ),
       slider(
         context,
-        'V Padding',
+        'Top and bottom margins',
         settings.paddingV,
         0,
         50,
@@ -186,77 +187,13 @@ class _ReaderSettingsSheetState extends ConsumerState<ReaderSettingsSheet> {
         settings.bionicReading,
         (_) => notifier.toggleBionicReading(),
       ),
-      switchTile(
-        context,
-        'Selectable Text',
-        null,
-        settings.selectableText,
-        (_) => notifier.toggleSelectableText(),
-      ),
-      switchTile(
-        context,
-        'Show Time',
-        null,
-        settings.showTime,
-        (_) => notifier.toggleShowTime(),
-      ),
       if (!Platform.isLinux && !Platform.isMacOS && !Platform.isWindows) ...[
-        switchTile(
-          context,
-          'Show Battery',
-          null,
-          settings.showBattery,
-          (_) => notifier.toggleShowBattery(),
-        ),
         switchTile(
           context,
           'Keep Screen On',
           null,
           settings.keepScreenOn,
           (_) => notifier.toggleKeepScreenOn(),
-        ),
-      ],
-
-      const SizedBox(height: Insets.lg),
-      // ── Scroll ──
-      section(context, 'Scroll'),
-      RadioGroup<String>(
-        groupValue: settings.scrollMode,
-        onChanged: (v) => notifier.updateScrollMode(v!),
-        child: Column(
-          children: [
-            radio(
-              'Continuous',
-              'continuous',
-              () => notifier.updateScrollMode('continuous'),
-            ),
-            radio('Paged', 'paged', () => notifier.updateScrollMode('paged')),
-          ],
-        ),
-      ),
-
-      if (!Platform.isLinux && !Platform.isMacOS && !Platform.isWindows) ...[
-        const SizedBox(height: Insets.lg),
-        // ── Orientation ──
-        section(context, 'Orientation'),
-        RadioGroup<String>(
-          groupValue: settings.orientation,
-          onChanged: (v) => notifier.updateOrientation(v!),
-          child: Column(
-            children: [
-              radio('Auto', 'auto', () => notifier.updateOrientation('auto')),
-              radio(
-                'Portrait',
-                'portrait',
-                () => notifier.updateOrientation('portrait'),
-              ),
-              radio(
-                'Landscape',
-                'landscape',
-                () => notifier.updateOrientation('landscape'),
-              ),
-            ],
-          ),
         ),
       ],
 
@@ -327,6 +264,19 @@ class _ReaderSettingsSheetState extends ConsumerState<ReaderSettingsSheet> {
         ttsState.pitch.toStringAsFixed(1),
         (value) => unawaited(ttsNotifier.updatePitch(value)),
       ),
+      tile(
+        context,
+        title: 'Sleep timer',
+        subtitle: describeSleepTimer(
+          mode: ttsState.sleepTimerMode,
+          minutes: ttsState.sleepMinutes,
+          hour: ttsState.sleepHour,
+          minute: ttsState.sleepMinute,
+          endsAt: ttsState.sleepEndsAt,
+          now: DateTime.now(),
+        ),
+        onTap: () => showSleepTimerSheet(context, ref),
+      ),
 
       const SizedBox(height: Insets.lg),
       // ── Voice ──
@@ -343,7 +293,7 @@ class _ReaderSettingsSheetState extends ConsumerState<ReaderSettingsSheet> {
         subtitle: ttsState.voice.isEmpty
             ? (ttsState.engineId == 'system'
                   ? 'Device default'
-                  : 'Default (Brian)')
+                  : 'Default voice')
             : ttsState.voice,
         onTap: () => showTtsVoicePicker(context, ref),
       ),
@@ -361,7 +311,6 @@ class _ReaderSettingsSheetState extends ConsumerState<ReaderSettingsSheet> {
             value: TtsHighlightMode.sentence,
             label: Text('Sentence'),
           ),
-          ButtonSegment(value: TtsHighlightMode.word, label: Text('Word')),
         ],
         selected: {ttsState.highlightMode},
         onSelectionChanged: (selection) {
@@ -489,7 +438,10 @@ class _ReaderSettingsSheetState extends ConsumerState<ReaderSettingsSheet> {
       children: [
         SizedBox(
           width: 80,
-          child: Text('Align', style: Theme.of(context).textTheme.bodyMedium),
+          child: Text(
+            'Alignment',
+            style: Theme.of(context).textTheme.bodyMedium,
+          ),
         ),
         Expanded(
           child: SegmentedButton<String>(
@@ -497,18 +449,22 @@ class _ReaderSettingsSheetState extends ConsumerState<ReaderSettingsSheet> {
               ButtonSegment(
                 value: 'left',
                 icon: Icon(Icons.format_align_left, size: 18),
+                tooltip: 'Align left',
               ),
               ButtonSegment(
                 value: 'center',
                 icon: Icon(Icons.format_align_center, size: 18),
+                tooltip: 'Align center',
               ),
               ButtonSegment(
                 value: 'right',
                 icon: Icon(Icons.format_align_right, size: 18),
+                tooltip: 'Align right',
               ),
               ButtonSegment(
                 value: 'justify',
                 icon: Icon(Icons.format_align_justify, size: 18),
+                tooltip: 'Justify',
               ),
             ],
             selected: {settings.textAlignment},
@@ -577,41 +533,48 @@ class _ReaderSettingsSheetState extends ConsumerState<ReaderSettingsSheet> {
     ReaderSettingsNotifier notifier,
   ) {
     final isSelected = settings.readerTheme == themeKey;
-    return GestureDetector(
-      onTap: () => notifier.updateReaderTheme(themeKey),
-      child: Column(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          Container(
-            width: 40,
-            height: 40,
-            decoration: BoxDecoration(
-              color: bg,
-              shape: BoxShape.circle,
-              border: Border.all(
+    return Semantics(
+      button: true,
+      selected: isSelected,
+      label: '$label theme',
+      child: GestureDetector(
+        onTap: () => notifier.updateReaderTheme(themeKey),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Container(
+              width: 48,
+              height: 48,
+              decoration: BoxDecoration(
+                color: bg,
+                shape: BoxShape.circle,
+                border: Border.all(
+                  color: isSelected
+                      ? Theme.of(context).colorScheme.primary
+                      : Theme.of(context).colorScheme.outlineVariant,
+                  width: isSelected ? 3 : 1,
+                ),
+              ),
+              child: Center(
+                child: Text(
+                  'Aa',
+                  style: Theme.of(
+                    context,
+                  ).textTheme.labelMedium?.copyWith(color: text),
+                ),
+              ),
+            ),
+            const SizedBox(height: Insets.xs),
+            Text(
+              label,
+              style: Theme.of(context).textTheme.labelSmall?.copyWith(
                 color: isSelected
                     ? Theme.of(context).colorScheme.primary
-                    : Theme.of(context).colorScheme.outlineVariant,
-                width: isSelected ? 3 : 1,
+                    : null,
               ),
             ),
-            child: Center(
-              child: Text(
-                'Aa',
-                style: Theme.of(
-                  context,
-                ).textTheme.labelMedium?.copyWith(color: text),
-              ),
-            ),
-          ),
-          const SizedBox(height: Insets.xs),
-          Text(
-            label,
-            style: Theme.of(context).textTheme.labelSmall?.copyWith(
-              color: isSelected ? Theme.of(context).colorScheme.primary : null,
-            ),
-          ),
-        ],
+          ],
+        ),
       ),
     );
   }

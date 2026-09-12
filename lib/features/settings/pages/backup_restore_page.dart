@@ -120,13 +120,60 @@ class BackupRestorePage extends ConsumerWidget {
       final settingsMap = await settingsDao.getAllSettings();
       final providerCache = await providerCacheDao.getAllProviders();
 
+      // URL-keyed rows: integer row ids are meaningless in another database,
+      // so history/bookmarks/downloads carry the novel + chapter URLs needed
+      // to remap them on import. Rows whose targets no longer resolve are
+      // skipped there, never written dangling.
+      Future<Map<String, String?>> urlsFor(int novelId, int chapterId) async {
+        final novel = await novelDao.getNovelById(novelId);
+        final chapter = await ref
+            .read(chapterDaoProvider)
+            .getChapterById(chapterId);
+        return {'novelUrl': novel?.url, 'chapterUrl': chapter?.url};
+      }
+
+      final historyRows = <Map<String, dynamic>>[];
+      for (final h in allHistory) {
+        final urls = await urlsFor(h.novelId, h.chapterId);
+        historyRows.add({
+          'novelUrl': urls['novelUrl'],
+          'chapterUrl': urls['chapterUrl'],
+          'readAt': h.readAt,
+          'scrollPosition': h.scrollPosition,
+          'progress': h.progress,
+        });
+      }
+
+      final bookmarkRows = <Map<String, dynamic>>[];
+      for (final b in allBookmarks) {
+        final urls = await urlsFor(b.novelId, b.chapterId);
+        bookmarkRows.add({
+          'novelUrl': urls['novelUrl'],
+          'chapterUrl': urls['chapterUrl'],
+          'position': b.position,
+          'note': b.note,
+          'createdAt': b.createdAt,
+        });
+      }
+
+      final downloadRows = <Map<String, dynamic>>[];
+      for (final d in downloadEntries) {
+        final urls = await urlsFor(d.novelId, d.chapterId);
+        downloadRows.add({
+          'novelUrl': urls['novelUrl'],
+          'chapterUrl': urls['chapterUrl'],
+          'status': d.status,
+          'progress': d.progress,
+          'error': d.error,
+        });
+      }
+
       final backup = {
-        'version': 1,
+        'version': 2,
         'exportedAt': DateTime.now().toIso8601String(),
         'novels': novels
             .map(
               (n) => {
-                'id': n.id,
                 'providerId': n.providerId,
                 'url': n.url,
                 'title': n.title,
@@ -139,39 +186,9 @@ class BackupRestorePage extends ConsumerWidget {
               },
             )
             .toList(),
-        'history': allHistory
-            .map(
-              (h) => {
-                'novelId': h.novelId,
-                'chapterId': h.chapterId,
-                'readAt': h.readAt,
-                'scrollPosition': h.scrollPosition,
-                'progress': h.progress,
-              },
-            )
-            .toList(),
-        'bookmarks': allBookmarks
-            .map(
-              (b) => {
-                'novelId': b.novelId,
-                'chapterId': b.chapterId,
-                'position': b.position,
-                'note': b.note,
-                'createdAt': b.createdAt,
-              },
-            )
-            .toList(),
-        'downloads': downloadEntries
-            .map(
-              (d) => {
-                'novelId': d.novelId,
-                'chapterId': d.chapterId,
-                'status': d.status,
-                'progress': d.progress,
-                'error': d.error,
-              },
-            )
-            .toList(),
+        'history': historyRows,
+        'bookmarks': bookmarkRows,
+        'downloads': downloadRows,
         'settings': settingsMap,
         'providerCache': providerCache
             .map(
@@ -227,7 +244,8 @@ class BackupRestorePage extends ConsumerWidget {
       final jsonStr = await file.readAsString();
       final data = jsonDecode(jsonStr) as Map<String, dynamic>;
 
-      if (data['version'] != 1) {
+      final version = data['version'];
+      if (version != 1 && version != 2) {
         if (context.mounted) {
           ScaffoldMessenger.of(context).showSnackBar(
             const SnackBar(content: Text('Unsupported backup version')),
@@ -235,85 +253,200 @@ class BackupRestorePage extends ConsumerWidget {
         }
         return;
       }
+      final isV2 = version == 2;
 
       final novelDao = ref.read(novelDaoProvider);
+      final chapterDao = ref.read(chapterDaoProvider);
       final historyDao = ref.read(historyDaoProvider);
       final bookmarkDao = ref.read(bookmarkDaoProvider);
+      final downloadDao = ref.read(downloadDaoProvider);
       final settingsDao = ref.read(settingsDaoProvider);
+      final db = ref.read(appDatabaseProvider);
+
+      final settingsMap = Map<String, dynamic>.from(
+        data['settings'] as Map? ?? {},
+      );
+
+      // Registries are code sources: never adopt them silently from a file
+      // someone shared. List every URL and let the user decline (in which
+      // case the enabled-providers selection goes with them — ids without
+      // their registries resolve to nothing). Dismissal aborts the import.
+      if (!context.mounted) return;
+      final registryDecision = await _confirmRegistryRestore(
+        context,
+        settingsMap,
+      );
+      if (registryDecision == null) return;
+      if (!registryDecision) {
+        settingsMap.remove('registries');
+        settingsMap.remove('enabled_providers');
+        Log.i(_tag, 'Import: registry adoption declined by user');
+      }
 
       int imported = 0;
+      int skippedRows = 0;
 
-      final novelsList = data['novels'] as List? ?? [];
-      for (final n in novelsList) {
-        try {
-          await novelDao.insertOrGetNovel(
-            providerId: n['providerId'] as String? ?? '',
-            url: n['url'] as String? ?? '',
-            title: n['title'] as String? ?? '',
-            author: n['author'] as String?,
-            coverUrl: n['coverUrl'] as String?,
-          );
-          imported++;
-        } catch (e) {
-          Log.w(_tag, 'Failed to import novel: $e');
+      // One transaction: a failed import leaves no half-restored library.
+      await db.transaction(() async {
+        // Novel URL -> fresh row id in THIS database. Source-DB integer ids
+        // are meaningless here and must never be written (dangling refs).
+        final novelIdsByUrl = <String, int>{};
+        final novelsList = data['novels'] as List? ?? [];
+        for (final n in novelsList) {
+          try {
+            final map = n as Map<String, dynamic>;
+            final url = map['url'] as String? ?? '';
+            if (url.isEmpty) {
+              skippedRows++;
+              continue;
+            }
+            final id = await novelDao.insertOrGetNovel(
+              providerId: map['providerId'] as String? ?? '',
+              url: url,
+              title: map['title'] as String? ?? url,
+              author: map['author'] as String?,
+              coverUrl: map['coverUrl'] as String?,
+            );
+            novelIdsByUrl[url] = id;
+            imported++;
+          } catch (e) {
+            Log.w(_tag, 'Failed to import novel: $e');
+          }
         }
-      }
 
-      final historyList = data['history'] as List? ?? [];
-      for (final h in historyList) {
-        try {
-          await historyDao.addHistoryEntry(
-            ReadingHistoryCompanion(
-              novelId: Value(h['novelId'] as int),
-              chapterId: Value(h['chapterId'] as int),
-              readAt: Value(
-                h['readAt'] as int? ?? DateTime.now().millisecondsSinceEpoch,
+        // Resolve a chapter URL within its remapped novel, if present.
+        Future<int?> resolveChapter(
+          String? novelUrl,
+          String? chapterUrl,
+        ) async {
+          if (novelUrl == null || chapterUrl == null) return null;
+          final novelId = novelIdsByUrl[novelUrl];
+          if (novelId == null) return null;
+          final chapter = await chapterDao.getChapterByNovelAndUrl(
+            novelId,
+            chapterUrl,
+          );
+          return chapter?.id;
+        }
+
+        final historyList = data['history'] as List? ?? [];
+        for (final h in historyList) {
+          try {
+            final map = h as Map<String, dynamic>;
+            final novelUrl = map['novelUrl'] as String?;
+            final novelId = novelUrl == null ? null : novelIdsByUrl[novelUrl];
+            final chapterId = isV2
+                ? await resolveChapter(novelUrl, map['chapterUrl'] as String?)
+                : null;
+            if (novelId == null || chapterId == null) {
+              // v1 rows carry only source-DB ints (unmappable), v2 rows
+              // whose chapter was not re-fetched yet: skip, never dangle.
+              skippedRows++;
+              continue;
+            }
+            await historyDao.addHistoryEntry(
+              ReadingHistoryCompanion(
+                novelId: Value(novelId),
+                chapterId: Value(chapterId),
+                readAt: Value(
+                  (map['readAt'] as num?)?.toInt() ??
+                      DateTime.now().millisecondsSinceEpoch,
+                ),
+                scrollPosition: Value(
+                  (map['scrollPosition'] as num?)?.toDouble(),
+                ),
               ),
-              scrollPosition: Value(h['scrollPosition'] as double?),
-            ),
-          );
-        } catch (e) {
-          Log.w(_tag, 'Failed to import history: $e');
+            );
+          } catch (e) {
+            Log.w(_tag, 'Failed to import history: $e');
+          }
         }
-      }
 
-      final bookmarkList = data['bookmarks'] as List? ?? [];
-      for (final b in bookmarkList) {
-        try {
-          await bookmarkDao.addBookmark(
-            BookmarksCompanion(
-              novelId: Value(b['novelId'] as int),
-              chapterId: Value(b['chapterId'] as int),
-              position: Value(b['position'] as String? ?? '0'),
-              note: b['note'] != null
-                  ? Value(b['note'] as String)
-                  : const Value.absent(),
-              createdAt: Value(
-                b['createdAt'] as int? ?? DateTime.now().millisecondsSinceEpoch,
+        final bookmarkList = data['bookmarks'] as List? ?? [];
+        for (final b in bookmarkList) {
+          try {
+            final map = b as Map<String, dynamic>;
+            final novelUrl = map['novelUrl'] as String?;
+            final novelId = novelUrl == null ? null : novelIdsByUrl[novelUrl];
+            final chapterId = isV2
+                ? await resolveChapter(novelUrl, map['chapterUrl'] as String?)
+                : null;
+            if (novelId == null || chapterId == null) {
+              skippedRows++;
+              continue;
+            }
+            await bookmarkDao.addBookmark(
+              BookmarksCompanion(
+                novelId: Value(novelId),
+                chapterId: Value(chapterId),
+                position: Value(map['position'] as String? ?? '0'),
+                note: map['note'] != null
+                    ? Value(map['note'] as String)
+                    : const Value.absent(),
+                createdAt: Value(
+                  (map['createdAt'] as num?)?.toInt() ??
+                      DateTime.now().millisecondsSinceEpoch,
+                ),
               ),
-            ),
-          );
-        } catch (e) {
-          Log.w(_tag, 'Failed to import bookmark: $e');
+            );
+          } catch (e) {
+            Log.w(_tag, 'Failed to import bookmark: $e');
+          }
         }
-      }
 
-      final settingsMap = data['settings'] as Map<String, dynamic>? ?? {};
-      for (final entry in settingsMap.entries) {
-        try {
-          await settingsDao.setSetting(entry.key, entry.value.toString());
-        } catch (e) {
-          Log.w(_tag, 'Failed to import setting: $e');
+        // Queue state: only unfinished work transfers, re-queued from
+        // scratch. 'done' rows without their files would be lies that
+        // reconciliation deletes on next open anyway.
+        final downloadsList = data['downloads'] as List? ?? [];
+        for (final d in downloadsList) {
+          try {
+            final map = d as Map<String, dynamic>;
+            if ((map['status'] as String? ?? '') == 'done') continue;
+            final novelUrl = map['novelUrl'] as String?;
+            final novelId = novelUrl == null ? null : novelIdsByUrl[novelUrl];
+            final chapterId = isV2
+                ? await resolveChapter(novelUrl, map['chapterUrl'] as String?)
+                : null;
+            if (novelId == null || chapterId == null) {
+              skippedRows++;
+              continue;
+            }
+            if (await downloadDao.getQueuedDownload(novelId, chapterId) ==
+                null) {
+              await downloadDao.enqueueDownload(
+                DownloadsQueueCompanion.insert(
+                  novelId: novelId,
+                  chapterId: chapterId,
+                  status: 'queued',
+                ),
+              );
+            }
+          } catch (e) {
+            Log.w(_tag, 'Failed to import download: $e');
+          }
         }
-      }
+
+        for (final entry in settingsMap.entries) {
+          try {
+            await settingsDao.setSetting(entry.key, entry.value.toString());
+          } catch (e) {
+            Log.w(_tag, 'Failed to import setting: $e');
+          }
+        }
+      });
 
       if (context.mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Import complete: $imported novels restored')),
+          SnackBar(
+            content: Text(
+              'Import complete: $imported novels restored'
+              '${skippedRows > 0 ? ' ($skippedRows rows skipped: refresh those novels to re-fetch their chapters)' : ''}',
+            ),
+          ),
         );
       }
 
-      Log.ok(_tag, 'Backup imported: $imported novels');
+      Log.ok(_tag, 'Backup imported: $imported novels ($skippedRows skipped)');
     } catch (e) {
       Log.e(_tag, 'Import failed', e);
       if (context.mounted) {
@@ -322,5 +455,86 @@ class BackupRestorePage extends ConsumerWidget {
         ).showSnackBar(SnackBar(content: Text('Import failed: $e')));
       }
     }
+  }
+
+  /// Registry URLs embedded in the backup's settings, if any.
+  List<String> _backupRegistryUrls(Map<String, dynamic> settingsMap) {
+    try {
+      final raw = settingsMap['registries'];
+      if (raw == null) return const [];
+      final list = (jsonDecode(raw as String) as List)
+          .cast<Map<String, dynamic>>();
+      return [
+        for (final r in list)
+          if (r['url'] is String && (r['url'] as String).isNotEmpty)
+            r['url'] as String,
+      ];
+    } catch (_) {
+      return const [];
+    }
+  }
+
+  /// Ask before adopting code sources from a shared file. Returns true to
+  /// restore them, false to skip them, null when dismissed without deciding
+  /// (the caller aborts the import: silence must not mean consent).
+  Future<bool?> _confirmRegistryRestore(
+    BuildContext context,
+    Map<String, dynamic> settingsMap,
+  ) async {
+    final urls = _backupRegistryUrls(settingsMap);
+    if (urls.isEmpty || !context.mounted) return true;
+    var keep = true;
+    var decided = false;
+    await showDialog<void>(
+      context: context,
+      barrierDismissible: false,
+      builder: (dialogContext) => AlertDialog(
+        title: const Text('Restore source registries?'),
+        content: SingleChildScrollView(
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              const Text(
+                'This backup adds these novel-source registries. '
+                'Registries run code when their providers load, so only '
+                'restore ones you trust.',
+              ),
+              const SizedBox(height: 12),
+              for (final url in urls)
+                Padding(
+                  padding: const EdgeInsets.only(bottom: 4),
+                  child: Text(
+                    url,
+                    style: Theme.of(dialogContext).textTheme.bodySmall,
+                  ),
+                ),
+            ],
+          ),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () {
+              keep = false;
+              decided = true;
+              Navigator.of(dialogContext).pop();
+            },
+            child: const Text('Skip registries'),
+          ),
+          FilledButton(
+            onPressed: () {
+              keep = true;
+              decided = true;
+              Navigator.of(dialogContext).pop();
+            },
+            child: const Text('Restore all'),
+          ),
+        ],
+      ),
+    );
+    // Back button is disabled (barrierDismissible false), but a route pop
+    // from elsewhere must not silently adopt: treat undecided as abort.
+    if (!decided) return null;
+    return keep;
   }
 }
