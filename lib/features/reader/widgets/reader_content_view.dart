@@ -22,6 +22,7 @@ Widget buildChapterContent({
   Map<int, Annotation>? annotationsByParagraph,
   void Function(int chapterId, int paragraphIndex, String text)?
   onAnnotateParagraph,
+  Map<String, String>? imageHeaders,
 }) {
   if (content.isPdf) {
     return _buildPdfView(content.data, settings);
@@ -58,6 +59,7 @@ Widget buildChapterContent({
     blockToParagraph: blockToParagraph,
     annotationsByParagraph: annotationsByParagraph,
     onAnnotateParagraph: onAnnotateParagraph,
+    imageHeaders: imageHeaders ?? content.imageHeaders,
   );
 }
 

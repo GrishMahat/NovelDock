@@ -1,8 +1,24 @@
 import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../core/providers/engine.dart';
+import '../features/settings/pages/general_settings_page.dart';
 import '../theme/tokens.dart';
 import 'cover_image.dart';
+
+/// Rating display formats for the raw 0–1000 provider score.
+String formatRating(int rating, String format) {
+  String trim(double v) {
+    final s = v.toStringAsFixed(1);
+    return s.endsWith('.0') ? s.substring(0, s.length - 2) : s;
+  }
+
+  return switch (format) {
+    'ten' => trim(rating / 100),
+    'hundred' => trim(rating / 10),
+    _ => trim(rating / 200),
+  };
+}
 
 /// Reusable novel result card in a grid.
 class NovelGridCard extends StatelessWidget {
@@ -69,7 +85,7 @@ class NovelGridCard extends StatelessWidget {
 }
 
 /// Reusable novel result as a list tile.
-class NovelListTile extends StatelessWidget {
+class NovelListTile extends ConsumerWidget {
   final SearchResultItem item;
   final VoidCallback onTap;
   final String? subtitleOverride;
@@ -82,8 +98,11 @@ class NovelListTile extends StatelessWidget {
   });
 
   @override
-  Widget build(BuildContext context) {
+  Widget build(BuildContext context, WidgetRef ref) {
     final text = Theme.of(context).textTheme;
+    final ratingFormat = ref.watch(
+      generalSettingsProvider.select((s) => s.ratingFormat),
+    );
     return ListTile(
       leading: ClipRRect(
         borderRadius: BorderRadius.all(Radii.sm),
@@ -112,9 +131,14 @@ class NovelListTile extends StatelessWidget {
           ? Row(
               mainAxisSize: MainAxisSize.min,
               children: [
-                const Icon(Icons.star, size: 14, color: Colors.amber),
-                const SizedBox(width: 2),
-                Text('${item.rating}', style: text.labelMedium),
+                if (ratingFormat == 'stars') ...[
+                  const Icon(Icons.star, size: 14, color: Colors.amber),
+                  const SizedBox(width: 2),
+                ],
+                Text(
+                  formatRating(item.rating!, ratingFormat),
+                  style: text.labelMedium,
+                ),
               ],
             )
           : null,

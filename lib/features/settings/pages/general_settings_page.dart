@@ -17,11 +17,16 @@ class GeneralSettings {
   final bool confirmExit;
   final bool showNsfw;
 
+  /// Raw provider scores are 0–1000: 'stars' (÷200, ★ 4.3), 'ten' (÷100),
+  /// or 'hundred' (÷10).
+  final String ratingFormat;
+
   const GeneralSettings({
     this.startupTab = 0,
     this.defaultDisplayMode = 'grid',
     this.confirmExit = false,
     this.showNsfw = false,
+    this.ratingFormat = 'stars',
   });
 
   GeneralSettings copyWith({
@@ -29,12 +34,14 @@ class GeneralSettings {
     String? defaultDisplayMode,
     bool? confirmExit,
     bool? showNsfw,
+    String? ratingFormat,
   }) {
     return GeneralSettings(
       startupTab: startupTab ?? this.startupTab,
       defaultDisplayMode: defaultDisplayMode ?? this.defaultDisplayMode,
       confirmExit: confirmExit ?? this.confirmExit,
       showNsfw: showNsfw ?? this.showNsfw,
+      ratingFormat: ratingFormat ?? this.ratingFormat,
     );
   }
 }
@@ -49,6 +56,7 @@ class GeneralSettingsNotifier extends _$GeneralSettingsNotifier {
       defaultDisplayMode: p.getString('default_display_mode') ?? 'grid',
       confirmExit: p.getBool('confirm_exit') ?? false,
       showNsfw: p.getBool('show_nsfw') ?? false,
+      ratingFormat: p.getString('rating_format') ?? 'stars',
     );
   }
 
@@ -70,6 +78,11 @@ class GeneralSettingsNotifier extends _$GeneralSettingsNotifier {
   Future<void> setShowNsfw(bool value) async {
     state = state.copyWith(showNsfw: value);
     await ref.read(appPrefsProvider).setBool('show_nsfw', value);
+  }
+
+  Future<void> setRatingFormat(String format) async {
+    state = state.copyWith(ratingFormat: format);
+    await ref.read(appPrefsProvider).setString('rating_format', format);
   }
 }
 
@@ -119,6 +132,33 @@ class GeneralSettingsPage extends ConsumerWidget {
                 RadioListTile<String>(
                   title: const Text('Compact View'),
                   value: 'compact',
+                ),
+              ],
+            ),
+          ),
+          const Divider(),
+          _buildSection(context, 'Rating Format'),
+          RadioGroup<String>(
+            groupValue: settings.ratingFormat,
+            onChanged: (v) {
+              if (v != null) notifier.setRatingFormat(v);
+            },
+            child: const Column(
+              children: [
+                RadioListTile<String>(
+                  title: Text('Stars'),
+                  subtitle: Text('★ 4.3 out of 5'),
+                  value: 'stars',
+                ),
+                RadioListTile<String>(
+                  title: Text('10-point'),
+                  subtitle: Text('8.5 out of 10'),
+                  value: 'ten',
+                ),
+                RadioListTile<String>(
+                  title: Text('100-point'),
+                  subtitle: Text('85 out of 100'),
+                  value: 'hundred',
                 ),
               ],
             ),

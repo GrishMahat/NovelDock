@@ -22,10 +22,21 @@ import '../../widgets/page_header.dart';
 import '../../widgets/shimmer_list.dart';
 import '../browse/webview_screen.dart';
 import '../downloads/providers/download_provider.dart';
+import 'chapter_sort.dart';
 import 'widgets/status_picker_sheet.dart';
 import 'widgets/download_range_sheet.dart';
 
-enum ChapterSort { indexAsc, indexDesc, nameAsc, nameDesc }
+enum ChapterFilter { all, downloaded, bookmarked, read, unread }
+
+extension ChapterFilterLabel on ChapterFilter {
+  String get label => switch (this) {
+    ChapterFilter.all => 'All',
+    ChapterFilter.downloaded => 'Downloaded',
+    ChapterFilter.bookmarked => 'Bookmarked',
+    ChapterFilter.read => 'Read',
+    ChapterFilter.unread => 'Unread',
+  };
+}
 
 const _tag = 'NovelDetail';
 
@@ -49,7 +60,13 @@ class _NovelDetailScreenState extends ConsumerState<NovelDetailScreen> {
   /// recreating the stream each build resets connectionState to waiting
   /// and flashes the chapter skeleton.
   Stream<List<Chapter>>? _chaptersStream;
-  ChapterSort _chapterSort = ChapterSort.indexAsc;
+  ChapterSort _chapterSort = ChapterSort.normal;
+  ChapterFilter _chapterFilter = ChapterFilter.all;
+
+  /// Whether the open-time auto-fetch below has run. Guards both the fetch
+  /// itself and the shimmer condition: idle + empty means "about to load"
+  /// only before this flips.
+  bool _autoFetchAttempted = false;
 
   @override
   void initState() {
@@ -61,7 +78,39 @@ class _NovelDetailScreenState extends ConsumerState<NovelDetailScreen> {
       ref
           .read(downloadProvider.notifier)
           .reconcileDownloads(novelId: widget.novelId);
+      // Self-heal chapter lists: library/history/deep-link/import entries
+      // land here directly without opener.open()'s background fetch, so a
+      // novel with zero cached chapters would otherwise sit on a bogus
+      // "No chapters available" with nothing ever loading.
+      unawaited(_fetchChaptersIfNeeded());
     });
+  }
+
+  /// Fetches chapters once per screen instance when none are cached and no
+  /// fetch is already running. Skips local imports (no remote source) and
+  /// novels whose fetch already ran or is running (opener.open() path).
+  Future<void> _fetchChaptersIfNeeded() async {
+    if (_autoFetchAttempted || !mounted) return;
+    _autoFetchAttempted = true;
+    // Claim loading synchronously: the awaits below must not leave a frame
+    // showing the empty state for content that is about to load.
+    setState(() => _isRefreshing = true);
+    try {
+      final phase = ref.read(novelFetchStateProvider(widget.novelId)).phase;
+      if (phase != NovelFetchPhase.idle) return;
+      final novel =
+          _novel ??
+          await ref.read(novelDaoProvider).getNovelById(widget.novelId);
+      if (!mounted || novel == null || novel.providerId == 'local') return;
+      final chapters = await ref
+          .read(chapterDaoProvider)
+          .getChaptersForNovel(widget.novelId);
+      if (!mounted || chapters.isNotEmpty) return;
+      if (_novel == null) setState(() => _novel = novel);
+      await _refreshNovel();
+    } finally {
+      if (mounted) setState(() => _isRefreshing = false);
+    }
   }
 
   void _watchNovel() {
@@ -269,9 +318,11 @@ class _NovelDetailScreenState extends ConsumerState<NovelDetailScreen> {
           context,
         ).showSnackBar(const SnackBar(content: Text('Refresh failed')));
       }
+    } finally {
+      // The early return above used to leak _isRefreshing=true, sticking
+      // the shimmer on forever with no fetch running behind it.
+      if (mounted) setState(() => _isRefreshing = false);
     }
-
-    if (mounted) setState(() => _isRefreshing = false);
   }
 
   @override
@@ -355,58 +406,17 @@ class _NovelDetailScreenState extends ConsumerState<NovelDetailScreen> {
         tooltip: 'Sort chapters',
         onSelected: (value) => setState(() => _chapterSort = value),
         itemBuilder: (context) => [
-          PopupMenuItem(
-            value: ChapterSort.indexAsc,
-            child: Row(
-              children: [
-                Icon(
-                  _chapterSort == ChapterSort.indexAsc ? Icons.check : null,
-                  size: 18,
-                ),
-                const SizedBox(width: 8),
-                const Text('Index 1\u21929'),
-              ],
+          for (final sort in ChapterSort.values)
+            PopupMenuItem(
+              value: sort,
+              child: Row(
+                children: [
+                  Icon(_chapterSort == sort ? Icons.check : null, size: 18),
+                  const SizedBox(width: 8),
+                  Text(sort.label),
+                ],
+              ),
             ),
-          ),
-          PopupMenuItem(
-            value: ChapterSort.indexDesc,
-            child: Row(
-              children: [
-                Icon(
-                  _chapterSort == ChapterSort.indexDesc ? Icons.check : null,
-                  size: 18,
-                ),
-                const SizedBox(width: 8),
-                const Text('Index 9\u21921'),
-              ],
-            ),
-          ),
-          PopupMenuItem(
-            value: ChapterSort.nameAsc,
-            child: Row(
-              children: [
-                Icon(
-                  _chapterSort == ChapterSort.nameAsc ? Icons.check : null,
-                  size: 18,
-                ),
-                const SizedBox(width: 8),
-                const Text('Name A\u2192Z'),
-              ],
-            ),
-          ),
-          PopupMenuItem(
-            value: ChapterSort.nameDesc,
-            child: Row(
-              children: [
-                Icon(
-                  _chapterSort == ChapterSort.nameDesc ? Icons.check : null,
-                  size: 18,
-                ),
-                const SizedBox(width: 8),
-                const Text('Name Z\u2192A'),
-              ],
-            ),
-          ),
         ],
       ),
       PopupMenuButton<String>(
@@ -441,23 +451,27 @@ class _NovelDetailScreenState extends ConsumerState<NovelDetailScreen> {
           .watchChaptersForNovel(widget.novelId),
       builder: (context, chapterSnapshot) {
         final chapters = chapterSnapshot.data ?? [];
-        final sortedChapters = List<Chapter>.from(chapters)
-          ..sort((a, b) {
-            switch (_chapterSort) {
-              case ChapterSort.indexAsc:
-                return a.index.compareTo(b.index);
-              case ChapterSort.indexDesc:
-                return b.index.compareTo(a.index);
-              case ChapterSort.nameAsc:
-                return a.name.compareTo(b.name);
-              case ChapterSort.nameDesc:
-                return b.name.compareTo(a.name);
-            }
-          });
+        final sortedChapters = sortChapters(chapters, _chapterSort);
+        // Client-side status filter (mirrors the original's chapter filter
+        // popup: downloaded / bookmarked / read / unread).
+        final filteredChapters = switch (_chapterFilter) {
+          ChapterFilter.all => sortedChapters,
+          ChapterFilter.downloaded =>
+            sortedChapters.where((c) => c.downloaded).toList(),
+          ChapterFilter.bookmarked =>
+            sortedChapters.where((c) => c.bookmarked).toList(),
+          ChapterFilter.read => sortedChapters.where((c) => c.read).toList(),
+          ChapterFilter.unread => sortedChapters.where((c) => !c.read).toList(),
+        };
         // Only show the skeleton when there is nothing to show yet AND
         // chapters may still arrive; re-emissions must never blank an
         // existing list. The fetch phase is authoritative: an empty stream
         // while a background fetch is running is transient, not "zero".
+        // Crucially, idle + empty ALSO means loading until the open-time
+        // auto-fetch has run — otherwise a fresh novel flashes a bogus
+        // "No chapters available" before anything even starts loading.
+        // (Local imports are exempt: they have no remote source, so empty
+        // really is empty for them.)
         final isLoadingChapters =
             chapterSnapshot.connectionState == ConnectionState.waiting &&
             sortedChapters.isEmpty;
@@ -467,7 +481,11 @@ class _NovelDetailScreenState extends ConsumerState<NovelDetailScreen> {
         final showChapterShimmer =
             isLoadingChapters ||
             (sortedChapters.isEmpty &&
-                (fetchPhase.isFetching || _isRefreshing));
+                (fetchPhase.isFetching ||
+                    _isRefreshing ||
+                    (fetchPhase == NovelFetchPhase.idle &&
+                        !_autoFetchAttempted &&
+                        _novel?.providerId != 'local')));
 
         return Stack(
           children: [
@@ -671,11 +689,38 @@ class _NovelDetailScreenState extends ConsumerState<NovelDetailScreen> {
                       const SizedBox(height: 20),
                     ],
 
-                    // Chapter Header count
+                    // Chapter Header count + status filter chips
                     if (!showChapterShimmer && sortedChapters.isNotEmpty) ...[
-                      Text(
-                        '${sortedChapters.length} chapters',
-                        style: Theme.of(context).textTheme.titleMedium,
+                      Row(
+                        children: [
+                          Expanded(
+                            child: Text(
+                              _chapterFilter == ChapterFilter.all
+                                  ? '${sortedChapters.length} chapters'
+                                  : '${filteredChapters.length} of ${sortedChapters.length} chapters',
+                              style: Theme.of(context).textTheme.titleMedium,
+                            ),
+                          ),
+                          if (_chapterFilter != ChapterFilter.all)
+                            TextButton(
+                              onPressed: () => setState(
+                                () => _chapterFilter = ChapterFilter.all,
+                              ),
+                              child: const Text('Clear'),
+                            ),
+                        ],
+                      ),
+                      const SizedBox(height: Insets.sm),
+                      Wrap(
+                        spacing: 8,
+                        children: ChapterFilter.values.map((filter) {
+                          return FilterChip(
+                            label: Text(filter.label),
+                            selected: _chapterFilter == filter,
+                            onSelected: (_) =>
+                                setState(() => _chapterFilter = filter),
+                          );
+                        }).toList(),
                       ),
                       const SizedBox(height: Insets.md),
                     ],
@@ -683,6 +728,32 @@ class _NovelDetailScreenState extends ConsumerState<NovelDetailScreen> {
                     // Chapters inline list or shimmer loading
                     if (showChapterShimmer)
                       ...List.generate(8, (_) => const ShimmerChapterTile())
+                    else if (filteredChapters.isEmpty &&
+                        _chapterFilter != ChapterFilter.all &&
+                        sortedChapters.isNotEmpty)
+                      Padding(
+                        padding: const EdgeInsets.symmetric(vertical: 24),
+                        child: Column(
+                          children: [
+                            Text(
+                              'No ${_chapterFilter.label.toLowerCase()} chapters.',
+                              style: Theme.of(context).textTheme.bodyMedium
+                                  ?.copyWith(
+                                    color: Theme.of(
+                                      context,
+                                    ).colorScheme.onSurfaceVariant,
+                                  ),
+                            ),
+                            const SizedBox(height: Insets.md),
+                            OutlinedButton(
+                              onPressed: () => setState(
+                                () => _chapterFilter = ChapterFilter.all,
+                              ),
+                              child: const Text('Show all chapters'),
+                            ),
+                          ],
+                        ),
+                      )
                     else if (sortedChapters.isEmpty)
                       Padding(
                         padding: const EdgeInsets.symmetric(vertical: 24),
@@ -715,7 +786,7 @@ class _NovelDetailScreenState extends ConsumerState<NovelDetailScreen> {
                         ),
                       )
                     else
-                      ...sortedChapters.map(
+                      ...filteredChapters.map(
                         (chapter) => ListTile(
                           contentPadding: EdgeInsets.zero,
                           title: Text(

@@ -49,6 +49,44 @@
                 <category android:name="android.intent.category.DEFAULT"/>
                 <data android:mimeType="application/pdf"/>
             </intent-filter>
+            <!-- Novel links: open matching provider pages in-app.
+                 Hosts mirror the bundled registry (wuxiabox, novelfull,
+                 wuxiaworld, royalroad, novelarrow, freewebnovel, mtlnovel,
+                 syosetu). Unknown hosts fall back to the browser. -->
+            <intent-filter android:autoVerify="false">
+                <action android:name="android.intent.action.VIEW"/>
+                <category android:name="android.intent.category.DEFAULT"/>
+                <category android:name="android.intent.category.BROWSABLE"/>
+                <data android:scheme="https"/>
+                <data android:host="wuxiabox.com"/>
+                <data android:host="www.wuxiabox.com"/>
+                <data android:host="novelfull.com"/>
+                <data android:host="www.novelfull.com"/>
+                <data android:host="wuxiaworld.com"/>
+                <data android:host="www.wuxiaworld.com"/>
+                <data android:host="royalroad.com"/>
+                <data android:host="www.royalroad.com"/>
+                <data android:host="novelarrow.com"/>
+                <data android:host="www.novelarrow.com"/>
+                <data android:host="freewebnovel.com"/>
+                <data android:host="www.freewebnovel.com"/>
+                <data android:host="mtlnovel.me"/>
+                <data android:host="www.mtlnovel.me"/>
+                <data android:host="syosetu.com"/>
+                <data android:host="www.syosetu.com"/>
+                <data android:host="ncode.syosetu.com"/>
+                <data android:host="yomou.syosetu.com"/>
+            </intent-filter>
+            <!-- In-app destinations for launcher shortcuts. -->
+            <intent-filter>
+                <action android:name="android.intent.action.VIEW"/>
+                <category android:name="android.intent.category.DEFAULT"/>
+                <category android:name="android.intent.category.BROWSABLE"/>
+                <data android:scheme="noveldock"/>
+            </intent-filter>
+            <meta-data
+                android:name="android.app.shortcuts"
+                android:resource="@xml/shortcuts"/>
         </activity>
         <service
             android:name="com.ryanheise.audioservice.AudioService"

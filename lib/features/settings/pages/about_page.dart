@@ -3,6 +3,8 @@ import 'package:flutter_svg/flutter_svg.dart';
 import 'package:package_info_plus/package_info_plus.dart';
 import 'package:url_launcher/url_launcher.dart';
 
+import '../../../core/utils/app_updater.dart';
+
 class AboutPage extends StatelessWidget {
   const AboutPage({super.key});
 
@@ -61,6 +63,14 @@ class AboutPage extends StatelessWidget {
             trailing: const Icon(Icons.open_in_new, size: 18),
             onTap: () =>
                 _launchUrl('https://github.com/GrishMahat/NovelDock/issues'),
+          ),
+          ListTile(
+            leading: const Icon(Icons.system_update),
+            title: const Text('Check for updates'),
+            subtitle: const Text('Compare with the latest release'),
+            trailing: const Icon(Icons.open_in_new, size: 18),
+            onTap: () =>
+                AppUpdater.checkAndPrompt(context: context, quiet: false),
           ),
 
           const SizedBox(height: 16),

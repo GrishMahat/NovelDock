@@ -1,0 +1,51 @@
+<?xml version="1.0" encoding="utf-8"?>
+<shortcuts xmlns:android="http://schemas.android.com/apk/res/android">
+    <shortcut
+        android:shortcutId="library"
+        android:enabled="true"
+        android:icon="@mipmap/ic_launcher"
+        android:shortcutShortLabel="@string/shortcut_library"
+        android:shortcutLongLabel="@string/shortcut_library_long">
+        <intent
+            android:action="android.intent.action.VIEW"
+            android:targetPackage="dev.grish.noveldock"
+            android:targetClass="dev.grish.noveldock.MainActivity"
+            android:data="noveldock://library" />
+    </shortcut>
+    <shortcut
+        android:shortcutId="browse"
+        android:enabled="true"
+        android:icon="@mipmap/ic_launcher"
+        android:shortcutShortLabel="@string/shortcut_browse"
+        android:shortcutLongLabel="@string/shortcut_browse_long">
+        <intent
+            android:action="android.intent.action.VIEW"
+            android:targetPackage="dev.grish.noveldock"
+            android:targetClass="dev.grish.noveldock.MainActivity"
+            android:data="noveldock://browse" />
+    </shortcut>
+    <shortcut
+        android:shortcutId="history"
+        android:enabled="true"
+        android:icon="@mipmap/ic_launcher"
+        android:shortcutShortLabel="@string/shortcut_history"
+        android:shortcutLongLabel="@string/shortcut_history_long">
+        <intent
+            android:action="android.intent.action.VIEW"
+            android:targetPackage="dev.grish.noveldock"
+            android:targetClass="dev.grish.noveldock.MainActivity"
+            android:data="noveldock://history" />
+    </shortcut>
+    <shortcut
+        android:shortcutId="downloads"
+        android:enabled="true"
+        android:icon="@mipmap/ic_launcher"
+        android:shortcutShortLabel="@string/shortcut_downloads"
+        android:shortcutLongLabel="@string/shortcut_downloads_long">
+        <intent
+            android:action="android.intent.action.VIEW"
+            android:targetPackage="dev.grish.noveldock"
+            android:targetClass="dev.grish.noveldock.MainActivity"
+            android:data="noveldock://downloads" />
+    </shortcut>
+</shortcuts>

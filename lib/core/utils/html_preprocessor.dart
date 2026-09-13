@@ -10,6 +10,7 @@ class HtmlPreprocessor {
   static String clean(
     String rawHtml, {
     bool stripAuthorNotes = true,
+    bool stripBloat = true,
     bool keepCss = false,
   }) {
     final document = html_parser.parse(rawHtml);
@@ -35,6 +36,13 @@ class HtmlPreprocessor {
 
     // 6. Remove <meta> tags
     document.querySelectorAll('meta').forEach((e) => e.remove());
+
+    // 6b. Remove structural chrome (nav/header/footer/aside/form/select/button).
+    // These carry site UI, never chapter prose. Matches Html2Md's skip list so
+    // cleaning and rendering agree on what survives.
+    document
+        .querySelectorAll('nav, header, footer, aside, form, select, button')
+        .forEach((e) => e.remove());
 
     // 7. Remove ad-related elements
     document
@@ -82,14 +90,18 @@ class HtmlPreprocessor {
           .forEach((e) => e.remove());
     }
 
-    // 11. Remove translator/editor credit blocks
+    // 11. Remove translator/editor credit blocks ("bloat", optional —
+    // the reader's Remove Bloat setting; on by default like the pipeline
+    // has always behaved).
     // Original regex: <p>.*<strong>Translator:.*Editor:.*> and <.*?Translator:.*?Editor:.*?>
-    document.querySelectorAll('p, div, span').forEach((e) {
-      final text = e.text;
-      if (text.contains('Translator:') && text.contains('Editor:')) {
-        e.remove();
-      }
-    });
+    if (stripBloat) {
+      document.querySelectorAll('p, div, span').forEach((e) {
+        final text = e.text;
+        if (text.contains('Translator:') && text.contains('Editor:')) {
+          e.remove();
+        }
+      });
+    }
 
     // 12. Fix relative image URLs (make them absolute)
     document.querySelectorAll('img').forEach((img) {
@@ -130,22 +142,32 @@ class HtmlPreprocessor {
           .replaceAll('...', '\u2026');
     }
 
-    // 15. Remove <center> tags (unwrap content)
+    // 15. Remove <center> tags (unwrap content, text nodes included —
+    // moving only element children would silently drop bare text).
     document.querySelectorAll('center').forEach((center) {
-      for (final child in center.children.toList()) {
+      for (final child in center.nodes.toList()) {
         center.parent?.insertBefore(child, center);
       }
       center.remove();
     });
 
-    // 16. Remove <font> tags (unwrap content)
+    // 16. Remove <font> tags (unwrap content, text nodes included).
     document.querySelectorAll('font').forEach((font) {
-      for (final child in font.children.toList()) {
+      for (final child in font.nodes.toList()) {
         font.parent?.insertBefore(child, font);
       }
       font.remove();
     });
 
-    return document.body?.innerHtml ?? rawHtml;
+    final bodyHtml = document.body?.innerHtml ?? rawHtml;
+    if (!keepCss) return bodyHtml;
+    // keepCss: the HTML5 parser files <style>/<link> under <head>, but only
+    // body HTML is returned — re-attach head styles so EPUB CSS survives.
+    final headCss = document.head
+        ?.querySelectorAll('style, link')
+        .map((e) => e.outerHtml)
+        .join();
+    if (headCss == null || headCss.isEmpty) return bodyHtml;
+    return '$headCss$bodyHtml';
   }
 }

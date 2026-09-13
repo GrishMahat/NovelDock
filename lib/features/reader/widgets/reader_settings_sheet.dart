@@ -187,6 +187,28 @@ class _ReaderSettingsSheetState extends ConsumerState<ReaderSettingsSheet> {
         settings.bionicReading,
         (_) => notifier.toggleBionicReading(),
       ),
+      switchTile(
+        context,
+        'Show Author Notes',
+        'Keep translator author-note blocks in chapters',
+        settings.showAuthorNotes,
+        (_) => notifier.toggleShowAuthorNotes(),
+      ),
+      switchTile(
+        context,
+        'Remove Bloat',
+        'Strip translator and editor credit blocks',
+        settings.removeBloat,
+        (_) => notifier.toggleRemoveBloat(),
+      ),
+      if (Platform.isAndroid)
+        switchTile(
+          context,
+          'Volume Key Scrolling',
+          'Volume buttons turn pages instead of changing volume',
+          settings.volumeScroll,
+          (_) => notifier.toggleVolumeScroll(),
+        ),
       if (!Platform.isLinux && !Platform.isMacOS && !Platform.isWindows) ...[
         switchTile(
           context,

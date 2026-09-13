@@ -10,9 +10,10 @@ Every chapter that enters the app, no matter where it came from, becomes a
 Markdown file. Provider sites return HTML, EPUBs contain XHTML, imports and
 downloads each have their own shape, and I didn't want the reader, TTS,
 translation, and download code all dealing with those formats directly. So
-there's one intake step (`html2md.dart`, driven by `chapter_intake.dart`) that
-converts whatever arrived into Markdown, and from there on the app works with
-one parsed AST (`md_ast.dart`).
+there's one intake step — `HtmlPreprocessor.clean` + `Html2Md.convert`,
+applied identically by `remote_loader.dart`, `epub_loader.dart`, and the download
+queue — that converts whatever arrived into Markdown, and from there on the app
+works with one parsed AST (`md_ast.dart`).
 
 It wasn't the first design. The original reader rendered provider HTML
 directly, and that worked until TTS showed up. Read-aloud needs to know which

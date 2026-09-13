@@ -1,11 +1,18 @@
 import 'dart:async';
+import 'dart:io';
 
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
+import 'package:window_manager/window_manager.dart';
 
+import 'core/tts/tts_manager.dart';
+import 'core/tts/tts_tray.dart';
+import 'core/utils/app_updater.dart';
+import 'core/utils/incoming_intent.dart';
 import 'core/utils/platform.dart';
+import 'core/utils/window_title.dart';
 import 'features/downloads/providers/download_provider.dart';
 import 'features/settings/pages/theme_settings_page.dart';
 import 'router/app_router.dart';
@@ -22,6 +29,9 @@ class NovelDockApp extends ConsumerStatefulWidget {
 
 class _NovelDockAppState extends ConsumerState<NovelDockApp> {
   bool _startupQueueKicked = false;
+  VoidCallback? _routeListener;
+  ProviderSubscription<bool>? _traySpeakingSubscription;
+  ProviderSubscription<bool>? _trayPausedSubscription;
 
   @override
   void initState() {
@@ -38,7 +48,71 @@ class _NovelDockAppState extends ConsumerState<NovelDockApp> {
       unawaited(downloads.resumePendingDownloads());
       unawaited(downloads.reconcileDownloads());
       unawaited(downloads.autoDownloadNext());
+      // Silent update check once per launch: dialogs only when a newer
+      // release exists. Failures (offline, rate-limited) stay invisible.
+      unawaited(AppUpdater.checkAndPrompt());
+      // Cold-start share/deep-link/shortcut intent (warm ones arrive via
+      // the channel push). No-ops on non-Android shells.
+      unawaited(IncomingIntent.handleStartup(ref));
+      // Linux tray icon mirrors background TTS: visible while speaking,
+      // Pause/Resume label follows playback state. Silent no-op elsewhere.
+      if (Platform.isLinux) {
+        unawaited(
+          TtsTray.init(
+            onShow: () async {
+              try {
+                await windowManager.show();
+                await windowManager.focus();
+              } catch (_) {}
+            },
+            onToggle: () async {
+              final notifier = ref.read(ttsManagerProvider.notifier);
+              if (ref.read(ttsManagerProvider).isPaused) {
+                await notifier.resume();
+              } else {
+                await notifier.pause();
+              }
+            },
+            onStop: () => ref.read(ttsManagerProvider.notifier).stop(),
+          ),
+        );
+        _traySpeakingSubscription = ref.listenManual<bool>(
+          ttsManagerProvider.select((s) => s.isSpeaking),
+          (_, speaking) => unawaited(TtsTray.setVisible(speaking)),
+        );
+        _trayPausedSubscription = ref.listenManual<bool>(
+          ttsManagerProvider.select((s) => s.isPaused),
+          (_, paused) => unawaited(TtsTray.setPaused(paused)),
+        );
+      }
+      // Desktop title bar follows navigation: "NovelDock — <screen>".
+      if (isDesktop) {
+        final router = ref.read(routerProvider);
+        _routeListener = () => unawaited(
+          applyWindowTitle(
+            router.routerDelegate.currentConfiguration.uri.toString(),
+          ),
+        );
+        router.routerDelegate.addListener(_routeListener!);
+        _routeListener!();
+      }
     });
+  }
+
+  @override
+  void dispose() {
+    _traySpeakingSubscription?.close();
+    _trayPausedSubscription?.close();
+    unawaited(TtsTray.dispose());
+    final listener = _routeListener;
+    if (listener != null) {
+      try {
+        ref.read(routerProvider).routerDelegate.removeListener(listener);
+      } catch (_) {
+        // Shutdown path: the router may already be gone.
+      }
+    }
+    super.dispose();
   }
 
   @override

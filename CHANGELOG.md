@@ -5,11 +5,8 @@ The format follows [Keep a Changelog](https://keepachangelog.com); versions aim 
 
 ## Unreleased
 
-> **Status: initial AI-assisted batch — not yet tested.** These entries were
-> generated with an AI coding agent, installed as debug builds only, and have
-> not gone through release testing. Expect rough edges (including possible UI
-> lag after the large reader/download changes); everything below gets a
-> stabilization pass before any release.
+> **Status: pre-release.** Most things have been tested, but a few things are
+> still remaining before release.
 
 ### Added
 
@@ -19,9 +16,29 @@ The format follows [Keep a Changelog](https://keepachangelog.com); versions aim 
 - Clear site data in General settings (scraper cookies + in-app browser sessions)
 - Auto-download the next chapters of Reading novels on Wi-Fi (Off/1/3/5/10 in Download settings)
 - Cover monograms: novels without covers get a title-initial tile instead of a generic icon
+- Reader "Show author notes" toggle (Display section, on by default like the original): hides translator author-note blocks when off; applies to online, EPUB, and newly downloaded chapters
+- Chapter body images now send the scraper cookie jar (Cloudflare clearance cookies) so images on protected hosts load instead of failing; resolved per chapter at load time for online and downloaded chapters
+- Novel detail chapter list gains status filter chips (All / Downloaded / Bookmarked / Read / Unread) with a match count and one-tap clear, mirroring the original's filter popup
+- Library pull-to-refresh: swipe down re-fetches every novel on the current tab sequentially with a progress bar and a refreshed-count snackbar
+- Reader volume-key scrolling (Android): opt-out setting (on by default, like the original) turns volume buttons into page turns via a thin MainActivity bridge; volume behaves normally everywhere else
+- In-app update check: silent GitHub-releases poll once per launch (dialog + releases link only when newer), plus a manual "Check for updates" row in About
+- Share/deep-link/shortcut intents end to end (Android): shared EPUB/PDF files actually arrive in Import now (the intent plumbing existed but nothing ever delivered the path); browser novel links for installed sources open the novel detail screen; `noveldock://` scheme backs static launcher shortcuts (Library, Browse, History, Downloads)
+- Tests: full DAO CRUD suite (novel, library, history, downloads, bookmarks, settings, progress, provider cache), preprocessor + image-header + updater + deep-link-matching + chapter-sort + window-title unit tests, and widget tests for library, novel-detail filters/sort/loading states, and reader image headers (229 tests total)
+- Novel detail sort is now Normal / Chapter number / Latest first — the alphabetic sorts are gone (lexicographic order put "Chapter 10" before "Chapter 2"). Number mode parses real chapter numbers so it works even on newest-first or jumbled listings; per-chapter upload dates would be ideal for the third mode but providers don't supply them, so it reverses provider order
+- Search results rank by relevance within each provider row (exact > prefix > substring > token overlap > typo-tolerant similarity, ~50 lines, no dependencies); provider grouping is preserved
+- Rating format setting (General): Stars (★ 4.3), 10-point (8.5), or 100-point (85) for the raw 0–1000 provider scores — the old bare "★ 850" is gone
+- Remove Bloat toggle (reader Display section, on by default): translator/editor credit stripping is now optional instead of always-on
+- Desktop title bar follows navigation ("NovelDock — Library/Browse/Reader/…")
+- Linux system-tray icon for background TTS: appears while speaking with Show, Pause/Resume, and Stop playback actions; degrades silently without an indicator daemon
+- Tray fix: the Linux native side only implements destroy/setIcon/setContextMenu, so the tooltip call threw MissingPluginException and aborted the menu setup — tooltip dropped on Linux and each tray step is now independently guarded
 
 ### Fixed
 
+- One HTML intake pipeline again: the reader, EPUB loader, and download queue each ran a different preprocessor (two regex duplicates plus a dead DOM one nobody called, and downloads skipped cleaning entirely). All three now share `HtmlPreprocessor.clean` + `Html2Md.convert`, so downloaded chapters render identically to online ones. Side effects, all toward the original app's behavior: translator/editor credit blocks and ad chrome are now stripped everywhere, lazy-load images resolve, and `<center>`/`<font>` unwrapping no longer drops bare text. The dead `chapter_intake.dart` duplicate is deleted
+- EPUB `keepCss` was a no-op: the HTML parser files `<style>`/`<link>` under `<head>` but only body HTML was returned, so embedded CSS never survived. Head styles are now re-attached when `keepCss` is set
+- The chapter-level bookmark flag was write-only (`toggleBookmark` had zero callers), so nothing could ever show it. Adding a positioned bookmark now flags the chapter and deleting the last one clears it, which the new Bookmarked filter reads
+- Share intents were half-wired: manifest filters and the `/import?file=` route existed, but no native code ever populated the path, so shares silently did nothing. MainActivity now copies shared content URIs to cache and forwards them (plus deep links and shortcut taps) over an intent channel
+- Opening a novel with no cached chapters flashed a bogus "No chapters available" before anything loaded (the empty state won while the fetch was still idle, and detail screens opened from library/history never triggered a fetch at all). The detail screen now auto-fetches once when empty, shows the skeleton for idle-but-unstarted loads, and only shows the empty message after a fetch genuinely returns nothing; local imports are exempt. Also fixed `_refreshNovel` leaking the loading flag on its early return, which stuck the skeleton on forever
 - Source pages no longer spin forever when the network is dead: they fail fast offline with the cause (no connection, timeout, server status) and a Retry button instead of an endless spinner
 - Background chapter sync could delete surviving chapters (and their read/download/bookmark state) by passing only new URLs to the replace-semantics sync; it now sends the full server list. Stale deletes also clean up dependent history, queue, bookmark, and anchor rows in the same transaction instead of stranding them
 - Re-importing an EPUB deleted and re-inserted every chapter, churning row ids and orphaning history/bookmarks/downloads; imports now diff-sync by URL like online refreshes

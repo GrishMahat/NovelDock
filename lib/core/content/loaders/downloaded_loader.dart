@@ -3,6 +3,7 @@ import 'dart:io';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../../core/database/database.dart';
+import '../../../core/network/image_headers.dart';
 import '../../../core/utils/logger.dart';
 import '../content_model.dart';
 import 'content_loader.dart';
@@ -38,10 +39,13 @@ class DownloadedLoader extends ContentLoader {
 
     Log.ok(_tag, 'Downloaded chapter loaded: ${content.length} chars');
 
+    // chapter.url is the original page URL (downloadedPath is the file), so
+    // jar cookies resolve against the same host the images come from.
     return ChapterContent(
       format: ContentFormat.markdown,
       data: content,
       chapterId: chapter.id,
+      imageHeaders: await imageHeadersForUrl(chapter.url, ref),
     );
   }
 }

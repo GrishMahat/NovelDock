@@ -24,13 +24,13 @@ import '../features/settings/pages/general_settings_page.dart';
 import '../features/import/import_screen.dart';
 import '../main.dart' show sharedFilePath;
 import '../core/config/app_prefs.dart';
+import 'root_navigator.dart';
 
 part 'app_router.g.dart';
 
 /// Shell-tab locations indexed by the "Startup tab" general setting.
 const _tabLocations = ['/library', '/browse', '/history'];
 
-final GlobalKey<NavigatorState> _rootNavigatorKey = GlobalKey<NavigatorState>();
 final GlobalKey<NavigatorState> _shellNavigatorKey =
     GlobalKey<NavigatorState>();
 
@@ -41,7 +41,7 @@ final GlobalKey<NavigatorState> _shellNavigatorKey =
 GoRouter router(Ref ref) {
   final startupTab = ref.watch(appPrefsProvider).getInt('startup_tab') ?? 0;
   return GoRouter(
-    navigatorKey: _rootNavigatorKey,
+    navigatorKey: rootNavigatorKey,
     initialLocation:
         _tabLocations[startupTab.clamp(0, _tabLocations.length - 1)],
     routes: [
@@ -162,7 +162,7 @@ GoRouter router(Ref ref) {
       GoRoute(
         path: '/reader/:novelId/:chapterId',
         name: 'reader',
-        parentNavigatorKey: _rootNavigatorKey,
+        parentNavigatorKey: rootNavigatorKey,
         builder: (context, state) => ReaderScreen(
           novelId: int.parse(state.pathParameters['novelId'] ?? '0'),
           chapterId: int.parse(state.pathParameters['chapterId'] ?? '0'),

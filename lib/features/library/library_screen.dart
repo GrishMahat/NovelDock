@@ -8,6 +8,7 @@ import 'package:go_router/go_router.dart';
 import '../../core/database/database.dart';
 import '../../core/display_mode.dart';
 import '../../core/providers/database_providers.dart';
+import '../../core/providers/novel_opener.dart';
 import '../../core/utils/platform.dart';
 
 import '../../theme/tokens.dart';
@@ -31,6 +32,12 @@ class _LibraryScreenState extends ConsumerState<LibraryScreen>
   late final TabController _tabController;
   DisplayMode _displayMode = DisplayMode.grid;
   String _filterQuery = '';
+
+  /// Pull-to-refresh state: sequential per-novel metadata refresh of the
+  /// current tab (batched, never parallel — one provider hammering at a time).
+  bool _refreshing = false;
+  int _refreshDone = 0;
+  int _refreshTotal = 0;
 
   /// Memoized per-tab streams: recreating them in _buildTabContent (called
   /// per tab per build) resubscribes and flashes skeletons on every rebuild.
@@ -81,6 +88,57 @@ class _LibraryScreenState extends ConsumerState<LibraryScreen>
         .setDefaultDisplayMode(_displayMode.name);
   }
 
+  /// Refresh every novel on the current tab, sequentially with progress.
+  /// The library streams update rows in place as each refresh lands.
+  Future<void> _refreshCurrentTab() async {
+    if (_refreshing) return;
+    final status = _statusValues[_tabController.index];
+    final libraryDao = ref.read(libraryDaoProvider);
+    final opener = ref.read(novelOpenerProvider);
+
+    final entries = await libraryDao.getAllLibraryEntries();
+    final ids = [
+      for (final e in entries)
+        if (status == null || e.status == status) e.novelId,
+    ];
+    if (ids.isEmpty) {
+      if (mounted) {
+        ScaffoldMessenger.of(
+          context,
+        ).showSnackBar(const SnackBar(content: Text('Nothing to refresh')));
+      }
+      return;
+    }
+    setState(() {
+      _refreshing = true;
+      _refreshDone = 0;
+      _refreshTotal = ids.length;
+    });
+    var ok = 0;
+    try {
+      for (final id in ids) {
+        if (!mounted) break;
+        if (await opener.refreshNovel(id)) ok++;
+        if (mounted) setState(() => _refreshDone++);
+      }
+    } finally {
+      if (mounted) setState(() => _refreshing = false);
+    }
+    if (mounted) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Refreshed $ok of ${ids.length} novels')),
+      );
+    }
+  }
+
+  /// Thin progress bar shown under the header while a tab refresh runs.
+  Widget _refreshProgressBar() {
+    if (!_refreshing) return const SizedBox.shrink();
+    return LinearProgressIndicator(
+      value: _refreshTotal > 0 ? _refreshDone / _refreshTotal : null,
+    );
+  }
+
   @override
   void dispose() {
     _tabController.dispose();
@@ -114,6 +172,7 @@ class _LibraryScreenState extends ConsumerState<LibraryScreen>
               tabController: _tabController,
               tabs: _tabs.map((t) => Tab(text: t)).toList(),
             ),
+            _refreshProgressBar(),
             Expanded(
               child: TabBarView(
                 controller: _tabController,
@@ -150,13 +209,20 @@ class _LibraryScreenState extends ConsumerState<LibraryScreen>
           tabs: _tabs.map((t) => Tab(text: t)).toList(),
         ),
       ),
-      body: TabBarView(
-        controller: _tabController,
-        children: _tabs
-            .asMap()
-            .entries
-            .map((e) => _buildTabContent(e.key))
-            .toList(),
+      body: Column(
+        children: [
+          _refreshProgressBar(),
+          Expanded(
+            child: TabBarView(
+              controller: _tabController,
+              children: _tabs
+                  .asMap()
+                  .entries
+                  .map((e) => _buildTabContent(e.key))
+                  .toList(),
+            ),
+          ),
+        ],
       ),
     );
   }
@@ -258,41 +324,53 @@ class _LibraryScreenState extends ConsumerState<LibraryScreen>
           );
         }
 
+        // Pull-to-refresh re-fetches every novel on this tab (batched,
+        // sequential — see _refreshCurrentTab). Streams update rows in place.
         switch (_displayMode) {
           case DisplayMode.grid:
             // Full-bleed: left-aligns with the header at any window size;
             // wide windows get more columns instead of centering gutters.
-            return GridView.builder(
-              padding: const EdgeInsets.fromLTRB(
-                Insets.lg,
-                Insets.lg,
-                Insets.lg,
-                Insets.xl,
-              ),
-              gridDelegate: const SliverGridDelegateWithMaxCrossAxisExtent(
-                maxCrossAxisExtent: 180,
-                childAspectRatio: 0.68,
-                crossAxisSpacing: Insets.md,
-                mainAxisSpacing: Insets.md,
-              ),
-              itemCount: filtered.length,
-              itemBuilder: (context, index) => LibraryGridItem(
-                novel: filtered[index],
-                onTap: () => context.push('/novel/${filtered[index].id}'),
-                onPlay: () => _playNovel(filtered[index].id),
-                onLongPress: () => _showStatusMenu(filtered[index]),
+            return RefreshIndicator(
+              onRefresh: _refreshCurrentTab,
+              child: GridView.builder(
+                padding: const EdgeInsets.fromLTRB(
+                  Insets.lg,
+                  Insets.lg,
+                  Insets.lg,
+                  Insets.xl,
+                ),
+                gridDelegate: const SliverGridDelegateWithMaxCrossAxisExtent(
+                  maxCrossAxisExtent: 180,
+                  childAspectRatio: 0.68,
+                  crossAxisSpacing: Insets.md,
+                  mainAxisSpacing: Insets.md,
+                ),
+                itemCount: filtered.length,
+                itemBuilder: (context, index) => LibraryGridItem(
+                  novel: filtered[index],
+                  onTap: () => context.push('/novel/${filtered[index].id}'),
+                  onPlay: () => _playNovel(filtered[index].id),
+                  onLongPress: () => _showStatusMenu(filtered[index]),
+                ),
               ),
             );
           case DisplayMode.list:
-            return ListView.builder(
-              itemCount: filtered.length,
-              itemBuilder: (context, index) => _buildListItem(filtered[index]),
+            return RefreshIndicator(
+              onRefresh: _refreshCurrentTab,
+              child: ListView.builder(
+                itemCount: filtered.length,
+                itemBuilder: (context, index) =>
+                    _buildListItem(filtered[index]),
+              ),
             );
           case DisplayMode.compact:
-            return ListView.builder(
-              itemCount: filtered.length,
-              itemBuilder: (context, index) =>
-                  _buildCompactItem(filtered[index]),
+            return RefreshIndicator(
+              onRefresh: _refreshCurrentTab,
+              child: ListView.builder(
+                itemCount: filtered.length,
+                itemBuilder: (context, index) =>
+                    _buildCompactItem(filtered[index]),
+              ),
             );
         }
       },

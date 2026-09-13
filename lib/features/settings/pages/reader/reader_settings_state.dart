@@ -23,6 +23,9 @@ class ReaderSettings {
   final String textAlignment;
   final double paragraphSpacing;
   final bool bionicReading;
+  final bool showAuthorNotes;
+  final bool removeBloat;
+  final bool volumeScroll;
   final bool keepScreenOn;
   final bool ttsAutoScroll;
   final bool ttsScrollLock;
@@ -41,6 +44,9 @@ class ReaderSettings {
     this.textAlignment = 'justify',
     this.paragraphSpacing = 12.0,
     this.bionicReading = false,
+    this.showAuthorNotes = true,
+    this.removeBloat = true,
+    this.volumeScroll = true,
     this.keepScreenOn = true,
     this.ttsAutoScroll = true,
     this.ttsScrollLock = false,
@@ -60,6 +66,9 @@ class ReaderSettings {
     String? textAlignment,
     double? paragraphSpacing,
     bool? bionicReading,
+    bool? showAuthorNotes,
+    bool? removeBloat,
+    bool? volumeScroll,
     bool? keepScreenOn,
     bool? ttsAutoScroll,
     bool? ttsScrollLock,
@@ -78,6 +87,9 @@ class ReaderSettings {
       textAlignment: textAlignment ?? this.textAlignment,
       paragraphSpacing: paragraphSpacing ?? this.paragraphSpacing,
       bionicReading: bionicReading ?? this.bionicReading,
+      showAuthorNotes: showAuthorNotes ?? this.showAuthorNotes,
+      removeBloat: removeBloat ?? this.removeBloat,
+      volumeScroll: volumeScroll ?? this.volumeScroll,
       keepScreenOn: keepScreenOn ?? this.keepScreenOn,
       ttsAutoScroll: ttsAutoScroll ?? this.ttsAutoScroll,
       ttsScrollLock: ttsScrollLock ?? this.ttsScrollLock,
@@ -201,6 +213,9 @@ class ReaderSettingsNotifier extends _$ReaderSettingsNotifier {
       textAlignment: p.getString('reader_text_alignment') ?? 'justify',
       paragraphSpacing: p.getDouble('reader_paragraph_spacing') ?? 12.0,
       bionicReading: p.getBool('reader_bionic_reading') ?? false,
+      showAuthorNotes: p.getBool('reader_show_author_notes') ?? true,
+      removeBloat: p.getBool('reader_remove_bloat') ?? true,
+      volumeScroll: p.getBool('reader_volume_scroll') ?? true,
       keepScreenOn: p.getBool('reader_keep_screen_on') ?? true,
       ttsAutoScroll: p.getBool('reader_tts_autoscroll') ?? true,
       ttsScrollLock: p.getBool('reader_tts_scroll_lock') ?? false,
@@ -223,6 +238,9 @@ class ReaderSettingsNotifier extends _$ReaderSettingsNotifier {
       await p.setString('reader_text_alignment', state.textAlignment);
       await p.setDouble('reader_paragraph_spacing', state.paragraphSpacing);
       await p.setBool('reader_bionic_reading', state.bionicReading);
+      await p.setBool('reader_show_author_notes', state.showAuthorNotes);
+      await p.setBool('reader_remove_bloat', state.removeBloat);
+      await p.setBool('reader_volume_scroll', state.volumeScroll);
       await p.setBool('reader_keep_screen_on', state.keepScreenOn);
       await p.setBool('reader_tts_autoscroll', state.ttsAutoScroll);
       await p.setBool('reader_tts_scroll_lock', state.ttsScrollLock);
@@ -254,6 +272,12 @@ class ReaderSettingsNotifier extends _$ReaderSettingsNotifier {
       _update((s) => s.copyWith(readerTheme: v));
   void toggleBionicReading() =>
       _update((s) => s.copyWith(bionicReading: !s.bionicReading));
+  void toggleShowAuthorNotes() =>
+      _update((s) => s.copyWith(showAuthorNotes: !s.showAuthorNotes));
+  void toggleRemoveBloat() =>
+      _update((s) => s.copyWith(removeBloat: !s.removeBloat));
+  void toggleVolumeScroll() =>
+      _update((s) => s.copyWith(volumeScroll: !s.volumeScroll));
   void toggleKeepScreenOn() =>
       _update((s) => s.copyWith(keepScreenOn: !s.keepScreenOn));
   void toggleTtsAutoScroll() =>

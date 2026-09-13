@@ -13,6 +13,7 @@ import '../../widgets/novel_card.dart';
 import '../../widgets/provider_avatar.dart';
 import '../../core/providers/registries.dart';
 import 'providers/search_providers.dart';
+import 'search_rank.dart';
 import 'widgets/filter_sheet.dart';
 
 /// Global search results, one horizontal row per source.
@@ -430,6 +431,7 @@ class _SearchRows extends ConsumerWidget {
             _ProviderRow(
               provider: provider,
               state: searchState.stateFor(provider.id),
+              query: searchState.query,
               onOpen: onOpen,
             ),
           const SizedBox(height: Insets.xl),
@@ -446,11 +448,13 @@ class _SearchRows extends ConsumerWidget {
 class _ProviderRow extends ConsumerWidget {
   final ProviderMeta provider;
   final ProviderSearchState state;
+  final String query;
   final void Function(SearchResultItem) onOpen;
 
   const _ProviderRow({
     required this.provider,
     required this.state,
+    required this.query,
     required this.onOpen,
   });
 
@@ -505,6 +509,7 @@ class _ProviderRow extends ConsumerWidget {
                         )
                       : _ProviderGrid(
                           state: state,
+                          query: query,
                           scrollController: scrollController,
                           onOpen: onOpen,
                           onLoadMore: () => ref
@@ -522,7 +527,8 @@ class _ProviderRow extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    final results = state.results;
+    // Relevance-ranked within the row; provider grouping is preserved.
+    final results = rankByRelevance(query, state.results, (i) => i.title);
 
     // The strip shows every loaded result; the "View all" card only
     // appears while more pages can still be fetched.
@@ -713,12 +719,14 @@ class _ProviderRow extends ConsumerWidget {
 
 class _ProviderGrid extends StatelessWidget {
   final ProviderSearchState state;
+  final String query;
   final ScrollController scrollController;
   final VoidCallback onLoadMore;
   final void Function(SearchResultItem) onOpen;
 
   const _ProviderGrid({
     required this.state,
+    required this.query,
     required this.scrollController,
     required this.onLoadMore,
     required this.onOpen,
@@ -726,7 +734,8 @@ class _ProviderGrid extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final itemCount = state.results.length + (state.hasNextPage ? 1 : 0);
+    final results = rankByRelevance(query, state.results, (i) => i.title);
+    final itemCount = results.length + (state.hasNextPage ? 1 : 0);
 
     return GridView.builder(
       controller: scrollController,
@@ -739,7 +748,7 @@ class _ProviderGrid extends StatelessWidget {
       ),
       itemCount: itemCount,
       itemBuilder: (context, index) {
-        if (index >= state.results.length) {
+        if (index >= results.length) {
           return Center(
             child: state.isLoading
                 ? const SizedBox(
@@ -755,7 +764,7 @@ class _ProviderGrid extends StatelessWidget {
           );
         }
 
-        final item = state.results[index];
+        final item = results[index];
 
         return NovelGridCard(item: item, onTap: () => onOpen(item));
       },

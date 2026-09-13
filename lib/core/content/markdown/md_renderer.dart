@@ -47,6 +47,9 @@ Widget buildDocument({
   Map<int, Annotation>? annotationsByParagraph,
   void Function(int chapterId, int paragraphIndex, String text)?
   onAnnotateParagraph,
+  // Per-chapter request headers (Cloudflare cookies from the jar) so images
+  // served from protected hosts load. Empty = no headers (prior behavior).
+  Map<String, String> imageHeaders = const {},
 }) {
   final textStyle = _buildTextStyle(settings);
   final align = _textAlign(settings.textAlignment);
@@ -78,6 +81,7 @@ Widget buildDocument({
           ttsState: ttsState,
           chunkKeys: chunkKeys,
           blockToParagraph: blockToParagraph,
+          imageHeaders: imageHeaders,
           annotation: paragraphOrdinals[i] == null
               ? null
               : annotationsByParagraph?[paragraphOrdinals[i]!],
@@ -102,6 +106,7 @@ Widget _buildBlock(
   Annotation? annotation,
   void Function(int chapterId, int paragraphIndex, String text)?
   onAnnotateParagraph,
+  Map<String, String> imageHeaders = const {},
 }) {
   // TTS chunks are indexed by paragraph (skipping headings etc.), so map the
   // block index to its paragraph index before comparing with the current chunk.
@@ -127,18 +132,26 @@ Widget _buildBlock(
         paragraphIndex: paragraphIndex,
         annotation: annotation,
         onAnnotateParagraph: onAnnotateParagraph,
+        imageHeaders: imageHeaders,
       ),
       HeadingNode() => _buildHeading(
         block,
         textStyle: textStyle,
         settings: settings,
+        imageHeaders: imageHeaders,
       ),
       BlockquoteNode() => _buildBlockquote(
         block,
         textStyle: textStyle,
         settings: settings,
+        imageHeaders: imageHeaders,
       ),
-      ListNode() => _buildList(block, textStyle: textStyle, settings: settings),
+      ListNode() => _buildList(
+        block,
+        textStyle: textStyle,
+        settings: settings,
+        imageHeaders: imageHeaders,
+      ),
       HorizontalRuleNode() => _buildHR(settings),
       CodeFenceNode() => _buildCodeFence(block, settings),
       ListItemNode() => _buildParagraph(
@@ -148,6 +161,7 @@ Widget _buildBlock(
         settings: settings,
         isHighlighted: isHighlighted,
         ttsState: ttsState,
+        imageHeaders: imageHeaders,
       ),
     },
   );
@@ -165,6 +179,7 @@ Widget _buildParagraph(
   Annotation? annotation,
   void Function(int chapterId, int paragraphIndex, String text)?
   onAnnotateParagraph,
+  Map<String, String> imageHeaders = const {},
 }) {
   // Plain paragraph text for quotes/long-press payloads.
   String plainText() =>
@@ -211,6 +226,7 @@ Widget _buildParagraph(
               align: align,
               settings: settings,
               ttsState: ttsState,
+              imageHeaders: imageHeaders,
             ),
           );
         }
@@ -227,6 +243,7 @@ Widget _buildParagraph(
                 textStyle: textStyle,
                 align: align,
                 settings: settings,
+                imageHeaders: imageHeaders,
               ),
             ),
           );
@@ -237,6 +254,7 @@ Widget _buildParagraph(
             textStyle: textStyle,
             align: align,
             settings: settings,
+            imageHeaders: imageHeaders,
           ),
         );
       },
@@ -248,6 +266,7 @@ Widget _buildHeading(
   HeadingNode node, {
   required TextStyle textStyle,
   required ReaderSettings settings,
+  Map<String, String> imageHeaders = const {},
 }) {
   final size = switch (node.level) {
     1 => 1.6,
@@ -265,6 +284,7 @@ Widget _buildHeading(
       ),
       align: TextAlign.left,
       settings: settings,
+      imageHeaders: imageHeaders,
     ),
   );
 }
@@ -273,6 +293,7 @@ Widget _buildBlockquote(
   BlockquoteNode node, {
   required TextStyle textStyle,
   required ReaderSettings settings,
+  Map<String, String> imageHeaders = const {},
 }) {
   return Padding(
     padding: const EdgeInsets.only(left: 16, top: 8, bottom: 8),
@@ -294,6 +315,7 @@ Widget _buildBlockquote(
                   ),
                   align: TextAlign.left,
                   settings: settings,
+                  imageHeaders: imageHeaders,
                 );
               }
               return const SizedBox.shrink();
@@ -309,6 +331,7 @@ Widget _buildList(
   ListNode node, {
   required TextStyle textStyle,
   required ReaderSettings settings,
+  Map<String, String> imageHeaders = const {},
 }) {
   return Padding(
     padding: const EdgeInsets.symmetric(vertical: 4),
@@ -336,6 +359,7 @@ Widget _buildList(
                     textStyle: textStyle,
                     align: TextAlign.left,
                     settings: settings,
+                    imageHeaders: imageHeaders,
                   ),
                 ),
               ],
@@ -380,13 +404,18 @@ Widget _buildCodeFence(CodeFenceNode node, ReaderSettings settings) {
   );
 }
 
-Widget _buildInlineImage(ImageNode node, ReaderSettings settings) {
+Widget _buildInlineImage(
+  ImageNode node,
+  ReaderSettings settings, {
+  Map<String, String> imageHeaders = const {},
+}) {
   return Padding(
     padding: const EdgeInsets.symmetric(vertical: 4),
     child: ClipRRect(
       borderRadius: BorderRadius.circular(4),
       child: Image.network(
         node.src,
+        headers: imageHeaders.isEmpty ? null : imageHeaders,
         fit: BoxFit.contain,
         errorBuilder: (_, _, _) => Container(
           height: 100,
@@ -410,10 +439,11 @@ Widget _richText(
   required TextStyle textStyle,
   required TextAlign align,
   required ReaderSettings settings,
+  Map<String, String> imageHeaders = const {},
 }) {
   final spans = <InlineSpan>[];
   for (final node in inlines) {
-    spans.addAll(_buildSpans(node, textStyle, settings));
+    spans.addAll(_buildSpans(node, textStyle, settings, imageHeaders));
   }
   return RichText(
     text: TextSpan(children: spans),
@@ -435,8 +465,9 @@ Future<void> _openLink(String url) async {
 List<InlineSpan> _buildSpans(
   InlineNode node,
   TextStyle baseStyle,
-  ReaderSettings settings,
-) {
+  ReaderSettings settings, [
+  Map<String, String> imageHeaders = const {},
+]) {
   return switch (node) {
     TextNode() => [
       if (settings.bionicReading)
@@ -447,7 +478,7 @@ List<InlineSpan> _buildSpans(
     BoldNode() => [
       TextSpan(
         children: node.children
-            .expand((n) => _buildSpans(n, baseStyle, settings))
+            .expand((n) => _buildSpans(n, baseStyle, settings, imageHeaders))
             .toList(),
         style: baseStyle.copyWith(fontWeight: FontWeight.bold),
       ),
@@ -455,7 +486,7 @@ List<InlineSpan> _buildSpans(
     ItalicNode() => [
       TextSpan(
         children: node.children
-            .expand((n) => _buildSpans(n, baseStyle, settings))
+            .expand((n) => _buildSpans(n, baseStyle, settings, imageHeaders))
             .toList(),
         style: baseStyle.copyWith(fontStyle: FontStyle.italic),
       ),
@@ -463,7 +494,7 @@ List<InlineSpan> _buildSpans(
     LinkNode() => [
       TextSpan(
         children: node.children
-            .expand((n) => _buildSpans(n, baseStyle, settings))
+            .expand((n) => _buildSpans(n, baseStyle, settings, imageHeaders))
             .toList(),
         style: baseStyle.copyWith(
           color: AppTheme.kReaderAccent,
@@ -483,7 +514,9 @@ List<InlineSpan> _buildSpans(
     ],
     ImageNode() => [
       // Images inside inline context use widget span
-      WidgetSpan(child: _buildInlineImage(node, settings)),
+      WidgetSpan(
+        child: _buildInlineImage(node, settings, imageHeaders: imageHeaders),
+      ),
     ],
   };
 }
@@ -516,10 +549,11 @@ Widget _highlightedRichText(
   required TextAlign align,
   required ReaderSettings settings,
   required TtsManagerState ttsState,
+  Map<String, String> imageHeaders = const {},
 }) {
   final spans = <InlineSpan>[];
   for (final node in inlines) {
-    spans.addAll(_buildSpans(node, textStyle, settings));
+    spans.addAll(_buildSpans(node, textStyle, settings, imageHeaders));
   }
 
   final plainText = spans.map((s) => s.toPlainText()).join();

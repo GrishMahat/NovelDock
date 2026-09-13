@@ -8,11 +8,13 @@ import 'package:path_provider/path_provider.dart';
 import 'package:path/path.dart' as p;
 import 'package:riverpod_annotation/riverpod_annotation.dart';
 
+import '../../../core/config/app_prefs.dart';
 import '../../../core/content/markdown/html2md.dart';
 import '../../../core/database/database.dart';
 import '../../../core/providers/database_providers.dart';
 import '../../../core/providers/engine.dart';
 import '../../../core/network/client.dart';
+import '../../../core/utils/html_preprocessor.dart';
 import '../../../core/utils/logger.dart';
 import '../../../core/utils/notification_permission.dart';
 import '../../settings/pages/download_settings_page.dart';
@@ -516,7 +518,19 @@ class DownloadNotifier extends _$DownloadNotifier {
       final fileName = '${task.chapterId}.md';
       final file = File(p.join(dir.path, fileName));
 
-      final markdown = Html2Md.convert(content.html);
+      // Same intake pipeline as the reader: clean first so downloaded
+      // chapters render identically to online ones (ads/scripts stripped,
+      // author notes and bloat per the reader settings baked in at
+      // download time).
+      final prefs = ref.read(appPrefsProvider);
+      final markdown = Html2Md.convert(
+        HtmlPreprocessor.clean(
+          content.html,
+          stripAuthorNotes:
+              !(prefs.getBool('reader_show_author_notes') ?? true),
+          stripBloat: prefs.getBool('reader_remove_bloat') ?? true,
+        ),
+      );
 
       // Integrity: refuse to persist an empty conversion. A done-marked
       // chapter with an empty file would serve broken content in the reader.

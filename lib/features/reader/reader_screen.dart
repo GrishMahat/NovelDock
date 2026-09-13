@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:io';
 
 import 'package:drift/drift.dart' show Value;
@@ -17,6 +18,7 @@ import '../../core/database/database.dart';
 import '../../core/providers/database_providers.dart';
 import '../../core/tts/tts_manager.dart';
 import '../../core/utils/logger.dart';
+import '../../core/utils/volume_keys.dart';
 import '../../theme/app_theme.dart';
 import '../../theme/tokens.dart';
 import '../../widgets/max_width_box.dart';
@@ -85,6 +87,10 @@ class _ReaderScreenState extends ConsumerState<ReaderScreen> {
 
   /// Follows the Keep Screen On setting (applies on open and on toggle).
   ProviderSubscription<bool>? _wakelockSubscription;
+
+  /// Follows the Volume-Key Scroll setting (applies on open and on toggle).
+  /// Android only — other platforms never deliver volume keys to the app.
+  ProviderSubscription<bool>? _volumeSubscription;
   bool _autoAdvancingTts = false;
 
   @override
@@ -99,6 +105,11 @@ class _ReaderScreenState extends ConsumerState<ReaderScreen> {
     _wakelockSubscription = ref.listenManual<bool>(
       readerSettingsProvider.select((s) => s.keepScreenOn),
       (_, keepOn) => _applyWakelock(keepOn),
+    );
+    _applyVolumeScroll(ref.read(readerSettingsProvider).volumeScroll);
+    _volumeSubscription = ref.listenManual<bool>(
+      readerSettingsProvider.select((s) => s.volumeScroll),
+      (_, scroll) => _applyVolumeScroll(scroll),
     );
     _scrollController.addListener(_onScroll);
 
@@ -130,9 +141,11 @@ class _ReaderScreenState extends ConsumerState<ReaderScreen> {
     _ttsSubscription?.close();
     _anchorSubscription?.close();
     _wakelockSubscription?.close();
+    _volumeSubscription?.close();
     _saveReadingAnchor();
     _scrollController.dispose();
     _applyWakelock(false);
+    _applyVolumeScroll(false);
     // The reader forced portrait; give the rest of the app its freedom back.
     SystemChrome.setPreferredOrientations(DeviceOrientation.values);
     SystemChrome.setEnabledSystemUIMode(SystemUiMode.edgeToEdge);
@@ -150,6 +163,23 @@ class _ReaderScreenState extends ConsumerState<ReaderScreen> {
       }
     } catch (e) {
       Log.d('Reader', 'WakelockPlus unavailable: $e');
+    }
+  }
+
+  /// Claims or releases Android volume-key scrolling. Volume up/down scroll
+  /// by a page (same step as PgUp/PgDn); while claimed, system volume does
+  /// not change — exactly like the original's scroll-with-volume option.
+  void _applyVolumeScroll(bool scroll) {
+    if (!VolumeKeys.isSupported) return;
+    if (scroll) {
+      VolumeKeys.setHandler(
+        onUp: () => _scrollByPages(-1),
+        onDown: () => _scrollByPages(1),
+      );
+      unawaited(VolumeKeys.setEnabled(true));
+    } else {
+      unawaited(VolumeKeys.setEnabled(false));
+      VolumeKeys.clearHandler();
     }
   }
 
@@ -904,6 +934,9 @@ class _ReaderScreenState extends ConsumerState<ReaderScreen> {
         createdAt: Value(DateTime.now().millisecondsSinceEpoch),
       ),
     );
+    // Keep the chapter row flag in sync so the novel-detail
+    // "Bookmarked" filter reflects positioned bookmarks.
+    await ref.read(chapterDaoProvider).toggleBookmark(chapter.id, true);
 
     if (mounted) {
       ScaffoldMessenger.of(context).showSnackBar(
@@ -944,7 +977,19 @@ class _ReaderScreenState extends ConsumerState<ReaderScreen> {
         });
       },
       onDeleteBookmark: (bookmarkId) async {
+        final doomed = bookmarks.where((b) => b.id == bookmarkId).firstOrNull;
         await bookmarkDao.removeBookmark(bookmarkId);
+        // Clear the chapter flag when its last positioned bookmark is gone.
+        if (doomed != null) {
+          final remaining = await bookmarkDao.getBookmarksForChapter(
+            doomed.chapterId,
+          );
+          if (remaining.isEmpty) {
+            await ref
+                .read(chapterDaoProvider)
+                .toggleBookmark(doomed.chapterId, false);
+          }
+        }
         if (mounted) _showBookmarks();
       },
     );
