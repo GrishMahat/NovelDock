@@ -293,8 +293,8 @@ class EdgeTtsEngine implements TtsEngine {
 
               yield TtsWordBoundary(
                 word: word,
-                offset: Duration(microseconds: data.offset ~/ 10),
-                duration: Duration(microseconds: data.duration ~/ 10),
+                offset: data.offsetAsDuration,
+                duration: data.durationAsDuration,
               );
             }
           }

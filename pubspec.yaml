@@ -57,7 +57,7 @@ dependencies:
   flutter_edge_tts:
     git:
       url: https://github.com/GrishMahat/flutter_edge_tts.git
-      ref: v0.0.4
+      ref: v0.3.0
   anni_mpris_service: ^0.1.0
   webview_all: ^1.4.1
   google_mlkit_translation: ^0.15.1
@@ -108,9 +108,9 @@ dev_dependencies:
     sdk: flutter
   flutter_lints: ^6.0.0
   build_runner: ^2.5.4
-  # 2.34.6 aligns the analyzer range with riverpod_generator 4.0.9 (>=13 <15);
-  # older drift_dev pins (analyzer >=10 <13) conflict with it.
-  drift_dev: 2.34.6
+  # 2.35.0 keeps drift/drift_dev in lockstep; drift_dev pins analyzer range
+  # compatible with riverpod_generator 4.0.9 (>=13 <15) — verify after bump.
+  drift_dev: 2.35.0
   riverpod_generator: ^4.0.9
   freezed: ^4.0.1
   json_serializable: ^6.14.0

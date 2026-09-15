@@ -2,6 +2,7 @@ import 'dart:async';
 import 'dart:io';
 
 import 'package:anni_mpris_service/anni_mpris_service.dart';
+import 'package:flutter_edge_tts/flutter_edge_tts.dart';
 import 'package:just_audio/just_audio.dart';
 import 'package:riverpod_annotation/riverpod_annotation.dart';
 import 'package:shared_preferences/shared_preferences.dart';
@@ -546,15 +547,11 @@ class TtsManager extends _$TtsManager {
   String get _voiceId => state.voice.isEmpty ? _defaultVoice : state.voice;
 
   String _rateString() {
-    final percent = ((state.speed - 1.0) * 100).round();
-
-    return percent >= 0 ? '+$percent%' : '$percent%';
+    return EdgeTtsProsody.formatPercent((state.speed - 1.0) * 100);
   }
 
   String _pitchString() {
-    final percent = ((state.pitch - 1.0) * 50).round();
-
-    return percent >= 0 ? '+$percent%' : '$percent%';
+    return EdgeTtsProsody.formatPercent((state.pitch - 1.0) * 50);
   }
 
   int _findFirstChunkOfParagraph(int paragraphIndex) {

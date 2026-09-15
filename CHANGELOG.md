@@ -73,6 +73,7 @@ The format follows [Keep a Changelog](https://keepachangelog.com); versions aim 
 - Download queue state restores once per launch; notification permission is asked once per download run instead of per task
 - Media notification reports the real TTS speed instead of hardcoded 1.0x
 - All Riverpod providers were migrated from manual definitions to `@riverpod` codegen (riverpod_generator); no legacy `StateNotifierProvider`s remain. Provider behavior is unchanged
+- Dependencies: safe `flutter pub upgrade` batch (image 4.10.1, sqlite3 3.6.0, flutter_local_notifications 22.3.1, flutter_widget_from_html 0.17.4, file_picker 12.3.0, build_runner 2.16.1, analyzer 14.4.0, and transitive patches); drift/drift_dev 2.34 → 2.35 with codegen rebuilt (analyze clean, 229 tests pass); flutter_edge_tts v0.0.4 → v0.3.0 with the TTS engine/manager adapted to the new word-boundary duration and prosody-format APIs
 
 ## 0.1.3-beta - 2026-09-05
 
