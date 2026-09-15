@@ -5,8 +5,7 @@ The format follows [Keep a Changelog](https://keepachangelog.com); versions aim 
 
 ## Unreleased
 
-> **Status: pre-release.** Most things have been tested, but a few things are
-> still remaining before release.
+## 0.1.4-beta - 2026-09-15
 
 ### Added
 
