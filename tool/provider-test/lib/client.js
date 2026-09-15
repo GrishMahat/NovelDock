@@ -231,6 +231,10 @@ class Client {
         // Manual redirect following for h2 (node http2 has none).
         if (res.status >= 300 && res.status < 400 && res.headers.location && followRedirects) {
           for (let i = 0; i < MAX_REDIRECTS; i++) {
+            // Stop as soon as a hop is no longer a redirect (a missing
+            // Location used to be re-read as the literal "undefined" URL,
+            // which produced phantom 404s).
+            if (!(res.status >= 300 && res.status < 400 && res.headers.location)) break;
             const next = new URL(res.headers.location, res.url).toString();
             res = await this._requestOnce(next, 'GET', null, extraHeaders, true, REQUEST_TIMEOUT_MS);
           }

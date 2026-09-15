@@ -459,6 +459,11 @@ class DownloadNotifier extends _$DownloadNotifier {
         final response = await dio.get(
           contentUrl,
           cancelToken: cancelToken,
+          // Plain text so JSON chapter APIs (novelbin, scrollerspub) reach
+          // parseChapterContent as a raw string. Dio's default JSON handling
+          // would hand the parser a Dart Map whose toString() is not valid
+          // JSON. Mirrors core/content/loaders/remote_loader.dart.
+          options: Options(responseType: ResponseType.plain),
           onReceiveProgress: (received, total) {
             if (total <= 0) return;
             final p = (received / total).clamp(0.0, 1.0);
