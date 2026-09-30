@@ -5,6 +5,12 @@ The format follows [Keep a Changelog](https://keepachangelog.com); versions aim 
 
 ## Unreleased
 
+## 0.1.5-beta - 2026-09-30
+
+### Added
+
+- Filter-aware POST search: providers whose searchConfig declares (query, page, filters) now receive active search filters instead of the app skipping POST search when filters are set; WuxiaWorld 1.1.0 opts in (status/genre/sort flow into SearchNovels)
+
 ### Fixed
 
 - Failed chapter refreshes no longer wipe stored chapters: an empty or truncated chapter-API walk (HTTP error, exception, page cap) skips the sync when the novel already has chapters instead of deleting them plus their history/queue/bookmarks/anchors; only a walk that reaches a true end-of-list signal may delete

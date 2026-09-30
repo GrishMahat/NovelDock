@@ -236,8 +236,9 @@ class BackupRestorePage extends ConsumerWidget {
               'currentChapterIndex': p.currentChapterIndex,
               'lastReadChapterUrl': p.lastReadChapterId == null
                   ? null
-                  : (await chapterDao.getChapterById(p.lastReadChapterId!))
-                        ?.url,
+                  : (await chapterDao.getChapterById(
+                      p.lastReadChapterId!,
+                    ))?.url,
               'lastTtsChapterUrl': p.lastTtsChapterId == null
                   ? null
                   : (await chapterDao.getChapterById(p.lastTtsChapterId!))?.url,
@@ -408,23 +409,21 @@ class BackupRestorePage extends ConsumerWidget {
               novelId,
               status: map['status'] as String?,
             );
-            await (db.update(db.library)
-                  ..where((t) => t.novelId.equals(novelId)))
-                .write(
-                  LibraryCompanion(
-                    status: Value(map['status'] as String?),
-                    order: Value((map['order'] as num?)?.toInt()),
-                    lastReadAt: Value(
-                      (map['lastReadAt'] as num?)?.toInt(),
-                    ),
-                    lastChapterId: Value(
-                      await resolveChapter(
-                        novelUrl,
-                        map['lastChapterUrl'] as String?,
-                      ),
-                    ),
+            await (db.update(
+              db.library,
+            )..where((t) => t.novelId.equals(novelId))).write(
+              LibraryCompanion(
+                status: Value(map['status'] as String?),
+                order: Value((map['order'] as num?)?.toInt()),
+                lastReadAt: Value((map['lastReadAt'] as num?)?.toInt()),
+                lastChapterId: Value(
+                  await resolveChapter(
+                    novelUrl,
+                    map['lastChapterUrl'] as String?,
                   ),
-                );
+                ),
+              ),
+            );
           } catch (e) {
             Log.w(_tag, 'Failed to import library entry: $e');
           }
@@ -488,12 +487,10 @@ class BackupRestorePage extends ConsumerWidget {
             final readAt =
                 (map['readAt'] as num?)?.toInt() ??
                 DateTime.now().millisecondsSinceEpoch;
-            final seen =
-                historySeen[novelId] ??= {
-                  for (final e
-                      in await historyDao.getHistoryForNovel(novelId))
-                    '${e.chapterId}:${e.readAt}',
-                };
+            final seen = historySeen[novelId] ??= {
+              for (final e in await historyDao.getHistoryForNovel(novelId))
+                '${e.chapterId}:${e.readAt}',
+            };
             if (!seen.add('$chapterId:$readAt')) continue;
             await historyDao.addHistoryEntry(
               ReadingHistoryCompanion(

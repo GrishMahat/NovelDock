@@ -18,7 +18,9 @@ void main() {
   group('CoverImage widget', () {
     testWidgets('null url shows the book-icon placeholder', (tester) async {
       await tester.pumpWidget(
-        const MaterialApp(home: Scaffold(body: CoverImage(width: 40, height: 56))),
+        const MaterialApp(
+          home: Scaffold(body: CoverImage(width: 40, height: 56)),
+        ),
       );
       expect(find.byIcon(Icons.book), findsOneWidget);
       expect(find.byType(RawImage), findsNothing);

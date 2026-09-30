@@ -423,9 +423,7 @@ class CatalogTab extends ConsumerWidget {
           );
         }
 
-        final installed = visible
-            .where((p) => enabled.contains(p.id))
-            .toList();
+        final installed = visible.where((p) => enabled.contains(p.id)).toList();
         final available = visible
             .where((p) => !enabled.contains(p.id))
             .toList();
