@@ -118,6 +118,12 @@ function register(p) {
   var flags = p.flags || {};
   var hasBrowseConfig = typeof p.browseConfig === "function";
   var hasChaptersApiConfig = typeof p.chaptersApiConfig === "function";
+  // Filters-aware POST search is opt-in: declaring searchConfig with a
+  // third `filters` parameter (query, page, filters) advertises it.
+  // Zero-arg static templates and two-arg (query, page) configs keep the
+  // legacy behavior — the app never sends filters into them.
+  var searchConfigAcceptsFilters =
+    typeof p.searchConfig === "function" && p.searchConfig.length >= 3;
   m.getProviderMetadata = function() {
     return {
       hasMainPage: !!p.mainPageUrl || hasBrowseConfig,
@@ -126,6 +132,7 @@ function register(p) {
       hasFilters: !!(p.filters && p.filters.length),
       hasChapterApi: !!(p.chaptersApiUrl || hasChaptersApiConfig),
       searchFilters: flags.searchFilters === undefined ? true : !!flags.searchFilters,
+      searchConfigFilters: searchConfigAcceptsFilters,
     };
   };
 

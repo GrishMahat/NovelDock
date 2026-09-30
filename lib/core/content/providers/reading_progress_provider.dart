@@ -146,7 +146,10 @@ class ReadingProgressNotifier extends _$ReadingProgressNotifier {
 
       final result = await provider.call('getChapterList', [novel.url]);
       final chapterUrls = result as List<dynamic>?;
-      if (chapterUrls == null) {
+      // Empty-means-abort: syncChaptersForNovel treats its input as the FULL
+      // server list, so an empty result (transient provider error) would wipe
+      // every stored chapter plus dependents on a background timer tick.
+      if (chapterUrls == null || chapterUrls.isEmpty) {
         state = state.copyWith(
           isSyncing: false,
           syncError: 'Failed to fetch chapter list',

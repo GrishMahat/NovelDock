@@ -734,8 +734,11 @@ class DownloadNotifier extends _$DownloadNotifier {
       final chapters = await chapterDao.getDownloadedChapters(novel.id);
       for (final chapter in chapters) {
         final path = chapter.downloadedPath;
-        if (path == null || path.isEmpty) continue;
-        if (!File(path).existsSync()) stale.add(chapter.id);
+        // Null/empty path with the flag set is corrupt state (the only
+        // setter always writes a real path): no file can exist, clear it.
+        if (path == null || path.isEmpty || !File(path).existsSync()) {
+          stale.add(chapter.id);
+        }
       }
     }
     for (final id in stale) {

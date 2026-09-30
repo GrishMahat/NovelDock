@@ -1,6 +1,5 @@
 import 'dart:async';
 
-import 'package:cached_network_image/cached_network_image.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
@@ -12,6 +11,7 @@ import '../../core/providers/novel_opener.dart';
 import '../../core/utils/platform.dart';
 
 import '../../theme/tokens.dart';
+import '../../widgets/cover_image.dart';
 import '../../widgets/header_search_field.dart';
 import '../../widgets/max_width_box.dart';
 import '../../widgets/page_header.dart';
@@ -378,26 +378,7 @@ class _LibraryScreenState extends ConsumerState<LibraryScreen>
   }
 
   Widget _buildCover(String? url, double width, double height) {
-    if (url != null && url.isNotEmpty) {
-      return CachedNetworkImage(
-        imageUrl: url,
-        width: width,
-        height: height,
-        fit: BoxFit.cover,
-        placeholder: (_, _) => Container(
-          color: Theme.of(context).colorScheme.surfaceContainerHighest,
-          child: const Icon(Icons.book, size: 32),
-        ),
-        errorWidget: (_, _, _) => Container(
-          color: Theme.of(context).colorScheme.surfaceContainerHighest,
-          child: const Icon(Icons.book, size: 32),
-        ),
-      );
-    }
-    return Container(
-      color: Theme.of(context).colorScheme.surfaceContainerHighest,
-      child: const Icon(Icons.book, size: 32),
-    );
+    return CoverImage(imageUrl: url, width: width, height: height);
   }
 
   Widget _buildListItem(Novel novel) {
@@ -517,20 +498,29 @@ class _LibraryScreenState extends ConsumerState<LibraryScreen>
     }
   }
 
-  void _showStatusMenu(Novel novel) {
+  void _showStatusMenu(Novel novel) async {
     final libraryDao = ref.read(libraryDaoProvider);
-    final inLibrary = novel.status != null && novel.status!.isNotEmpty;
+    // Novel.status is provider metadata (Ongoing/Completed); library
+    // membership status lives on the Library row. Read it explicitly —
+    // conflating the two offers "Set status" for non-members and silently
+    // updates zero rows.
+    final entry = await libraryDao.getLibraryEntry(novel.id);
+    if (!mounted) return;
+    final libraryStatus = entry?.status;
+    final inLibrary = entry != null;
     showModalBottomSheet<String>(
       context: context,
       builder: (ctx) => StatusPickerSheet(
         title: inLibrary ? 'Set status' : 'Add to library',
-        initialStatus: novel.status,
+        initialStatus: libraryStatus,
       ),
     ).then((result) {
       if (result == null || !mounted) return;
       if (result == 'None') {
         libraryDao.removeFromLibrary(novel.id);
-      } else if (result != novel.status) {
+      } else if (!inLibrary) {
+        libraryDao.addToLibrary(novel.id, status: result);
+      } else if (result != libraryStatus) {
         libraryDao.updateStatus(novel.id, result);
       }
     });

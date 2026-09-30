@@ -5,6 +5,24 @@ The format follows [Keep a Changelog](https://keepachangelog.com); versions aim 
 
 ## Unreleased
 
+### Fixed
+
+- Failed chapter refreshes no longer wipe stored chapters: an empty or truncated chapter-API walk (HTTP error, exception, page cap) skips the sync when the novel already has chapters instead of deleting them plus their history/queue/bookmarks/anchors; only a walk that reaches a true end-of-list signal may delete
+- Chapter URLs with trailing slashes no longer silently disable the chapter-API fallback (book id is the last non-empty path segment minus extension/query/fragment)
+- Reader Retry on a failed chapter actually refetches instead of no-oping on the cached error
+- Re-importing the same EPUB/PDF reuses the novel row and preserves chapter identity, so history/bookmarks/downloads survive instead of being orphaned by replace-inserts
+- Library status mix-up: the library sheet and novel detail screen now read membership status from the Library row instead of the novel's provider metadata (Ongoing/Completed); detail screen shows real membership with the current status pre-selected
+- Backup/restore now round-trips library membership (status/order/anchors) and read/TTS progress, not just novels — restored novels reappear in the Library tab
+- "Confirm before exit" setting is now honored: first back press on a top-level tab shows "Press back again to exit", second exits
+- "Show NSFW Sources" off now actually hides 18+ extensions in Browse (Installed + Catalog), not just badges them; "Startup Tab" notes it needs a restart
+- Provider `getOrderBys` no longer throws on JS-shaped maps (entry-wise string normalization); missing provider functions are logged at load instead of failing silently later
+- Translation, TTS paragraphs, and annotation quotes share one paragraph-text rule (formatted runs flattened, not dropped) and one ordinal map, so read-aloud, highlights, and translation agree on paragraph identity
+- Deleted dead surface: unused `render_seam.dart`, `postSearch`/`postBrowse` aliases
+- Background 30-minute chapter sync no longer wipes stored chapters when the provider returns an empty list
+- Bookmark adds and history restore are idempotent: reader double-taps and backup re-imports no longer stack duplicates
+- Download reconciliation now clears corrupt downloaded flags with no file path, not just missing files
+- Shared CoverImage handles local EPUB covers (file paths) everywhere — history, novel detail, library list/grid — instead of Image.network throwing on paths
+
 ## 0.1.4-beta - 2026-09-15
 
 ### Added

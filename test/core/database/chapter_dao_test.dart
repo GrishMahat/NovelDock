@@ -101,6 +101,37 @@ void main() {
     expect(second.map((r) => r.id), first.map((r) => r.id));
   });
 
+  test('insertChapter upserts without churning row identity', () async {
+    final novelId = await seedNovel();
+    final firstId = await db.chapterDao.insertChapter(
+      ChaptersCompanion.insert(
+        novelId: novelId,
+        name: 'PDF Document',
+        url: 'pdf:///tmp/a.pdf#page=1',
+        index: 0,
+      ),
+    );
+
+    // Re-inserting the same (novel, url) — e.g. re-importing the same PDF —
+    // returns the same row instead of REPLACE-churning the id (which would
+    // orphan history/queue/bookmarks keyed by chapter id).
+    await db.chapterDao.markChapterAsRead(firstId);
+    final secondId = await db.chapterDao.insertChapter(
+      ChaptersCompanion.insert(
+        novelId: novelId,
+        name: 'PDF Document',
+        url: 'pdf:///tmp/a.pdf#page=1',
+        index: 0,
+      ),
+    );
+
+    expect(secondId, firstId);
+    final row = await db.chapterDao.getChapterById(firstId);
+    expect(row, isNotNull);
+    expect(row!.read, isTrue);
+    expect(await db.chapterDao.getChaptersForNovel(novelId), hasLength(1));
+  });
+
   test('sync only touches the given novel', () async {
     final novel1 = await seedNovel();
     final novel2 = await db

@@ -65,6 +65,12 @@ class LibraryDao extends DatabaseAccessor<AppDatabase> with _$LibraryDaoMixin {
     );
   }
 
+  Future<LibraryData?> getLibraryEntry(int novelId) {
+    return (select(
+      library,
+    )..where((t) => t.novelId.equals(novelId))).getSingleOrNull();
+  }
+
   Future<List<LibraryData>> getAllLibraryEntries() {
     return select(library).get();
   }

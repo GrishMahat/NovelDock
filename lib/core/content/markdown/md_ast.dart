@@ -74,6 +74,37 @@ class Document {
   Document(this.blocks);
 }
 
+/// Flattens inline nodes (a paragraph's children) into plain text.
+///
+/// The single flattening rule for "what is this paragraph's text": bold,
+/// italic, links, and code contribute their text; images are skipped. A
+/// naive `whereType<TextNode>()` scan silently drops formatted runs — every
+/// consumer (TTS paragraphs, translation, annotation quotes) must use this.
+String inlinePlainText(List<InlineNode> inlines) {
+  final buffer = StringBuffer();
+  void walk(List<InlineNode> nodes) {
+    for (final node in nodes) {
+      switch (node) {
+        case TextNode():
+          buffer.write(node.text);
+        case BoldNode():
+          walk(node.children);
+        case ItalicNode():
+          walk(node.children);
+        case LinkNode():
+          walk(node.children);
+        case CodeNode():
+          buffer.write(node.text);
+        case ImageNode():
+          break;
+      }
+    }
+  }
+
+  walk(inlines);
+  return buffer.toString();
+}
+
 /// Paragraph texts in document order plus the block->paragraph index map:
 /// the single definition of "what gets read aloud", shared by TTS start,
 /// auto-advance, and highlight mapping. Headings, quotes, and lists are
@@ -86,7 +117,7 @@ class Document {
   for (var i = 0; i < doc.blocks.length; i++) {
     final block = doc.blocks[i];
     if (block is! ParagraphNode) continue;
-    final text = block.children.whereType<TextNode>().map((t) => t.text).join();
+    final text = inlinePlainText(block.children);
     if (text.trim().isEmpty) continue;
     blockToParagraph[i] = paragraphs.length;
     paragraphs.add(text);

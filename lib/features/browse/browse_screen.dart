@@ -12,6 +12,7 @@ import '../../widgets/page_header.dart';
 import '../../widgets/provider_avatar.dart';
 import '../../widgets/shimmer_list.dart';
 import '../../core/providers/registries.dart';
+import '../settings/pages/general_settings_page.dart';
 import 'webview_screen.dart';
 
 /// Browse screen. Installed tab for browsing sources, Catalog tab for
@@ -225,6 +226,11 @@ class InstalledTab extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     final providersAsync = ref.watch(availableProvidersProvider);
     final enabled = ref.watch(enabledProvidersProvider);
+    // "Show NSFW Sources" general setting: hide 18+ extensions unless
+    // explicitly enabled (they were previously only badged, never filtered).
+    final showNsfw = ref.watch(
+      generalSettingsProvider.select((s) => s.showNsfw),
+    );
 
     return providersAsync.when(
       loading: () => const ShimmerList(),
@@ -234,7 +240,7 @@ class InstalledTab extends ConsumerWidget {
       ),
       data: (providers) {
         final enabledProviders = providers
-            .where((p) => enabled.contains(p.id))
+            .where((p) => enabled.contains(p.id) && (showNsfw || !p.nsfw))
             .toList();
 
         if (enabledProviders.isEmpty) {
@@ -397,6 +403,9 @@ class CatalogTab extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     final providersAsync = ref.watch(availableProvidersProvider);
     final enabled = ref.watch(enabledProvidersProvider);
+    final showNsfw = ref.watch(
+      generalSettingsProvider.select((s) => s.showNsfw),
+    );
 
     return providersAsync.when(
       loading: () => const ShimmerList(),
@@ -405,16 +414,19 @@ class CatalogTab extends ConsumerWidget {
         onRetry: () => ref.invalidate(availableProvidersProvider),
       ),
       data: (providers) {
-        if (providers.isEmpty) {
+        final visible = showNsfw
+            ? providers
+            : providers.where((p) => !p.nsfw).toList();
+        if (visible.isEmpty) {
           return const Center(
             child: Text('No providers found.\nAdd a registry to get started.'),
           );
         }
 
-        final installed = providers
+        final installed = visible
             .where((p) => enabled.contains(p.id))
             .toList();
-        final available = providers
+        final available = visible
             .where((p) => !enabled.contains(p.id))
             .toList();
 

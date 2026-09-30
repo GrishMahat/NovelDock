@@ -21,8 +21,21 @@ part 'chapter_dao.g.dart';
 class ChapterDao extends DatabaseAccessor<AppDatabase> with _$ChapterDaoMixin {
   ChapterDao(super.db);
 
-  Future<int> insertChapter(ChaptersCompanion chapter) {
-    return into(chapters).insert(chapter, mode: InsertMode.insertOrReplace);
+  /// Upsert that preserves row identity: UNIQUE(novelId,url) conflicts
+  /// update name/index in place instead of REPLACE (which is delete +
+  /// re-insert and churns the autoincrement id, orphaning history/queue/
+  /// bookmarks keyed by chapter id).
+  Future<int> insertChapter(ChaptersCompanion chapter) async {
+    final novelId = chapter.novelId.value;
+    final url = chapter.url.value;
+    final existing = await getChapterByNovelAndUrl(novelId, url);
+    if (existing == null) {
+      return into(chapters).insert(chapter, mode: InsertMode.insertOrIgnore);
+    }
+    await (update(chapters)..where((t) => t.id.equals(existing.id))).write(
+      ChaptersCompanion(name: chapter.name, index: chapter.index),
+    );
+    return existing.id;
   }
 
   /// Partially updates a chapter (only columns present in [chapter] are set).

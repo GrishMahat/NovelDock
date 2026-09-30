@@ -68,13 +68,14 @@ class _ImportScreenState extends ConsumerState<ImportScreen> {
       Log.ok(_tag, 'Copied to: $destPath');
 
       final novelDao = ref.read(novelDaoProvider);
-      final novelId = await novelDao.insertNovel(
-        NovelsCompanion(
-          providerId: const Value('local'),
-          url: Value(destPath),
-          title: Value(p.basenameWithoutExtension(fileName)),
-          addedAt: Value(DateTime.now().millisecondsSinceEpoch),
-        ),
+      // insertOrGet: re-importing the same file reuses the novel row so
+      // existing chapters (and their history/bookmarks/downloads) survive.
+      // Raw insertNovel REPLACEs on url conflict, churning the id and
+      // orphaning those rows.
+      final novelId = await novelDao.insertOrGetNovel(
+        providerId: 'local',
+        url: destPath,
+        title: p.basenameWithoutExtension(fileName),
       );
 
       final libraryDao = ref.read(libraryDaoProvider);
@@ -212,15 +213,13 @@ class _ImportScreenState extends ConsumerState<ImportScreen> {
       await sourceFile.copy(destPath);
       Log.ok(_tag, 'Copied to: $destPath');
 
-      // Add to database
+      // Add to database (insertOrGet: re-imports reuse the row so chapters
+      // and their dependents survive instead of being orphaned by REPLACE).
       final novelDao = ref.read(novelDaoProvider);
-      final novelId = await novelDao.insertNovel(
-        NovelsCompanion(
-          providerId: const Value('local'),
-          url: Value(destPath),
-          title: Value(p.basenameWithoutExtension(fileName)),
-          addedAt: Value(DateTime.now().millisecondsSinceEpoch),
-        ),
+      final novelId = await novelDao.insertOrGetNovel(
+        providerId: 'local',
+        url: destPath,
+        title: p.basenameWithoutExtension(fileName),
       );
 
       // Also add to library so it appears in Library tab

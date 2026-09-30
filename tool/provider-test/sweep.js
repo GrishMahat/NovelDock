@@ -127,6 +127,14 @@ async function auditOne(id) {
         if (rec.steps.browse && rec.steps.browse.url && r.url) r.sameUrlAsUnfiltered = r.url === rec.steps.browse.url;
         rec.steps.filtered = r;
       } else rec.steps.filtered = { note: 'no filterable entry point' };
+      // Filtered POST search (opt-in via 3-arg getSearchConfig).
+      if (meta.searchConfigFilters && hasFunction(provider, 'getSearchConfig')) {
+        const c = jcall(provider, 'getSearchConfig', [QUERY, 1, fv]);
+        if (c.ok && c.value && c.value.url) {
+          try { const r = await postConfig(c.value, QUERY); const p = r.data == null ? null : call(provider, 'parseSearchResults', [r.data]); rec.steps.filteredPost = { label: 'search-post-filtered', url: c.value.url, status: r.res.status, count: ((p && p.results) || []).length, filterValues: fv }; }
+          catch (e) { rec.steps.filteredPost = { label: 'search-post-filtered', error: String((e && e.message) || e) }; }
+        } else rec.steps.filteredPost = { label: 'search-post-filtered', error: 'config: ' + (c.ok ? JSON.stringify(c.value) : c.error) };
+      }
     } else rec.steps.filtered = { note: 'no non-default values derivable' };
   } else rec.steps.filtered = { note: meta.hasFilters ? 'hasFilters=true but getFilters() empty' : 'no filters declared' };
 
@@ -208,7 +216,7 @@ async function main() {
         if (v.title) return `${k}:ok`;
         return `${k}:?`;
       };
-      console.log(`[${rec.ms}ms] ${['browse', 'latest', 'search', 'filtered', 'novel', 'chapters', 'content'].map(f).join(' ')}${rec.loadError ? ' LOAD-FAIL' : ''}`);
+      console.log(`[${rec.ms}ms] ${['browse', 'latest', 'search', 'filtered', 'filteredPost', 'novel', 'chapters', 'content'].map(f).join(' ')}${rec.loadError ? ' LOAD-FAIL' : ''}`);
     } catch (e) { console.log(`FATAL ${String((e && e.message) || e)}`); out.providers.push({ id, fatal: String((e && e.message) || e) }); }
     fs.writeFileSync(OUT, JSON.stringify(out, null, 2));
     await sleep(1000);

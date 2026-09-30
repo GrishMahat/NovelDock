@@ -1,3 +1,5 @@
+import 'dart:io';
+
 import 'package:flutter/material.dart';
 
 /// Letter tile shown when a novel has no cover (or it fails to load):
@@ -79,6 +81,11 @@ class CoverImage extends StatelessWidget {
     this.fontSize = 32,
   });
 
+  /// Whether [url] is a local file path (EPUB import covers are saved
+  /// under the app data dir) rather than a remote URL.
+  static bool isLocalPath(String url) =>
+      url.startsWith('/') || url.startsWith('file://');
+
   @override
   Widget build(BuildContext context) {
     final label = semanticLabel;
@@ -106,6 +113,23 @@ class CoverImage extends StatelessWidget {
     final Widget art;
     if (imageUrl == null || imageUrl!.isEmpty) {
       art = placeholder;
+    } else if (isLocalPath(imageUrl!)) {
+      // Local file (e.g. an EPUB import's extracted cover): Image.network
+      // throws on paths, so read from disk. Missing files fall back.
+      final path = imageUrl!.startsWith('file://')
+          ? Uri.parse(imageUrl!).toFilePath()
+          : imageUrl!;
+      art = ClipRRect(
+        borderRadius: borderRadius ?? BorderRadius.zero,
+        child: Image.file(
+          File(path),
+          width: width,
+          height: height,
+          fit: fit,
+          excludeFromSemantics: label == null,
+          errorBuilder: (_, _, _) => placeholder,
+        ),
+      );
     } else {
       art = ClipRRect(
         borderRadius: borderRadius ?? BorderRadius.zero,

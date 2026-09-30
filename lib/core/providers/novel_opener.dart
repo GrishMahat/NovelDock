@@ -13,6 +13,23 @@ part 'novel_opener.g.dart';
 
 const _tag = 'NovelOpener';
 
+/// Book id used for a provider's paginated chapter API, derived from the
+/// novel URL's last non-empty path segment with any extension, query, or
+/// fragment stripped (e.g. `.../my-novel.html?x=1` → `my-novel`).
+///
+/// A naive `split('/').last` returns `''` for trailing-slash URLs, which
+/// silently disables the chapter-API fallback in [_insertChapters] and
+/// leaves the novel with zero chapters and no error.
+String bookIdFromNovelUrl(String novelUrl) {
+  final clean = novelUrl.split('?').first.split('#').first;
+  final uri = Uri.tryParse(clean);
+  final segments = (uri?.pathSegments ?? clean.split('/'))
+      .where((s) => s.isNotEmpty)
+      .toList();
+  if (segments.isEmpty) return '';
+  return segments.last.split('.').first;
+}
+
 /// Shared logic for a novel's lifecycle:
 /// - [open]: insert a search/browse result and fetch its details in the
 ///   background.
@@ -203,8 +220,14 @@ class NovelOpener {
   ) async {
     final chapterDao = ref.read(chapterDaoProvider);
 
-    final bookId = novelUrl.split('/').last.split('.').first;
+    final bookId = bookIdFromNovelUrl(novelUrl);
     final chapterList = <ChaptersCompanion>[];
+    // Whether the list below is the FULL server-side list. syncChaptersForNovel
+    // deletes anything absent from it, so a truncated walk (HTTP error
+    // mid-list, exception, page cap) must never sync over existing chapters —
+    // only a walk that reached a true end-of-list signal may delete.
+    // The parsed-info path is complete by construction.
+    var walkComplete = chapters.isNotEmpty || bookId.isEmpty;
     try {
       if (chapters.isEmpty && bookId.isNotEmpty) {
         // Hard caps so a misbehaving provider (e.g. one that ignores the
@@ -237,10 +260,18 @@ class NovelOpener {
                 validateStatus: (status) => status != null && status < 500,
               ),
             );
-            if (chResponse.statusCode != 200) break;
+            if (chResponse.statusCode != 200) {
+              if (page > 0 && chapterList.isNotEmpty) walkComplete = true;
+              break;
+            }
             chData = chResponse.data;
           } else {
-            if (!instance.hasFunction('getChaptersApiUrl')) break;
+            if (!instance.hasFunction('getChaptersApiUrl')) {
+              // No chapter API at all: not a failure, but the empty list is
+              // not authoritative either — the guard below protects existing
+              // chapters.
+              break;
+            }
             final chaptersUrl = await instance.call('getChaptersApiUrl', [
               bookId,
               page,
@@ -256,12 +287,26 @@ class NovelOpener {
                 responseType: ResponseType.plain,
               ),
             );
-            if (chResponse.statusCode != 200) break;
+            // A non-200 page is an end-of-list signal only past page 0 when
+            // pages already arrived; a first-page error means the walk never
+            // started and its (empty) result must not wipe stored chapters.
+            if (chResponse.statusCode != 200) {
+              if (page > 0 && chapterList.isNotEmpty) walkComplete = true;
+              break;
+            }
             chData = chResponse.data.toString();
-            if ((chData as String).trim().isEmpty) break;
+            if ((chData as String).trim().isEmpty) {
+              // Empty page past page 0 after data = clean end of list.
+              if (page > 0 && chapterList.isNotEmpty) walkComplete = true;
+              break;
+            }
           }
           final chList = await instance.call('parseChapterList', [chData]);
-          if (chList == null || chList is! List || chList.isEmpty) break;
+          // Null/empty/unparseable page = the provider's end-of-list signal.
+          if (chList == null || chList is! List || chList.isEmpty) {
+            walkComplete = true;
+            break;
+          }
           var addedThisPage = 0;
           for (var i = 0; i < chList.length; i++) {
             final ch = chList[i] as Map<String, dynamic>;
@@ -281,7 +326,11 @@ class NovelOpener {
           }
           page++;
           // Same page returned twice — the site ignored the page parameter.
-          if (addedThisPage == 0) break;
+          // The list so far is everything the site will ever give: complete.
+          if (addedThisPage == 0) {
+            walkComplete = true;
+            break;
+          }
         }
         if (page >= maxChapterApiPages) {
           Log.w(
@@ -305,6 +354,24 @@ class NovelOpener {
       }
     } catch (e) {
       Log.w(_tag, 'Failed to fetch novel details: $e');
+    }
+    // Empty-means-abort guard: syncChaptersForNovel treats its input as the
+    // FULL server list, so syncing a truncated walk deletes real chapters
+    // plus dependents (history/queue/bookmarks/anchors). A failed or
+    // truncated fetch (exception, HTTP error, page cap) must not convert
+    // into a wipe — skip the sync when the novel already has chapters. A
+    // fresh novel (nothing stored) still syncs whatever arrived; the next
+    // successful refresh diffs it into shape.
+    final existingCount = await chapterDao.getChapterCount(novelId);
+    if ((!walkComplete || chapterList.isEmpty) && existingCount > 0) {
+      Log.w(
+        _tag,
+        'Chapter refresh for novel $novelId is '
+        '${walkComplete ? 'empty' : 'incomplete'} '
+        '(${chapterList.length} fetched, $existingCount stored) — '
+        'skipping sync to avoid wiping chapters',
+      );
+      return;
     }
     await chapterDao.syncChaptersForNovel(novelId, chapterList);
   }

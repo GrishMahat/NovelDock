@@ -1,4 +1,3 @@
-import 'package:cached_network_image/cached_network_image.dart';
 import 'package:flutter/material.dart';
 
 import '../../../core/database/database.dart';
@@ -48,41 +47,16 @@ class LibraryListItem extends StatelessWidget {
   }
 
   Widget _buildCover(BuildContext context, double width, double height) {
-    Widget art;
-    if (novel.coverUrl != null && novel.coverUrl!.isNotEmpty) {
-      art = CachedNetworkImage(
-        imageUrl: novel.coverUrl!,
-        width: width,
-        height: height,
-        fit: BoxFit.cover,
-        imageBuilder: (context, provider) => Image(
-          image: provider,
-          width: width,
-          height: height,
-          fit: BoxFit.cover,
-          excludeFromSemantics: true,
-        ),
-        placeholder: (_, _) => CoverMonogram(
-          title: novel.title,
-          width: width,
-          height: height,
-          fontSize: 24,
-        ),
-        errorWidget: (_, _, _) => CoverMonogram(
-          title: novel.title,
-          width: width,
-          height: height,
-          fontSize: 24,
-        ),
-      );
-    } else {
-      art = CoverMonogram(
-        title: novel.title,
-        width: width,
-        height: height,
-        fontSize: 24,
-      );
-    }
-    return Semantics(image: true, label: 'Cover of ${novel.title}', child: art);
+    // CoverImage handles remote URLs, local EPUB covers, and the monogram
+    // fallback (CachedNetworkImage errors on file paths, showing the
+    // monogram instead of the real local cover).
+    return CoverImage(
+      imageUrl: novel.coverUrl,
+      title: novel.title,
+      width: width,
+      height: height,
+      fontSize: 24,
+      semanticLabel: 'Cover of ${novel.title}',
+    );
   }
 }

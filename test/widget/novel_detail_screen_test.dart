@@ -1,3 +1,5 @@
+import 'dart:io';
+
 import 'package:drift/drift.dart' show Value;
 import 'package:drift/native.dart';
 import 'package:flutter/material.dart';
@@ -89,6 +91,7 @@ void main() {
       String name,
       double index, {
       bool downloaded = false,
+      String? downloadedPath,
       bool read = false,
       bool bookmarked = false,
     }) => db
@@ -100,12 +103,27 @@ void main() {
             url: 'c$index',
             index: index,
             downloaded: Value(downloaded),
+            downloadedPath: Value(downloadedPath),
             read: Value(read),
             bookmarked: Value(bookmarked),
           ),
         );
+    // A real on-disk file: the detail screen reconciles downloads on open,
+    // and a downloaded flag without a file is (correctly) cleared.
+    final downloadedFile = File(
+      '${Directory.systemTemp.path}/filter_novel_ch1.md',
+    );
+    await downloadedFile.writeAsString('# Downloaded Chapter\n\ntext');
+    addTearDown(() async {
+      if (await downloadedFile.exists()) await downloadedFile.delete();
+    });
     await chapter('Plain Chapter', 0);
-    await chapter('Downloaded Chapter', 1, downloaded: true);
+    await chapter(
+      'Downloaded Chapter',
+      1,
+      downloaded: true,
+      downloadedPath: downloadedFile.path,
+    );
     await chapter('Read Chapter', 2, read: true);
     await chapter('Bookmarked Chapter', 3, bookmarked: true);
   });

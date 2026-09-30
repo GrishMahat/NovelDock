@@ -548,8 +548,9 @@ class SearchNotifier extends _$SearchNotifier {
   }
 
   /// Run the full search pipeline for one provider on one page:
-  /// 1. POST search when no filters are active,
-  /// 2. direct search when no filters are active,
+  /// 1. POST search (unfiltered, or filtered when the provider opts in via
+  ///    a 3-arg searchConfig),
+  /// 2. direct search when filters are inactive or inapplicable,
   /// 3. GET via getSearchUrl (filter-aware).
   ///
   /// When filters are active and the provider cannot apply them to search,
@@ -579,8 +580,8 @@ class SearchNotifier extends _$SearchNotifier {
 // ═══════════════════════════════════════════════════════════
 
 /// Run the full search pipeline for one provider on one page:
-/// 1. POST search (getSearchConfig) when filters are empty, or always when
-///    the provider cannot apply filters to search,
+/// 1. POST search (getSearchConfig): unfiltered, or filtered when the
+///    provider opts in with a 3-arg config,
 /// 2. direct search() when filters are empty, or when the provider cannot
 ///    apply filters to search,
 /// 3. GET via getSearchUrl, which is filter-aware.
@@ -607,16 +608,24 @@ Future<SearchResults?> searchProviderOnce(
 
   // 1. POST-based search
   //
-  // The existing provider POST contract does not expose a filter argument,
-  // so using it with active filters would silently ignore the user's
+  // Providers whose searchConfig declares (query, page, filters) opt into
+  // filtered POST search (flags.searchConfigFilters, auto-detected from
+  // the JS arity in register()). Legacy configs run only on unfiltered
+  // paths — sending filters into them would silently ignore the user's
   // selection.
-  if (useUnfilteredPaths && instance.hasFunction('getSearchConfig')) {
+  final postSearchFiltered =
+      filtersActive && instance.flags.searchConfigFilters;
+  final usePostSearch =
+      (useUnfilteredPaths || postSearchFiltered) &&
+      instance.hasFunction('getSearchConfig');
+  if (usePostSearch) {
     Log.i(_tag, 'POST search: has getSearchConfig');
 
     try {
       final searchConfig = await instance.call('getSearchConfig', [
         query,
         page,
+        if (postSearchFiltered) filters.toJson(),
       ]);
 
       Log.i(_tag, 'POST search: config = $searchConfig');
@@ -860,20 +869,3 @@ Future<SearchResults?> postNovelList(
     return null;
   }
 }
-
-/// POST-based search (wraps [postNovelList] with a query).
-Future<SearchResults?> postSearch(
-  ProviderInstance instance,
-  Dio dio,
-  Map<String, dynamic> config,
-  String query,
-  int page,
-) => postNovelList(instance, dio, config, query: query, page: page);
-
-/// POST-based browse (wraps [postNovelList] without a query).
-Future<SearchResults?> postBrowse(
-  ProviderInstance instance,
-  Dio dio,
-  Map<String, dynamic> config,
-  int page,
-) => postNovelList(instance, dio, config, page: page);

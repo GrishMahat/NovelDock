@@ -61,6 +61,12 @@ class ProviderFeatureFlags {
   /// path that ignores them.
   final bool searchFilters;
 
+  /// Whether the provider's POST search accepts filters: its
+  /// `getSearchConfig` declares `(query, page, filters)` (auto-detected
+  /// from the JS arity in `register()`). When true, the app sends active
+  /// filters into the POST search instead of skipping it.
+  final bool searchConfigFilters;
+
   const ProviderFeatureFlags({
     this.hasMainPage = false,
     this.hasReviews = false,
@@ -71,6 +77,7 @@ class ProviderFeatureFlags {
     this.hasLatest = false,
     this.hasFilters = false,
     this.searchFilters = true,
+    this.searchConfigFilters = false,
   });
 
   factory ProviderFeatureFlags.fromJson(Map<String, dynamic> json) {
@@ -84,6 +91,7 @@ class ProviderFeatureFlags {
       hasLatest: json['hasLatest'] as bool? ?? false,
       hasFilters: json['hasFilters'] as bool? ?? false,
       searchFilters: json['searchFilters'] as bool? ?? true,
+      searchConfigFilters: json['searchConfigFilters'] as bool? ?? false,
     );
   }
 
@@ -156,6 +164,16 @@ class ProviderEngine {
       final list = jsonDecode(result.stringResult) as List;
       exported._exportedFunctions = list.cast<String>();
     } catch (_) {}
+
+    // The "required six" contract (see validate()) is advisory at the call
+    // sites — every method null-guards missing functions. Log the gap here
+    // so broken providers are visible at load instead of failing silently
+    // later, without refusing to load (fail-fast would brick third-party
+    // sources on a single missing helper).
+    final missing = exported.validate();
+    if (missing.isNotEmpty) {
+      Log.w(_tag, 'Provider is missing: ${missing.join(', ')}');
+    }
 
     return exported;
   }
@@ -417,7 +435,17 @@ class ProviderInstance {
     try {
       final result = await call('getOrderBys', []);
       if (result != null && result is List) {
-        return result.cast<Map<String, String>>();
+        // Maps arrive from JS as Map<String, dynamic>: a direct
+        // cast<Map<String, String>>() throws, so normalize entry by entry.
+        return result
+            .whereType<Map>()
+            .map(
+              (e) => {
+                for (final entry in e.entries)
+                  entry.key.toString(): entry.value.toString(),
+              },
+            )
+            .toList();
       }
     } catch (e) {
       Log.d(_tag, 'getOrderBys() not available: $e');

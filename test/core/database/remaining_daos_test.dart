@@ -186,6 +186,26 @@ void main() {
       await db.bookmarkDao.removeBookmark(first.id);
       expect(await db.bookmarkDao.getBookmarksForChapter(ch), hasLength(1));
     });
+
+    test('re-adding the same position returns the existing row', () async {
+      final novelId = await seedNovel();
+      final ch = await seedChapter(novelId);
+
+      BookmarksCompanion bm(String note, int at) => BookmarksCompanion.insert(
+        novelId: novelId,
+        chapterId: ch,
+        position: const Value('0.5000'),
+        note: Value(note),
+        createdAt: at,
+      );
+
+      final firstId = await db.bookmarkDao.addBookmark(bm('one', 1));
+      // Double-tap / backup re-import: same (novel, chapter, position).
+      final secondId = await db.bookmarkDao.addBookmark(bm('two', 2));
+
+      expect(secondId, firstId);
+      expect(await db.bookmarkDao.getBookmarksForChapter(ch), hasLength(1));
+    });
   });
 
   group('SettingsDao', () {

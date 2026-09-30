@@ -8,6 +8,7 @@ import '../../core/utils/logger.dart';
 import '../../core/utils/platform.dart';
 import '../../core/utils/text_utils.dart';
 import '../../theme/tokens.dart';
+import '../../widgets/cover_image.dart';
 import '../../widgets/header_search_field.dart';
 import '../../widgets/max_width_box.dart';
 import '../../widgets/page_header.dart';
@@ -357,35 +358,16 @@ class _HistoryTile extends ConsumerWidget {
             ).toLocal().toString().split(' ')[0];
 
             return ListTile(
-              leading: novel?.coverUrl != null
-                  ? ClipRRect(
-                      borderRadius: BorderRadius.circular(4),
-                      child: Image.network(
-                        novel!.coverUrl!,
-                        width: 40,
-                        height: 56,
-                        fit: BoxFit.cover,
-                        errorBuilder: (_, _, _) => Container(
-                          width: 40,
-                          height: 56,
-                          color: Theme.of(
-                            context,
-                          ).colorScheme.surfaceContainerHighest,
-                          child: const Icon(Icons.book, size: 20),
-                        ),
-                      ),
-                    )
-                  : Container(
-                      width: 40,
-                      height: 56,
-                      decoration: BoxDecoration(
-                        color: Theme.of(
-                          context,
-                        ).colorScheme.surfaceContainerHighest,
-                        borderRadius: BorderRadius.circular(4),
-                      ),
-                      child: const Icon(Icons.book, size: 20),
-                    ),
+              leading: ClipRRect(
+                borderRadius: BorderRadius.circular(4),
+                child: CoverImage(
+                  imageUrl: novel?.coverUrl,
+                  title: title,
+                  width: 40,
+                  height: 56,
+                  fontSize: 16,
+                ),
+              ),
               title: Text(
                 title,
                 maxLines: 2,

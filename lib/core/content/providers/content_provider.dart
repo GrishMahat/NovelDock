@@ -49,7 +49,11 @@ class ContentNotifier extends _$ContentNotifier {
   ContentState build() => const ContentState();
 
   Future<void> loadChapter(int chapterId) async {
-    if (state.chapters.containsKey(chapterId)) return;
+    // A stored AsyncError must not block retry: the reader's Retry button
+    // calls loadChapter for the same id, so only a cached success (or an
+    // in-flight load) short-circuits here.
+    final existing = state.chapters[chapterId];
+    if (existing is AsyncData<ChapterContent>) return;
     if (_loading.contains(chapterId)) return;
 
     _loading.add(chapterId);

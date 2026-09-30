@@ -14,6 +14,7 @@ import 'core/utils/incoming_intent.dart';
 import 'core/utils/platform.dart';
 import 'core/utils/window_title.dart';
 import 'features/downloads/providers/download_provider.dart';
+import 'features/settings/pages/general_settings_page.dart';
 import 'features/settings/pages/theme_settings_page.dart';
 import 'router/app_router.dart';
 import 'theme/app_theme.dart';
@@ -144,11 +145,21 @@ class _NovelDockAppState extends ConsumerState<NovelDockApp> {
 
 /// Main shell. Desktop: NavigationRail + top bar. Mobile: bottom navigation bar.
 /// 4 tabs: [Library] [Browse] [History] [Settings]
-class MainShell extends StatelessWidget {
+class MainShell extends ConsumerStatefulWidget {
   final Widget child;
   const MainShell({super.key, required this.child});
 
+  @override
+  ConsumerState<MainShell> createState() => _MainShellState();
+}
+
+class _MainShellState extends ConsumerState<MainShell> {
   static const _tabPaths = ['/library', '/browse', '/history', '/settings'];
+
+  /// Last time the exit-confirmation prompt fired. A second back press
+  /// within [_exitGrace] really exits.
+  DateTime? _lastExitPrompt;
+  static const _exitGrace = Duration(seconds: 2);
 
   /// Derive the active tab index from the current GoRouter location so the
   /// rail/bar stays in sync even after deep-link/notification navigation.
@@ -171,11 +182,38 @@ class MainShell extends StatelessWidget {
   Widget build(BuildContext context) {
     final location = GoRouterState.of(context).uri.toString();
     final currentIndex = _indexFromLocation(location);
+    final atTab = _isTabLocation(location);
+
+    // "Confirm before exiting" general setting: the first system-back on a
+    // top-level tab shows a grace prompt instead of closing the app; a
+    // second press within [_exitGrace] exits. Sub-pages pop normally.
+    final confirmExit = ref.watch(generalSettingsProvider).confirmExit;
+    final recentlyPrompted =
+        _lastExitPrompt != null &&
+        DateTime.now().difference(_lastExitPrompt!) < _exitGrace;
+
+    // "Confirm before exiting" general setting: the first system-back on a
+    // top-level tab shows a grace prompt instead of closing the app; a
+    // second press within [_exitGrace] exits. Sub-pages pop normally.
+    Widget guardExit(Widget page) => PopScope(
+      canPop: !confirmExit || !atTab || recentlyPrompted,
+      onPopInvokedWithResult: (didPop, _) {
+        if (didPop) return;
+        setState(() => _lastExitPrompt = DateTime.now());
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('Press back again to exit'),
+            duration: _exitGrace,
+          ),
+        );
+      },
+      child: page,
+    );
 
     final shell = Column(
       children: [
         const TtsMiniPlayer(),
-        Expanded(child: child),
+        Expanded(child: widget.child),
       ],
     );
 
@@ -213,63 +251,67 @@ class MainShell extends StatelessWidget {
     };
 
     if (isDesktop) {
-      return Scaffold(
-        body: CallbackShortcuts(
-          bindings: bindings,
-          child: Focus(
-            autofocus: true,
-            child: Row(
-              crossAxisAlignment: CrossAxisAlignment.stretch,
-              children: [
-                _DesktopRail(
-                  currentIndex: currentIndex,
-                  onSelect: (i) => _onTap(context, i),
-                ),
-                Expanded(
-                  child: Column(
-                    children: [
-                      const TtsMiniPlayer(),
-                      Expanded(child: child),
-                    ],
+      return guardExit(
+        Scaffold(
+          body: CallbackShortcuts(
+            bindings: bindings,
+            child: Focus(
+              autofocus: true,
+              child: Row(
+                crossAxisAlignment: CrossAxisAlignment.stretch,
+                children: [
+                  _DesktopRail(
+                    currentIndex: currentIndex,
+                    onSelect: (i) => _onTap(context, i),
                   ),
-                ),
-              ],
+                  Expanded(
+                    child: Column(
+                      children: [
+                        const TtsMiniPlayer(),
+                        Expanded(child: widget.child),
+                      ],
+                    ),
+                  ),
+                ],
+              ),
             ),
           ),
         ),
       );
     }
 
-    return Scaffold(
-      body: annotatedShell,
-      bottomNavigationBar: _isTabLocation(location)
-          ? NavigationBar(
-              selectedIndex: currentIndex,
-              onDestinationSelected: (i) => _onTap(context, i),
-              destinations: [
-                const NavigationDestination(
-                  icon: Icon(Icons.library_books_outlined),
-                  selectedIcon: Icon(Icons.library_books),
-                  label: 'Library',
-                ),
-                const NavigationDestination(
-                  icon: Icon(Icons.explore_outlined),
-                  selectedIcon: Icon(Icons.explore),
-                  label: 'Browse',
-                ),
-                const NavigationDestination(
-                  icon: Icon(Icons.history),
-                  selectedIcon: Icon(Icons.history),
-                  label: 'History',
-                ),
-                const NavigationDestination(
-                  icon: Icon(Icons.settings_outlined),
-                  selectedIcon: Icon(Icons.settings),
-                  label: 'Settings',
-                ),
-              ],
-            )
-          : null,
+    return guardExit(
+      Scaffold(
+        body: annotatedShell,
+        bottomNavigationBar: _isTabLocation(location)
+            ? NavigationBar(
+                selectedIndex: currentIndex,
+                onDestinationSelected: (i) => _onTap(context, i),
+                destinations: [
+                  const NavigationDestination(
+                    icon: Icon(Icons.library_books_outlined),
+                    selectedIcon: Icon(Icons.library_books),
+                    label: 'Library',
+                  ),
+                  const NavigationDestination(
+                    icon: Icon(Icons.explore_outlined),
+                    selectedIcon: Icon(Icons.explore),
+                    label: 'Browse',
+                  ),
+                  const NavigationDestination(
+                    icon: Icon(Icons.history),
+                    selectedIcon: Icon(Icons.history),
+                    label: 'History',
+                  ),
+                  const NavigationDestination(
+                    icon: Icon(Icons.settings_outlined),
+                    selectedIcon: Icon(Icons.settings),
+                    label: 'Settings',
+                  ),
+                ],
+              )
+            : null,
+      ),
     );
   }
 

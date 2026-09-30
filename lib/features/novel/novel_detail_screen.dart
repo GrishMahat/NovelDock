@@ -17,6 +17,7 @@ import '../../core/providers/novel_opener.dart';
 import '../../core/utils/logger.dart';
 import '../../core/utils/platform.dart';
 import '../../theme/tokens.dart';
+import '../../widgets/cover_image.dart';
 import '../../widgets/max_width_box.dart';
 import '../../widgets/page_header.dart';
 import '../../widgets/shimmer_list.dart';
@@ -51,10 +52,16 @@ class NovelDetailScreen extends ConsumerStatefulWidget {
 
 class _NovelDetailScreenState extends ConsumerState<NovelDetailScreen> {
   StreamSubscription? _novelSubscription;
+  StreamSubscription? _librarySubscription;
 
   Novel? _novel;
   bool _novelLoaded = false;
   bool _isRefreshing = false;
+
+  /// Library membership status (Reading/On Hold/…). Null when the novel is
+  /// not in the library. Tracked separately because Novel.status is provider
+  /// metadata (Ongoing/Completed), not membership.
+  String? _libraryStatus;
 
   /// Memoized so StreamBuilder keeps its subscription across rebuilds;
   /// recreating the stream each build resets connectionState to waiting
@@ -72,6 +79,7 @@ class _NovelDetailScreenState extends ConsumerState<NovelDetailScreen> {
   void initState() {
     super.initState();
     _watchNovel();
+    _watchLibrary();
     WidgetsBinding.instance.addPostFrameCallback((_) {
       // Verify this novel's downloads still exist on disk before the UI
       // claims them.
@@ -127,9 +135,30 @@ class _NovelDetailScreenState extends ConsumerState<NovelDetailScreen> {
     });
   }
 
+  void _watchLibrary() {
+    final libraryDao = ref.read(libraryDaoProvider);
+    _librarySubscription = libraryDao.watchAllLibraryEntries().listen((
+      entries,
+    ) {
+      if (!mounted) return;
+      LibraryData? match;
+      for (final e in entries) {
+        if (e.novelId == widget.novelId) {
+          match = e;
+          break;
+        }
+      }
+      final status = match?.status;
+      if (status != _libraryStatus) {
+        setState(() => _libraryStatus = status);
+      }
+    });
+  }
+
   @override
   void dispose() {
     _novelSubscription?.cancel();
+    _librarySubscription?.cancel();
     super.dispose();
   }
 
@@ -215,7 +244,9 @@ class _NovelDetailScreenState extends ConsumerState<NovelDetailScreen> {
                 onTap: () => Navigator.pop(context),
                 child: InteractiveViewer(
                   maxScale: 5,
-                  child: Center(child: Image.network(url, fit: BoxFit.contain)),
+                  child: Center(
+                    child: CoverImage(imageUrl: url, fit: BoxFit.contain),
+                  ),
                 ),
               ),
             ),
@@ -508,29 +539,13 @@ class _NovelDetailScreenState extends ConsumerState<NovelDetailScreen> {
                             message: 'View cover',
                             child: ClipRRect(
                               borderRadius: BorderRadius.all(Radii.md),
-                              child: novel?.coverUrl != null
-                                  ? Image.network(
-                                      novel!.coverUrl!,
-                                      width: 105,
-                                      height: 145,
-                                      fit: BoxFit.cover,
-                                      errorBuilder: (_, _, _) => Container(
-                                        width: 105,
-                                        height: 145,
-                                        color: Theme.of(
-                                          context,
-                                        ).colorScheme.surfaceContainerHighest,
-                                        child: const Icon(Icons.book, size: 40),
-                                      ),
-                                    )
-                                  : Container(
-                                      width: 105,
-                                      height: 145,
-                                      color: Theme.of(
-                                        context,
-                                      ).colorScheme.surfaceContainerHighest,
-                                      child: const Icon(Icons.book, size: 40),
-                                    ),
+                              child: CoverImage(
+                                imageUrl: novel?.coverUrl,
+                                title: novel?.title,
+                                width: 105,
+                                height: 145,
+                                fontSize: 40,
+                              ),
                             ),
                           ),
                         ),
@@ -611,12 +626,17 @@ class _NovelDetailScreenState extends ConsumerState<NovelDetailScreen> {
                       children: [
                         _buildActionButton(
                           icon: Icons.favorite,
-                          label: 'In library',
-                          isSelected: true,
+                          label: _libraryStatus ?? 'Add to library',
+                          isSelected: _libraryStatus != null,
                           onTap: () async {
                             final status = await showModalBottomSheet<String>(
                               context: context,
-                              builder: (ctx) => const StatusPickerSheet(),
+                              builder: (ctx) => StatusPickerSheet(
+                                title: _libraryStatus != null
+                                    ? 'Set status'
+                                    : 'Add to library',
+                                initialStatus: _libraryStatus,
+                              ),
                             );
                             if (status == null) return;
                             if (status == 'None') {

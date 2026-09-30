@@ -1,9 +1,9 @@
-import 'package:cached_network_image/cached_network_image.dart';
 import 'package:flutter/material.dart';
 
 import '../../../core/database/database.dart';
 import '../../../theme/app_theme.dart';
 import '../../../theme/tokens.dart';
+import '../../../widgets/cover_image.dart';
 
 /// Grid item for library screen. Book cover + status chip + title + play
 /// button overlay. Colors come from the theme; the play button uses
@@ -87,17 +87,9 @@ class LibraryGridItem extends StatelessWidget {
   }
 
   Widget _buildCover(BuildContext context) {
-    final fallback = Container(
-      color: Theme.of(context).colorScheme.surfaceContainerHighest,
-      child: const Icon(Icons.book, size: 32),
-    );
-    if (novel.coverUrl == null || novel.coverUrl!.isEmpty) return fallback;
-    return CachedNetworkImage(
-      imageUrl: novel.coverUrl!,
-      fit: BoxFit.cover,
-      placeholder: (_, _) => fallback,
-      errorWidget: (_, _, _) => fallback,
-    );
+    // CoverImage handles remote URLs and local EPUB covers (CachedNetwork
+    // Image errors on file paths). Null/empty falls back to the book icon.
+    return CoverImage(imageUrl: novel.coverUrl, fit: BoxFit.cover);
   }
 }
 

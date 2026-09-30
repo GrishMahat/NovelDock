@@ -99,6 +99,15 @@ class GeneralSettingsPage extends ConsumerWidget {
       body: ListView(
         children: [
           _buildSection(context, 'Startup Tab'),
+          Padding(
+            padding: const EdgeInsets.fromLTRB(16, 0, 16, 4),
+            child: Text(
+              'Takes effect after restarting the app.',
+              style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                color: Theme.of(context).colorScheme.onSurfaceVariant,
+              ),
+            ),
+          ),
           RadioGroup<int>(
             groupValue: settings.startupTab,
             onChanged: (v) {

@@ -55,15 +55,13 @@ Widget buildDocument({
   final align = _textAlign(settings.textAlignment);
   final isCurrentChapter = chapterId == currentChapterId;
 
-  // Paragraph ordinals (nth top-level ParagraphNode) computed eagerly:
-  // Builder closures below run lazily and repeatedly, so no counting there.
-  final paragraphOrdinals = <int, int>{};
-  var ordinal = 0;
-  for (var i = 0; i < doc.blocks.length; i++) {
-    if (doc.blocks[i] is ParagraphNode) {
-      paragraphOrdinals[i] = ordinal++;
-    }
-  }
+  // Paragraph ordinals computed eagerly: Builder closures below run lazily
+  // and repeatedly, so no counting there. Canonical identity comes from
+  // ttsParagraphs (which skips empty paragraphs) — counting every
+  // ParagraphNode here would drift from TTS/annotation ordinals whenever an
+  // empty paragraph exists.
+  final paragraphOrdinals =
+      blockToParagraph ?? ttsParagraphs(doc).blockToParagraph;
 
   return Column(
     crossAxisAlignment: CrossAxisAlignment.start,
@@ -181,9 +179,9 @@ Widget _buildParagraph(
   onAnnotateParagraph,
   Map<String, String> imageHeaders = const {},
 }) {
-  // Plain paragraph text for quotes/long-press payloads.
-  String plainText() =>
-      node.children.whereType<TextNode>().map((n) => n.text).join().trim();
+  // Plain paragraph text for quotes/long-press payloads. Canonical
+  // flattening (same text TTS speaks and translation translates).
+  String plainText() => inlinePlainText(node.children).trim();
 
   Widget frame(Widget content) {
     // Reader highlight: distinct from the blue TTS tint so the two never

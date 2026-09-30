@@ -2,7 +2,7 @@ import 'package:riverpod_annotation/riverpod_annotation.dart';
 
 import '../../../core/translation/translation_service.dart';
 import '../../../features/settings/pages/translation_settings_page.dart';
-import '../markdown/md_ast.dart';
+import '../markdown/md_paragraphs.dart';
 import '../markdown/md_parser.dart';
 import 'content_provider.dart';
 
@@ -17,16 +17,11 @@ Future<String?> chapterTranslation(Ref ref, int chapterId) async {
   if (settings.fromLanguage == settings.toLanguage) return null;
 
   final doc = MDParser.parse(content);
-  final paragraphs = <String>[];
-  for (final block in doc.blocks) {
-    if (block is ParagraphNode) {
-      final text = block.children
-          .whereType<TextNode>()
-          .map((n) => n.text)
-          .join();
-      if (text.trim().isNotEmpty) paragraphs.add(text.trim());
-    }
-  }
+  // Same canonical paragraphs TTS speaks: formatted runs are flattened,
+  // not dropped (a naive whereType<TextNode>() scan loses bold/italic).
+  final paragraphs = [
+    for (final p in extractParagraphs(doc)) p.text.trim(),
+  ].where((t) => t.isNotEmpty).toList();
 
   if (paragraphs.isEmpty) return null;
 

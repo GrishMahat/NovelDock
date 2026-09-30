@@ -68,7 +68,9 @@ class BackupRestorePage extends ConsumerWidget {
                   ),
                   const SizedBox(height: 8),
                   _bullet(context, 'Novels in your library'),
+                  _bullet(context, 'Library membership and reading status'),
                   _bullet(context, 'Reading history'),
+                  _bullet(context, 'Read/TTS progress and position'),
                   _bullet(context, 'Bookmarks'),
                   _bullet(context, 'Reader highlights and notes'),
                   _bullet(context, 'Download queue state'),
@@ -115,8 +117,13 @@ class BackupRestorePage extends ConsumerWidget {
       final downloadDao = ref.read(downloadDaoProvider);
       final settingsDao = ref.read(settingsDaoProvider);
       final providerCacheDao = ref.read(providerCacheDaoProvider);
+      final libraryDao = ref.read(libraryDaoProvider);
+      final db = ref.read(appDatabaseProvider);
+      final progressDao = db.novelProgressDao;
 
       final novels = await novelDao.getAllNovels();
+      final libraryEntries = await libraryDao.getAllLibraryEntries();
+      final allProgress = await progressDao.getAllProgress();
       final allHistory = await historyDao.getAllHistory();
       final allBookmarks = await bookmarkDao.getAllBookmarks();
       final downloadEntries = await downloadDao.getAllDownloads();
@@ -204,6 +211,40 @@ class BackupRestorePage extends ConsumerWidget {
               },
             )
             .toList(),
+        // Library membership keyed by novel URL (row ids are meaningless
+        // across databases). Anchors carry chapter URLs for remap on import.
+        'library': [
+          for (final e in libraryEntries)
+            {
+              'novelUrl': (await novelDao.getNovelById(e.novelId))?.url,
+              'status': e.status,
+              'order': e.order,
+              'lastReadAt': e.lastReadAt,
+              'lastChapterUrl': e.lastChapterId == null
+                  ? null
+                  : (await chapterDao.getChapterById(e.lastChapterId!))?.url,
+            },
+        ],
+        // Read/TTS counters + anchors, likewise URL-keyed.
+        'progress': [
+          for (final p in allProgress)
+            {
+              'novelUrl': (await novelDao.getNovelById(p.novelId))?.url,
+              'totalChapters': p.totalChapters,
+              'readChapters': p.readChapters,
+              'ttsReadChapters': p.ttsReadChapters,
+              'currentChapterIndex': p.currentChapterIndex,
+              'lastReadChapterUrl': p.lastReadChapterId == null
+                  ? null
+                  : (await chapterDao.getChapterById(p.lastReadChapterId!))
+                        ?.url,
+              'lastTtsChapterUrl': p.lastTtsChapterId == null
+                  ? null
+                  : (await chapterDao.getChapterById(p.lastTtsChapterId!))?.url,
+              'lastReadAt': p.lastReadAt,
+              'lastTtsAt': p.lastTtsAt,
+            },
+        ],
         'history': historyRows,
         'bookmarks': bookmarkRows,
         'annotations': annotationRows,
@@ -281,7 +322,9 @@ class BackupRestorePage extends ConsumerWidget {
       final annotationDao = ref.read(annotationDaoProvider);
       final downloadDao = ref.read(downloadDaoProvider);
       final settingsDao = ref.read(settingsDaoProvider);
+      final libraryDao = ref.read(libraryDaoProvider);
       final db = ref.read(appDatabaseProvider);
+      final progressDao = db.novelProgressDao;
 
       final settingsMap = Map<String, dynamic>.from(
         data['settings'] as Map? ?? {},
@@ -349,7 +392,85 @@ class BackupRestorePage extends ConsumerWidget {
           return chapter?.id;
         }
 
+        // Library membership: without this, restored novels exist in Novels
+        // but are invisible in the Library tab (which joins library⋈novels).
+        final libraryList = data['library'] as List? ?? [];
+        for (final l in libraryList) {
+          try {
+            final map = l as Map<String, dynamic>;
+            final novelUrl = map['novelUrl'] as String?;
+            final novelId = novelUrl == null ? null : novelIdsByUrl[novelUrl];
+            if (novelId == null) {
+              skippedRows++;
+              continue;
+            }
+            await libraryDao.addToLibrary(
+              novelId,
+              status: map['status'] as String?,
+            );
+            await (db.update(db.library)
+                  ..where((t) => t.novelId.equals(novelId)))
+                .write(
+                  LibraryCompanion(
+                    status: Value(map['status'] as String?),
+                    order: Value((map['order'] as num?)?.toInt()),
+                    lastReadAt: Value(
+                      (map['lastReadAt'] as num?)?.toInt(),
+                    ),
+                    lastChapterId: Value(
+                      await resolveChapter(
+                        novelUrl,
+                        map['lastChapterUrl'] as String?,
+                      ),
+                    ),
+                  ),
+                );
+          } catch (e) {
+            Log.w(_tag, 'Failed to import library entry: $e');
+          }
+        }
+
+        // Read/TTS counters + anchors. Chapter-dependent anchors resolve
+        // only for re-fetched chapters; counters always restore.
+        final progressList = data['progress'] as List? ?? [];
+        for (final p in progressList) {
+          try {
+            final map = p as Map<String, dynamic>;
+            final novelUrl = map['novelUrl'] as String?;
+            final novelId = novelUrl == null ? null : novelIdsByUrl[novelUrl];
+            if (novelId == null) {
+              skippedRows++;
+              continue;
+            }
+            final lastReadId = await resolveChapter(
+              novelUrl,
+              map['lastReadChapterUrl'] as String?,
+            );
+            final lastTtsId = await resolveChapter(
+              novelUrl,
+              map['lastTtsChapterUrl'] as String?,
+            );
+            await progressDao.updateProgress(
+              novelId: novelId,
+              totalChapters:
+                  (map['totalChapters'] as num?)?.toInt() ??
+                  (map['readChapters'] as num?)?.toInt() ??
+                  0,
+              readChapters: (map['readChapters'] as num?)?.toInt(),
+              ttsReadChapters: (map['ttsReadChapters'] as num?)?.toInt(),
+              lastReadChapterId: lastReadId,
+              lastTtsChapterId: lastTtsId,
+            );
+          } catch (e) {
+            Log.w(_tag, 'Failed to import progress: $e');
+          }
+        }
+
         final historyList = data['history'] as List? ?? [];
+        // Per-novel "chapterId:readAt" keys already present (DB state plus
+        // rows imported earlier in this loop): re-importing the same backup
+        // must not stack duplicate history rows.
+        final historySeen = <int, Set<String>>{};
         for (final h in historyList) {
           try {
             final map = h as Map<String, dynamic>;
@@ -364,14 +485,21 @@ class BackupRestorePage extends ConsumerWidget {
               skippedRows++;
               continue;
             }
+            final readAt =
+                (map['readAt'] as num?)?.toInt() ??
+                DateTime.now().millisecondsSinceEpoch;
+            final seen =
+                historySeen[novelId] ??= {
+                  for (final e
+                      in await historyDao.getHistoryForNovel(novelId))
+                    '${e.chapterId}:${e.readAt}',
+                };
+            if (!seen.add('$chapterId:$readAt')) continue;
             await historyDao.addHistoryEntry(
               ReadingHistoryCompanion(
                 novelId: Value(novelId),
                 chapterId: Value(chapterId),
-                readAt: Value(
-                  (map['readAt'] as num?)?.toInt() ??
-                      DateTime.now().millisecondsSinceEpoch,
-                ),
+                readAt: Value(readAt),
                 scrollPosition: Value(
                   (map['scrollPosition'] as num?)?.toDouble(),
                 ),
