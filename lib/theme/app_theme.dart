@@ -1,5 +1,9 @@
+// material_ui, not flutter/material: flex_color_scheme 9 builds on it, and it
+// declares its own ThemeData/ColorScheme types. They are structurally
+// identical to Flutter's but distinct, so a theme from here cannot be passed to
+// a Flutter MaterialApp — lib/app.dart must import the same package.
 import 'package:flex_color_scheme/flex_color_scheme.dart';
-import 'package:flutter/material.dart';
+import 'package:material_ui/material_ui.dart';
 
 import 'tokens.dart';
 
@@ -359,6 +363,15 @@ class AppTheme {
     const sora = 'Sora';
     const platform = 'Literata';
 
+    // Lining figures for the whole UI scale. Literata defaults to old-style
+    // figures, which put "Chapter 1" and "Chapter 2" at different heights and
+    // made chapter numbers read as borrowed glyphs from another alphabet.
+    // Tabular figures keep columns of numbers aligned in lists.
+    const digits = <FontFeature>[
+      FontFeature.liningFigures(),
+      FontFeature.tabularFigures(),
+    ];
+
     return const TextTheme(
       displaySmall: TextStyle(
         fontFamily: sora,
@@ -366,6 +379,7 @@ class AppTheme {
         height: 1.15,
         fontWeight: FontWeight.w600,
         letterSpacing: -0.5,
+        fontFeatures: digits,
       ),
       headlineMedium: TextStyle(
         fontFamily: sora,
@@ -373,6 +387,7 @@ class AppTheme {
         height: 1.2,
         fontWeight: FontWeight.w600,
         letterSpacing: -0.25,
+        fontFeatures: digits,
       ),
       headlineSmall: TextStyle(
         fontFamily: sora,
@@ -380,6 +395,7 @@ class AppTheme {
         height: 1.25,
         fontWeight: FontWeight.w600,
         letterSpacing: -0.2,
+        fontFeatures: digits,
       ),
       titleLarge: TextStyle(
         fontFamily: sora,
@@ -387,6 +403,7 @@ class AppTheme {
         height: 1.3,
         fontWeight: FontWeight.w600,
         letterSpacing: -0.1,
+        fontFeatures: digits,
       ),
       titleMedium: TextStyle(
         fontFamily: sora,
@@ -394,6 +411,7 @@ class AppTheme {
         height: 1.3,
         fontWeight: FontWeight.w600,
         letterSpacing: -0.05,
+        fontFeatures: digits,
       ),
       titleSmall: TextStyle(
         fontFamily: sora,
@@ -401,24 +419,30 @@ class AppTheme {
         height: 1.3,
         fontWeight: FontWeight.w600,
         letterSpacing: 0,
+        fontFeatures: digits,
       ),
+      // Prose-adjacent UI (chapter titles, metadata, summaries). Lining
+      // figures only: tabular would over-space running text.
       bodyLarge: TextStyle(
         fontFamily: platform,
         fontSize: 16,
         height: 1.5,
         letterSpacing: 0.1,
+        fontFeatures: [FontFeature.liningFigures()],
       ),
       bodyMedium: TextStyle(
         fontFamily: platform,
         fontSize: 14,
         height: 1.45,
         letterSpacing: 0.1,
+        fontFeatures: [FontFeature.liningFigures()],
       ),
       bodySmall: TextStyle(
         fontFamily: platform,
         fontSize: 12,
         height: 1.4,
         letterSpacing: 0.1,
+        fontFeatures: [FontFeature.liningFigures()],
       ),
       labelLarge: TextStyle(
         fontFamily: sora,
@@ -426,6 +450,7 @@ class AppTheme {
         height: 1.2,
         fontWeight: FontWeight.w600,
         letterSpacing: 0.1,
+        fontFeatures: digits,
       ),
       labelMedium: TextStyle(
         fontFamily: sora,
@@ -433,6 +458,7 @@ class AppTheme {
         height: 1.2,
         fontWeight: FontWeight.w600,
         letterSpacing: 0.1,
+        fontFeatures: digits,
       ),
       labelSmall: TextStyle(
         fontFamily: sora,
@@ -440,6 +466,7 @@ class AppTheme {
         height: 1.2,
         fontWeight: FontWeight.w600,
         letterSpacing: 0.2,
+        fontFeatures: digits,
       ),
     ).apply(bodyColor: scheme.onSurface, displayColor: scheme.onSurface);
   }

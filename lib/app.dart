@@ -1,7 +1,8 @@
 import 'dart:async';
 import 'dart:io';
 
-import 'package:flutter/material.dart';
+// Must match lib/theme/app_theme.dart — see the note there.
+import 'package:material_ui/material_ui.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
@@ -34,6 +35,11 @@ class _NovelDockAppState extends ConsumerState<NovelDockApp> {
   ProviderSubscription<bool>? _traySpeakingSubscription;
   ProviderSubscription<bool>? _trayPausedSubscription;
 
+  /// Grace period before the background reconcile sweep starts. Long enough
+  /// that the first frame, the library's own queries and the first tap are
+  /// all done before it competes for the isolate.
+  static const _startupReconcileDelay = Duration(seconds: 2);
+
   @override
   void initState() {
     super.initState();
@@ -47,7 +53,6 @@ class _NovelDockAppState extends ConsumerState<NovelDockApp> {
       _startupQueueKicked = true;
       final downloads = ref.read(downloadProvider.notifier);
       unawaited(downloads.resumePendingDownloads());
-      unawaited(downloads.reconcileDownloads());
       unawaited(downloads.autoDownloadNext());
       // Silent update check once per launch: dialogs only when a newer
       // release exists. Failures (offline, rate-limited) stay invisible.
@@ -55,6 +60,15 @@ class _NovelDockAppState extends ConsumerState<NovelDockApp> {
       // Cold-start share/deep-link/shortcut intent (warm ones arrive via
       // the channel push). No-ops on non-Android shells.
       unawaited(IncomingIntent.handleStartup(ref));
+      // The full-library reconcile is an unbounded filesystem sweep (every
+      // downloaded chapter stat, plus a directory listing per novel). It used
+      // to run here, in the same post-frame callback, so on a real library it
+      // competed with the first paint and the first tap. Deferred so it heals
+      // the same state without being what the user waits on. Still idempotent,
+      // and the Downloads screen and novel detail both reconcile on open.
+      Future<void>.delayed(_startupReconcileDelay, () async {
+        await downloads.reconcileDownloads();
+      });
       // Linux tray icon mirrors background TTS: visible while speaking,
       // Pause/Resume label follows playback state. Silent no-op elsewhere.
       if (Platform.isLinux) {
@@ -134,6 +148,13 @@ class _NovelDockAppState extends ConsumerState<NovelDockApp> {
       title: 'NovelDock',
       debugShowCheckedModeBanner: false,
       routerConfig: router,
+      // Fixed-extent grids and fixed-height pills overflow under a large
+      // system font scale; clamp it app-wide rather than per screen.
+      builder: (context, child) => MediaQuery.withClampedTextScaling(
+        minScaleFactor: kMinTextScale,
+        maxScaleFactor: kMaxTextScale,
+        child: child ?? const SizedBox.shrink(),
+      ),
       theme: AppTheme.light(primary: accentColor),
       darkTheme: isAmoled
           ? AppTheme.amoled(primary: accentColor)
