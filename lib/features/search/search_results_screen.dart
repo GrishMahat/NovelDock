@@ -739,12 +739,14 @@ class _ProviderGrid extends StatelessWidget {
 
     return GridView.builder(
       controller: scrollController,
-      padding: const EdgeInsets.all(8),
-      gridDelegate: const SliverGridDelegateWithMaxCrossAxisExtent(
-        maxCrossAxisExtent: 170,
+      padding: const EdgeInsets.all(Insets.sm),
+      // Fixed per tier, matching the browse grid so search and browse show
+      // the same card size on the same device.
+      gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
+        crossAxisCount: Grids.browseColumns(screenSizeOf(context)),
         mainAxisExtent: 235,
-        crossAxisSpacing: 8,
-        mainAxisSpacing: 8,
+        crossAxisSpacing: Insets.sm,
+        mainAxisSpacing: Insets.sm,
       ),
       itemCount: itemCount,
       itemBuilder: (context, index) {

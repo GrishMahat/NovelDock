@@ -15,6 +15,7 @@ import 'daos/bookmark_dao.dart';
 import 'daos/annotation_dao.dart';
 import 'daos/settings_dao.dart';
 import 'daos/provider_cache_dao.dart';
+import 'daos/browse_cache_dao.dart';
 import 'daos/novel_progress_dao.dart';
 
 export 'tables.dart';
@@ -27,6 +28,7 @@ export 'daos/bookmark_dao.dart';
 export 'daos/annotation_dao.dart';
 export 'daos/settings_dao.dart';
 export 'daos/provider_cache_dao.dart';
+export 'daos/browse_cache_dao.dart';
 export 'daos/novel_progress_dao.dart';
 
 part 'database.g.dart';
@@ -43,6 +45,7 @@ part 'database.g.dart';
     Settings,
     ProviderCache,
     NovelProgress,
+    BrowseCache,
   ],
   daos: [
     NovelDao,
@@ -55,6 +58,7 @@ part 'database.g.dart';
     SettingsDao,
     ProviderCacheDao,
     NovelProgressDao,
+    BrowseCacheDao,
   ],
 )
 class AppDatabase extends _$AppDatabase {
@@ -64,7 +68,7 @@ class AppDatabase extends _$AppDatabase {
   AppDatabase.withExecutor(super.e);
 
   @override
-  int get schemaVersion => 4;
+  int get schemaVersion => 5;
   @override
   MigrationStrategy get migration => MigrationStrategy(
     onCreate: (m) async {
@@ -139,6 +143,30 @@ class AppDatabase extends _$AppDatabase {
             'Migration v3->v4 step failed: createTable annotations',
             e,
           );
+        }
+      }
+      if (from < 5) {
+        // v5: browse/search result cache.
+        try {
+          await m.createTable(browseCache);
+        } catch (e) {
+          Log.e(
+            'DB',
+            'Migration v4->v5 step failed: createTable browseCache',
+            e,
+          );
+        }
+        for (final indexSql in <String>[
+          'CREATE INDEX IF NOT EXISTS browse_cache_provider '
+              'ON browse_cache (provider_id)',
+          'CREATE INDEX IF NOT EXISTS browse_cache_fetched '
+              'ON browse_cache (fetched_at)',
+        ]) {
+          try {
+            await m.database.customStatement(indexSql);
+          } catch (e) {
+            Log.e('DB', 'Migration v4->v5 step failed: $indexSql', e);
+          }
         }
       }
     },

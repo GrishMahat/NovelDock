@@ -478,3 +478,44 @@ final class NovelProgressDaoProvider
 }
 
 String _$novelProgressDaoHash() => r'b1da697a7830afcbd00981437f07dec9a130a6fe';
+
+@ProviderFor(browseCacheDao)
+final browseCacheDaoProvider = BrowseCacheDaoProvider._();
+
+final class BrowseCacheDaoProvider
+    extends $FunctionalProvider<BrowseCacheDao, BrowseCacheDao, BrowseCacheDao>
+    with $Provider<BrowseCacheDao> {
+  BrowseCacheDaoProvider._()
+    : super(
+        from: null,
+        argument: null,
+        retry: null,
+        name: r'browseCacheDaoProvider',
+        isAutoDispose: false,
+        dependencies: null,
+        $allTransitiveDependencies: null,
+      );
+
+  @override
+  String debugGetCreateSourceHash() => _$browseCacheDaoHash();
+
+  @$internal
+  @override
+  $ProviderElement<BrowseCacheDao> $createElement($ProviderPointer pointer) =>
+      $ProviderElement(pointer);
+
+  @override
+  BrowseCacheDao create(Ref ref) {
+    return browseCacheDao(ref);
+  }
+
+  /// {@macro riverpod.override_with_value}
+  Override overrideWithValue(BrowseCacheDao value) {
+    return $ProviderOverride(
+      origin: this,
+      providerOverride: $SyncValueProvider<BrowseCacheDao>(value),
+    );
+  }
+}
+
+String _$browseCacheDaoHash() => r'fda7643c4c3369edccf84b362da9fb640e35c2cd';

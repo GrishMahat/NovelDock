@@ -4534,6 +4534,569 @@ class NovelProgressCompanion extends UpdateCompanion<NovelProgressData> {
   }
 }
 
+class $BrowseCacheTable extends BrowseCache
+    with TableInfo<$BrowseCacheTable, BrowseCacheData> {
+  @override
+  final GeneratedDatabase attachedDatabase;
+  final String? _alias;
+  $BrowseCacheTable(this.attachedDatabase, [this._alias]);
+  static const VerificationMeta _cacheKeyMeta = const VerificationMeta(
+    'cacheKey',
+  );
+  @override
+  late final GeneratedColumn<String> cacheKey = GeneratedColumn<String>(
+    'cache_key',
+    aliasedName,
+    false,
+    type: DriftSqlType.string,
+    requiredDuringInsert: true,
+  );
+  static const VerificationMeta _providerIdMeta = const VerificationMeta(
+    'providerId',
+  );
+  @override
+  late final GeneratedColumn<String> providerId = GeneratedColumn<String>(
+    'provider_id',
+    aliasedName,
+    false,
+    type: DriftSqlType.string,
+    requiredDuringInsert: true,
+  );
+  static const VerificationMeta _modeMeta = const VerificationMeta('mode');
+  @override
+  late final GeneratedColumn<String> mode = GeneratedColumn<String>(
+    'mode',
+    aliasedName,
+    false,
+    type: DriftSqlType.string,
+    requiredDuringInsert: true,
+  );
+  static const VerificationMeta _queryMeta = const VerificationMeta('query');
+  @override
+  late final GeneratedColumn<String> query = GeneratedColumn<String>(
+    'query',
+    aliasedName,
+    false,
+    type: DriftSqlType.string,
+    requiredDuringInsert: false,
+    defaultValue: const Constant(''),
+  );
+  static const VerificationMeta _pageMeta = const VerificationMeta('page');
+  @override
+  late final GeneratedColumn<int> page = GeneratedColumn<int>(
+    'page',
+    aliasedName,
+    false,
+    type: DriftSqlType.int,
+    requiredDuringInsert: false,
+    defaultValue: const Constant(1),
+  );
+  static const VerificationMeta _payloadMeta = const VerificationMeta(
+    'payload',
+  );
+  @override
+  late final GeneratedColumn<String> payload = GeneratedColumn<String>(
+    'payload',
+    aliasedName,
+    false,
+    type: DriftSqlType.string,
+    requiredDuringInsert: true,
+  );
+  static const VerificationMeta _itemCountMeta = const VerificationMeta(
+    'itemCount',
+  );
+  @override
+  late final GeneratedColumn<int> itemCount = GeneratedColumn<int>(
+    'item_count',
+    aliasedName,
+    false,
+    type: DriftSqlType.int,
+    requiredDuringInsert: false,
+    defaultValue: const Constant(0),
+  );
+  static const VerificationMeta _fetchedAtMeta = const VerificationMeta(
+    'fetchedAt',
+  );
+  @override
+  late final GeneratedColumn<int> fetchedAt = GeneratedColumn<int>(
+    'fetched_at',
+    aliasedName,
+    false,
+    type: DriftSqlType.int,
+    requiredDuringInsert: true,
+  );
+  static const VerificationMeta _staleAfterMeta = const VerificationMeta(
+    'staleAfter',
+  );
+  @override
+  late final GeneratedColumn<int> staleAfter = GeneratedColumn<int>(
+    'stale_after',
+    aliasedName,
+    false,
+    type: DriftSqlType.int,
+    requiredDuringInsert: true,
+  );
+  @override
+  List<GeneratedColumn> get $columns => [
+    cacheKey,
+    providerId,
+    mode,
+    query,
+    page,
+    payload,
+    itemCount,
+    fetchedAt,
+    staleAfter,
+  ];
+  @override
+  String get aliasedName => _alias ?? actualTableName;
+  @override
+  String get actualTableName => $name;
+  static const String $name = 'browse_cache';
+  @override
+  VerificationContext validateIntegrity(
+    Insertable<BrowseCacheData> instance, {
+    bool isInserting = false,
+  }) {
+    final context = VerificationContext();
+    final data = instance.toColumns(true);
+    if (data.containsKey('cache_key')) {
+      context.handle(
+        _cacheKeyMeta,
+        cacheKey.isAcceptableOrUnknown(data['cache_key']!, _cacheKeyMeta),
+      );
+    } else if (isInserting) {
+      context.missing(_cacheKeyMeta);
+    }
+    if (data.containsKey('provider_id')) {
+      context.handle(
+        _providerIdMeta,
+        providerId.isAcceptableOrUnknown(data['provider_id']!, _providerIdMeta),
+      );
+    } else if (isInserting) {
+      context.missing(_providerIdMeta);
+    }
+    if (data.containsKey('mode')) {
+      context.handle(
+        _modeMeta,
+        mode.isAcceptableOrUnknown(data['mode']!, _modeMeta),
+      );
+    } else if (isInserting) {
+      context.missing(_modeMeta);
+    }
+    if (data.containsKey('query')) {
+      context.handle(
+        _queryMeta,
+        query.isAcceptableOrUnknown(data['query']!, _queryMeta),
+      );
+    }
+    if (data.containsKey('page')) {
+      context.handle(
+        _pageMeta,
+        page.isAcceptableOrUnknown(data['page']!, _pageMeta),
+      );
+    }
+    if (data.containsKey('payload')) {
+      context.handle(
+        _payloadMeta,
+        payload.isAcceptableOrUnknown(data['payload']!, _payloadMeta),
+      );
+    } else if (isInserting) {
+      context.missing(_payloadMeta);
+    }
+    if (data.containsKey('item_count')) {
+      context.handle(
+        _itemCountMeta,
+        itemCount.isAcceptableOrUnknown(data['item_count']!, _itemCountMeta),
+      );
+    }
+    if (data.containsKey('fetched_at')) {
+      context.handle(
+        _fetchedAtMeta,
+        fetchedAt.isAcceptableOrUnknown(data['fetched_at']!, _fetchedAtMeta),
+      );
+    } else if (isInserting) {
+      context.missing(_fetchedAtMeta);
+    }
+    if (data.containsKey('stale_after')) {
+      context.handle(
+        _staleAfterMeta,
+        staleAfter.isAcceptableOrUnknown(data['stale_after']!, _staleAfterMeta),
+      );
+    } else if (isInserting) {
+      context.missing(_staleAfterMeta);
+    }
+    return context;
+  }
+
+  @override
+  Set<GeneratedColumn> get $primaryKey => {cacheKey};
+  @override
+  BrowseCacheData map(Map<String, dynamic> data, {String? tablePrefix}) {
+    final effectivePrefix = tablePrefix != null ? '$tablePrefix.' : '';
+    return BrowseCacheData(
+      cacheKey: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}cache_key'],
+      )!,
+      providerId: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}provider_id'],
+      )!,
+      mode: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}mode'],
+      )!,
+      query: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}query'],
+      )!,
+      page: attachedDatabase.typeMapping.read(
+        DriftSqlType.int,
+        data['${effectivePrefix}page'],
+      )!,
+      payload: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}payload'],
+      )!,
+      itemCount: attachedDatabase.typeMapping.read(
+        DriftSqlType.int,
+        data['${effectivePrefix}item_count'],
+      )!,
+      fetchedAt: attachedDatabase.typeMapping.read(
+        DriftSqlType.int,
+        data['${effectivePrefix}fetched_at'],
+      )!,
+      staleAfter: attachedDatabase.typeMapping.read(
+        DriftSqlType.int,
+        data['${effectivePrefix}stale_after'],
+      )!,
+    );
+  }
+
+  @override
+  $BrowseCacheTable createAlias(String alias) {
+    return $BrowseCacheTable(attachedDatabase, alias);
+  }
+}
+
+class BrowseCacheData extends DataClass implements Insertable<BrowseCacheData> {
+  /// `providerId|mode|query|filterHash|page` (primary key)
+  final String cacheKey;
+  final String providerId;
+  final String mode;
+  final String query;
+  final int page;
+
+  /// JSON-encoded `List<SearchResultItem>`.
+  final String payload;
+  final int itemCount;
+  final int fetchedAt;
+
+  /// Epoch ms after which the entry is stale. Still served, but a refresh is
+  /// triggered in the background so the list self-heals without blocking.
+  final int staleAfter;
+  const BrowseCacheData({
+    required this.cacheKey,
+    required this.providerId,
+    required this.mode,
+    required this.query,
+    required this.page,
+    required this.payload,
+    required this.itemCount,
+    required this.fetchedAt,
+    required this.staleAfter,
+  });
+  @override
+  Map<String, Expression> toColumns(bool nullToAbsent) {
+    final map = <String, Expression>{};
+    map['cache_key'] = Variable<String>(cacheKey);
+    map['provider_id'] = Variable<String>(providerId);
+    map['mode'] = Variable<String>(mode);
+    map['query'] = Variable<String>(query);
+    map['page'] = Variable<int>(page);
+    map['payload'] = Variable<String>(payload);
+    map['item_count'] = Variable<int>(itemCount);
+    map['fetched_at'] = Variable<int>(fetchedAt);
+    map['stale_after'] = Variable<int>(staleAfter);
+    return map;
+  }
+
+  BrowseCacheCompanion toCompanion(bool nullToAbsent) {
+    return BrowseCacheCompanion(
+      cacheKey: Value(cacheKey),
+      providerId: Value(providerId),
+      mode: Value(mode),
+      query: Value(query),
+      page: Value(page),
+      payload: Value(payload),
+      itemCount: Value(itemCount),
+      fetchedAt: Value(fetchedAt),
+      staleAfter: Value(staleAfter),
+    );
+  }
+
+  factory BrowseCacheData.fromJson(
+    Map<String, dynamic> json, {
+    ValueSerializer? serializer,
+  }) {
+    serializer ??= driftRuntimeOptions.defaultSerializer;
+    return BrowseCacheData(
+      cacheKey: serializer.fromJson<String>(json['cacheKey']),
+      providerId: serializer.fromJson<String>(json['providerId']),
+      mode: serializer.fromJson<String>(json['mode']),
+      query: serializer.fromJson<String>(json['query']),
+      page: serializer.fromJson<int>(json['page']),
+      payload: serializer.fromJson<String>(json['payload']),
+      itemCount: serializer.fromJson<int>(json['itemCount']),
+      fetchedAt: serializer.fromJson<int>(json['fetchedAt']),
+      staleAfter: serializer.fromJson<int>(json['staleAfter']),
+    );
+  }
+  @override
+  Map<String, dynamic> toJson({ValueSerializer? serializer}) {
+    serializer ??= driftRuntimeOptions.defaultSerializer;
+    return <String, dynamic>{
+      'cacheKey': serializer.toJson<String>(cacheKey),
+      'providerId': serializer.toJson<String>(providerId),
+      'mode': serializer.toJson<String>(mode),
+      'query': serializer.toJson<String>(query),
+      'page': serializer.toJson<int>(page),
+      'payload': serializer.toJson<String>(payload),
+      'itemCount': serializer.toJson<int>(itemCount),
+      'fetchedAt': serializer.toJson<int>(fetchedAt),
+      'staleAfter': serializer.toJson<int>(staleAfter),
+    };
+  }
+
+  BrowseCacheData copyWith({
+    String? cacheKey,
+    String? providerId,
+    String? mode,
+    String? query,
+    int? page,
+    String? payload,
+    int? itemCount,
+    int? fetchedAt,
+    int? staleAfter,
+  }) => BrowseCacheData(
+    cacheKey: cacheKey ?? this.cacheKey,
+    providerId: providerId ?? this.providerId,
+    mode: mode ?? this.mode,
+    query: query ?? this.query,
+    page: page ?? this.page,
+    payload: payload ?? this.payload,
+    itemCount: itemCount ?? this.itemCount,
+    fetchedAt: fetchedAt ?? this.fetchedAt,
+    staleAfter: staleAfter ?? this.staleAfter,
+  );
+  BrowseCacheData copyWithCompanion(BrowseCacheCompanion data) {
+    return BrowseCacheData(
+      cacheKey: data.cacheKey.present ? data.cacheKey.value : this.cacheKey,
+      providerId: data.providerId.present
+          ? data.providerId.value
+          : this.providerId,
+      mode: data.mode.present ? data.mode.value : this.mode,
+      query: data.query.present ? data.query.value : this.query,
+      page: data.page.present ? data.page.value : this.page,
+      payload: data.payload.present ? data.payload.value : this.payload,
+      itemCount: data.itemCount.present ? data.itemCount.value : this.itemCount,
+      fetchedAt: data.fetchedAt.present ? data.fetchedAt.value : this.fetchedAt,
+      staleAfter: data.staleAfter.present
+          ? data.staleAfter.value
+          : this.staleAfter,
+    );
+  }
+
+  @override
+  String toString() {
+    return (StringBuffer('BrowseCacheData(')
+          ..write('cacheKey: $cacheKey, ')
+          ..write('providerId: $providerId, ')
+          ..write('mode: $mode, ')
+          ..write('query: $query, ')
+          ..write('page: $page, ')
+          ..write('payload: $payload, ')
+          ..write('itemCount: $itemCount, ')
+          ..write('fetchedAt: $fetchedAt, ')
+          ..write('staleAfter: $staleAfter')
+          ..write(')'))
+        .toString();
+  }
+
+  @override
+  int get hashCode => Object.hash(
+    cacheKey,
+    providerId,
+    mode,
+    query,
+    page,
+    payload,
+    itemCount,
+    fetchedAt,
+    staleAfter,
+  );
+  @override
+  bool operator ==(Object other) =>
+      identical(this, other) ||
+      (other is BrowseCacheData &&
+          other.cacheKey == this.cacheKey &&
+          other.providerId == this.providerId &&
+          other.mode == this.mode &&
+          other.query == this.query &&
+          other.page == this.page &&
+          other.payload == this.payload &&
+          other.itemCount == this.itemCount &&
+          other.fetchedAt == this.fetchedAt &&
+          other.staleAfter == this.staleAfter);
+}
+
+class BrowseCacheCompanion extends UpdateCompanion<BrowseCacheData> {
+  final Value<String> cacheKey;
+  final Value<String> providerId;
+  final Value<String> mode;
+  final Value<String> query;
+  final Value<int> page;
+  final Value<String> payload;
+  final Value<int> itemCount;
+  final Value<int> fetchedAt;
+  final Value<int> staleAfter;
+  final Value<int> rowid;
+  const BrowseCacheCompanion({
+    this.cacheKey = const Value.absent(),
+    this.providerId = const Value.absent(),
+    this.mode = const Value.absent(),
+    this.query = const Value.absent(),
+    this.page = const Value.absent(),
+    this.payload = const Value.absent(),
+    this.itemCount = const Value.absent(),
+    this.fetchedAt = const Value.absent(),
+    this.staleAfter = const Value.absent(),
+    this.rowid = const Value.absent(),
+  });
+  BrowseCacheCompanion.insert({
+    required String cacheKey,
+    required String providerId,
+    required String mode,
+    this.query = const Value.absent(),
+    this.page = const Value.absent(),
+    required String payload,
+    this.itemCount = const Value.absent(),
+    required int fetchedAt,
+    required int staleAfter,
+    this.rowid = const Value.absent(),
+  }) : cacheKey = Value(cacheKey),
+       providerId = Value(providerId),
+       mode = Value(mode),
+       payload = Value(payload),
+       fetchedAt = Value(fetchedAt),
+       staleAfter = Value(staleAfter);
+  static Insertable<BrowseCacheData> custom({
+    Expression<String>? cacheKey,
+    Expression<String>? providerId,
+    Expression<String>? mode,
+    Expression<String>? query,
+    Expression<int>? page,
+    Expression<String>? payload,
+    Expression<int>? itemCount,
+    Expression<int>? fetchedAt,
+    Expression<int>? staleAfter,
+    Expression<int>? rowid,
+  }) {
+    return RawValuesInsertable({
+      if (cacheKey != null) 'cache_key': cacheKey,
+      if (providerId != null) 'provider_id': providerId,
+      if (mode != null) 'mode': mode,
+      if (query != null) 'query': query,
+      if (page != null) 'page': page,
+      if (payload != null) 'payload': payload,
+      if (itemCount != null) 'item_count': itemCount,
+      if (fetchedAt != null) 'fetched_at': fetchedAt,
+      if (staleAfter != null) 'stale_after': staleAfter,
+      if (rowid != null) 'rowid': rowid,
+    });
+  }
+
+  BrowseCacheCompanion copyWith({
+    Value<String>? cacheKey,
+    Value<String>? providerId,
+    Value<String>? mode,
+    Value<String>? query,
+    Value<int>? page,
+    Value<String>? payload,
+    Value<int>? itemCount,
+    Value<int>? fetchedAt,
+    Value<int>? staleAfter,
+    Value<int>? rowid,
+  }) {
+    return BrowseCacheCompanion(
+      cacheKey: cacheKey ?? this.cacheKey,
+      providerId: providerId ?? this.providerId,
+      mode: mode ?? this.mode,
+      query: query ?? this.query,
+      page: page ?? this.page,
+      payload: payload ?? this.payload,
+      itemCount: itemCount ?? this.itemCount,
+      fetchedAt: fetchedAt ?? this.fetchedAt,
+      staleAfter: staleAfter ?? this.staleAfter,
+      rowid: rowid ?? this.rowid,
+    );
+  }
+
+  @override
+  Map<String, Expression> toColumns(bool nullToAbsent) {
+    final map = <String, Expression>{};
+    if (cacheKey.present) {
+      map['cache_key'] = Variable<String>(cacheKey.value);
+    }
+    if (providerId.present) {
+      map['provider_id'] = Variable<String>(providerId.value);
+    }
+    if (mode.present) {
+      map['mode'] = Variable<String>(mode.value);
+    }
+    if (query.present) {
+      map['query'] = Variable<String>(query.value);
+    }
+    if (page.present) {
+      map['page'] = Variable<int>(page.value);
+    }
+    if (payload.present) {
+      map['payload'] = Variable<String>(payload.value);
+    }
+    if (itemCount.present) {
+      map['item_count'] = Variable<int>(itemCount.value);
+    }
+    if (fetchedAt.present) {
+      map['fetched_at'] = Variable<int>(fetchedAt.value);
+    }
+    if (staleAfter.present) {
+      map['stale_after'] = Variable<int>(staleAfter.value);
+    }
+    if (rowid.present) {
+      map['rowid'] = Variable<int>(rowid.value);
+    }
+    return map;
+  }
+
+  @override
+  String toString() {
+    return (StringBuffer('BrowseCacheCompanion(')
+          ..write('cacheKey: $cacheKey, ')
+          ..write('providerId: $providerId, ')
+          ..write('mode: $mode, ')
+          ..write('query: $query, ')
+          ..write('page: $page, ')
+          ..write('payload: $payload, ')
+          ..write('itemCount: $itemCount, ')
+          ..write('fetchedAt: $fetchedAt, ')
+          ..write('staleAfter: $staleAfter, ')
+          ..write('rowid: $rowid')
+          ..write(')'))
+        .toString();
+  }
+}
+
 abstract class _$AppDatabase extends GeneratedDatabase {
   _$AppDatabase(QueryExecutor e) : super(e);
   _$AppDatabase.connect(DatabaseConnection c) : super.connect(c);
@@ -4548,6 +5111,7 @@ abstract class _$AppDatabase extends GeneratedDatabase {
   late final $SettingsTable settings = $SettingsTable(this);
   late final $ProviderCacheTable providerCache = $ProviderCacheTable(this);
   late final $NovelProgressTable novelProgress = $NovelProgressTable(this);
+  late final $BrowseCacheTable browseCache = $BrowseCacheTable(this);
   late final Index chaptersNovelDownloaded = Index(
     'chapters_novel_downloaded',
     'CREATE INDEX chapters_novel_downloaded ON chapters (novel_id, downloaded)',
@@ -4580,6 +5144,14 @@ abstract class _$AppDatabase extends GeneratedDatabase {
     'annotations_novel_chapter',
     'CREATE INDEX annotations_novel_chapter ON annotations (novel_id, chapter_id)',
   );
+  late final Index browseCacheProvider = Index(
+    'browse_cache_provider',
+    'CREATE INDEX browse_cache_provider ON browse_cache (provider_id)',
+  );
+  late final Index browseCacheFetched = Index(
+    'browse_cache_fetched',
+    'CREATE INDEX browse_cache_fetched ON browse_cache (fetched_at)',
+  );
   late final NovelDao novelDao = NovelDao(this as AppDatabase);
   late final ChapterDao chapterDao = ChapterDao(this as AppDatabase);
   late final LibraryDao libraryDao = LibraryDao(this as AppDatabase);
@@ -4592,6 +5164,9 @@ abstract class _$AppDatabase extends GeneratedDatabase {
     this as AppDatabase,
   );
   late final NovelProgressDao novelProgressDao = NovelProgressDao(
+    this as AppDatabase,
+  );
+  late final BrowseCacheDao browseCacheDao = BrowseCacheDao(
     this as AppDatabase,
   );
   @override
@@ -4609,6 +5184,7 @@ abstract class _$AppDatabase extends GeneratedDatabase {
     settings,
     providerCache,
     novelProgress,
+    browseCache,
     chaptersNovelDownloaded,
     chaptersNovelRead,
     readingHistoryNovel,
@@ -4617,6 +5193,8 @@ abstract class _$AppDatabase extends GeneratedDatabase {
     downloadsQueueNovelChapter,
     bookmarksNovelChapter,
     annotationsNovelChapter,
+    browseCacheProvider,
+    browseCacheFetched,
   ];
 }
 
@@ -9381,6 +9959,295 @@ typedef $$NovelProgressTableProcessedTableManager =
       NovelProgressData,
       PrefetchHooks Function({bool novelId})
     >;
+typedef $$BrowseCacheTableCreateCompanionBuilder =
+    BrowseCacheCompanion Function({
+      required String cacheKey,
+      required String providerId,
+      required String mode,
+      Value<String> query,
+      Value<int> page,
+      required String payload,
+      Value<int> itemCount,
+      required int fetchedAt,
+      required int staleAfter,
+      Value<int> rowid,
+    });
+typedef $$BrowseCacheTableUpdateCompanionBuilder =
+    BrowseCacheCompanion Function({
+      Value<String> cacheKey,
+      Value<String> providerId,
+      Value<String> mode,
+      Value<String> query,
+      Value<int> page,
+      Value<String> payload,
+      Value<int> itemCount,
+      Value<int> fetchedAt,
+      Value<int> staleAfter,
+      Value<int> rowid,
+    });
+
+class $$BrowseCacheTableFilterComposer
+    extends Composer<_$AppDatabase, $BrowseCacheTable> {
+  $$BrowseCacheTableFilterComposer({
+    required super.$db,
+    required super.$table,
+    super.joinBuilder,
+    super.$addJoinBuilderToRootComposer,
+    super.$removeJoinBuilderFromRootComposer,
+  });
+  ColumnFilters<String> get cacheKey => $composableBuilder(
+    column: $table.cacheKey,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get providerId => $composableBuilder(
+    column: $table.providerId,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get mode => $composableBuilder(
+    column: $table.mode,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get query => $composableBuilder(
+    column: $table.query,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<int> get page => $composableBuilder(
+    column: $table.page,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get payload => $composableBuilder(
+    column: $table.payload,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<int> get itemCount => $composableBuilder(
+    column: $table.itemCount,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<int> get fetchedAt => $composableBuilder(
+    column: $table.fetchedAt,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<int> get staleAfter => $composableBuilder(
+    column: $table.staleAfter,
+    builder: (column) => ColumnFilters(column),
+  );
+}
+
+class $$BrowseCacheTableOrderingComposer
+    extends Composer<_$AppDatabase, $BrowseCacheTable> {
+  $$BrowseCacheTableOrderingComposer({
+    required super.$db,
+    required super.$table,
+    super.joinBuilder,
+    super.$addJoinBuilderToRootComposer,
+    super.$removeJoinBuilderFromRootComposer,
+  });
+  ColumnOrderings<String> get cacheKey => $composableBuilder(
+    column: $table.cacheKey,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get providerId => $composableBuilder(
+    column: $table.providerId,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get mode => $composableBuilder(
+    column: $table.mode,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get query => $composableBuilder(
+    column: $table.query,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<int> get page => $composableBuilder(
+    column: $table.page,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get payload => $composableBuilder(
+    column: $table.payload,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<int> get itemCount => $composableBuilder(
+    column: $table.itemCount,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<int> get fetchedAt => $composableBuilder(
+    column: $table.fetchedAt,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<int> get staleAfter => $composableBuilder(
+    column: $table.staleAfter,
+    builder: (column) => ColumnOrderings(column),
+  );
+}
+
+class $$BrowseCacheTableAnnotationComposer
+    extends Composer<_$AppDatabase, $BrowseCacheTable> {
+  $$BrowseCacheTableAnnotationComposer({
+    required super.$db,
+    required super.$table,
+    super.joinBuilder,
+    super.$addJoinBuilderToRootComposer,
+    super.$removeJoinBuilderFromRootComposer,
+  });
+  GeneratedColumn<String> get cacheKey =>
+      $composableBuilder(column: $table.cacheKey, builder: (column) => column);
+
+  GeneratedColumn<String> get providerId => $composableBuilder(
+    column: $table.providerId,
+    builder: (column) => column,
+  );
+
+  GeneratedColumn<String> get mode =>
+      $composableBuilder(column: $table.mode, builder: (column) => column);
+
+  GeneratedColumn<String> get query =>
+      $composableBuilder(column: $table.query, builder: (column) => column);
+
+  GeneratedColumn<int> get page =>
+      $composableBuilder(column: $table.page, builder: (column) => column);
+
+  GeneratedColumn<String> get payload =>
+      $composableBuilder(column: $table.payload, builder: (column) => column);
+
+  GeneratedColumn<int> get itemCount =>
+      $composableBuilder(column: $table.itemCount, builder: (column) => column);
+
+  GeneratedColumn<int> get fetchedAt =>
+      $composableBuilder(column: $table.fetchedAt, builder: (column) => column);
+
+  GeneratedColumn<int> get staleAfter => $composableBuilder(
+    column: $table.staleAfter,
+    builder: (column) => column,
+  );
+}
+
+class $$BrowseCacheTableTableManager
+    extends
+        RootTableManager<
+          _$AppDatabase,
+          $BrowseCacheTable,
+          BrowseCacheData,
+          $$BrowseCacheTableFilterComposer,
+          $$BrowseCacheTableOrderingComposer,
+          $$BrowseCacheTableAnnotationComposer,
+          $$BrowseCacheTableCreateCompanionBuilder,
+          $$BrowseCacheTableUpdateCompanionBuilder,
+          (
+            BrowseCacheData,
+            BaseReferences<_$AppDatabase, $BrowseCacheTable, BrowseCacheData>,
+          ),
+          BrowseCacheData,
+          PrefetchHooks Function()
+        > {
+  $$BrowseCacheTableTableManager(_$AppDatabase db, $BrowseCacheTable table)
+    : super(
+        TableManagerState(
+          db: db,
+          table: table,
+          createFilteringComposer: () =>
+              $$BrowseCacheTableFilterComposer($db: db, $table: table),
+          createOrderingComposer: () =>
+              $$BrowseCacheTableOrderingComposer($db: db, $table: table),
+          createComputedFieldComposer: () =>
+              $$BrowseCacheTableAnnotationComposer($db: db, $table: table),
+          updateCompanionCallback:
+              ({
+                Value<String> cacheKey = const Value.absent(),
+                Value<String> providerId = const Value.absent(),
+                Value<String> mode = const Value.absent(),
+                Value<String> query = const Value.absent(),
+                Value<int> page = const Value.absent(),
+                Value<String> payload = const Value.absent(),
+                Value<int> itemCount = const Value.absent(),
+                Value<int> fetchedAt = const Value.absent(),
+                Value<int> staleAfter = const Value.absent(),
+                Value<int> rowid = const Value.absent(),
+              }) => BrowseCacheCompanion(
+                cacheKey: cacheKey,
+                providerId: providerId,
+                mode: mode,
+                query: query,
+                page: page,
+                payload: payload,
+                itemCount: itemCount,
+                fetchedAt: fetchedAt,
+                staleAfter: staleAfter,
+                rowid: rowid,
+              ),
+          createCompanionCallback:
+              ({
+                required String cacheKey,
+                required String providerId,
+                required String mode,
+                Value<String> query = const Value.absent(),
+                Value<int> page = const Value.absent(),
+                required String payload,
+                Value<int> itemCount = const Value.absent(),
+                required int fetchedAt,
+                required int staleAfter,
+                Value<int> rowid = const Value.absent(),
+              }) => BrowseCacheCompanion.insert(
+                cacheKey: cacheKey,
+                providerId: providerId,
+                mode: mode,
+                query: query,
+                page: page,
+                payload: payload,
+                itemCount: itemCount,
+                fetchedAt: fetchedAt,
+                staleAfter: staleAfter,
+                rowid: rowid,
+              ),
+          withReferenceMapper: (p0) => p0
+              .map(
+                (e) => (
+                  e.readTable<$BrowseCacheTable, BrowseCacheData>(table),
+                  BaseReferences<
+                    _$AppDatabase,
+                    $BrowseCacheTable,
+                    BrowseCacheData
+                  >(db, table, e),
+                ),
+              )
+              .toList(),
+          prefetchHooksCallback: null,
+        ),
+      );
+}
+
+typedef $$BrowseCacheTableProcessedTableManager =
+    ProcessedTableManager<
+      _$AppDatabase,
+      $BrowseCacheTable,
+      BrowseCacheData,
+      $$BrowseCacheTableFilterComposer,
+      $$BrowseCacheTableOrderingComposer,
+      $$BrowseCacheTableAnnotationComposer,
+      $$BrowseCacheTableCreateCompanionBuilder,
+      $$BrowseCacheTableUpdateCompanionBuilder,
+      (
+        BrowseCacheData,
+        BaseReferences<_$AppDatabase, $BrowseCacheTable, BrowseCacheData>,
+      ),
+      BrowseCacheData,
+      PrefetchHooks Function()
+    >;
 
 class $AppDatabaseManager {
   final _$AppDatabase _db;
@@ -9405,4 +10272,6 @@ class $AppDatabaseManager {
       $$ProviderCacheTableTableManager(_db, _db.providerCache);
   $$NovelProgressTableTableManager get novelProgress =>
       $$NovelProgressTableTableManager(_db, _db.novelProgress);
+  $$BrowseCacheTableTableManager get browseCache =>
+      $$BrowseCacheTableTableManager(_db, _db.browseCache);
 }

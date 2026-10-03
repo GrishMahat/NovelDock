@@ -74,7 +74,13 @@ class _DownloadsScreenState extends ConsumerState<DownloadsScreen> {
               icon: const Icon(Icons.delete_sweep),
               tooltip: 'Clear completed',
               onPressed: () async {
-                await ref.read(downloadDaoProvider).clearCompletedDownloads();
+                // Deletes the files too, not just the queue rows.
+                final downloadDao = ref.read(downloadDaoProvider);
+                final done = await downloadDao.getCompletedDownloads();
+                final notifier = ref.read(downloadProvider.notifier);
+                for (final task in done) {
+                  await notifier.removeTask(task.id);
+                }
               },
             ),
           ],
@@ -355,12 +361,48 @@ class _DownloadTileState extends ConsumerState<_DownloadTile> {
                           .read(downloadProvider.notifier)
                           .retryTask(download.id),
                     )
-                  : null,
+                  // Completed rows used to have no trailing control at all,
+                  // so a finished download could not be removed from the list
+                  // except by clearing every completed entry at once.
+                  : IconButton(
+                      icon: const Icon(Icons.delete_outline, size: 20),
+                      tooltip: 'Remove download',
+                      onPressed: () => _confirmRemove(context, download),
+                    ),
             );
           },
         );
       },
     );
+  }
+
+  /// Removing a finished download deletes the file on disk, so confirm it
+  /// rather than letting one tap discard content.
+  Future<void> _confirmRemove(
+    BuildContext context,
+    DownloadsQueueData download,
+  ) async {
+    final messenger = ScaffoldMessenger.of(context);
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: const Text('Remove download?'),
+        content: const Text('The saved file for this chapter will be deleted.'),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(ctx, false),
+            child: const Text('Keep'),
+          ),
+          FilledButton(
+            onPressed: () => Navigator.pop(ctx, true),
+            child: const Text('Remove'),
+          ),
+        ],
+      ),
+    );
+    if (confirmed != true) return;
+    await ref.read(downloadProvider.notifier).removeTask(download.id);
+    messenger.showSnackBar(const SnackBar(content: Text('Download removed')));
   }
 
   Widget _buildStatusIcon(BuildContext context, String status) {

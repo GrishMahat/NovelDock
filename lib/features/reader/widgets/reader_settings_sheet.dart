@@ -125,10 +125,12 @@ class _ReaderSettingsSheetState extends ConsumerState<ReaderSettingsSheet> {
       slider(
         context,
         'Size',
-        settings.fontSize,
-        10,
-        30,
-        '${settings.fontSize.round()}',
+        settings.effectiveFontSize,
+        // Narrower range on phones: past ~22px the measure drops below a
+        // readable line length at this width.
+        settings.isCompactProfile ? 13 : 10,
+        settings.isCompactProfile ? 24 : 30,
+        '${settings.effectiveFontSize.round()}',
         (v) => notifier.updateFontSize(v),
       ),
       slider(
@@ -147,19 +149,19 @@ class _ReaderSettingsSheetState extends ConsumerState<ReaderSettingsSheet> {
       slider(
         context,
         'Side margins',
-        settings.paddingH,
+        settings.effectivePaddingH,
         0,
-        50,
-        '${settings.paddingH.round()}',
+        settings.isCompactProfile ? 24 : 50,
+        '${settings.effectivePaddingH.round()}',
         (v) => notifier.updatePaddingH(v),
       ),
       slider(
         context,
         'Top and bottom margins',
-        settings.paddingV,
+        settings.effectivePaddingV,
         0,
-        50,
-        '${settings.paddingV.round()}',
+        settings.isCompactProfile ? 32 : 50,
+        '${settings.effectivePaddingV.round()}',
         (v) => notifier.updatePaddingV(v),
       ),
       slider(

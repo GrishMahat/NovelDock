@@ -284,9 +284,27 @@ void main() {
     await _settleAndClose(tester, db);
   });
 
+  /// First chapter row's title, by vertical position. Chapter rows are dense
+  /// InkWell rows rather than ListTiles, so order is read from geometry.
   String firstChapterTitle(WidgetTester tester) {
-    final first = tester.widgetList<ListTile>(find.byType(ListTile)).first;
-    return (first.title as Text).data ?? '';
+    const seeded = [
+      'Plain Chapter',
+      'Downloaded Chapter',
+      'Read Chapter',
+      'Bookmarked Chapter',
+    ];
+    double? top;
+    String? name;
+    for (final label in seeded) {
+      final finder = find.text(label);
+      if (finder.evaluate().isEmpty) continue;
+      final y = tester.getTopLeft(finder.first).dy;
+      if (top == null || y < top) {
+        top = y;
+        name = label;
+      }
+    }
+    return name ?? '';
   }
 
   testWidgets('sort menu offers Normal, Chapter number, Latest first', (
@@ -308,5 +326,267 @@ void main() {
     await tester.pumpAndSettle();
     expect(firstChapterTitle(tester), 'Bookmarked Chapter');
     await _settleAndClose(tester, db);
+  });
+
+  group('header actions', () {
+    testWidgets('library and source sit beside the cover, Soon is gone', (
+      tester,
+    ) async {
+      await _pumpDetail(tester, db, prefs);
+
+      expect(find.text('Library'), findsOneWidget);
+      expect(find.text('Source'), findsOneWidget);
+
+      // "Soon" was a dead button whose onTap was `() {}` — it looked
+      // actionable and did nothing.
+      expect(find.text('Soon'), findsNothing);
+      expect(find.byIcon(Icons.hourglass_empty), findsNothing);
+
+      await _settleAndClose(tester, db);
+    });
+
+    testWidgets('overflow holds select, refresh and Cloudflare only', (
+      tester,
+    ) async {
+      await _pumpDetail(tester, db, prefs);
+
+      await tester.tap(find.byIcon(Icons.more_vert));
+      await tester.pumpAndSettle();
+
+      expect(find.text('Select chapters'), findsOneWidget);
+      expect(find.text('Refresh details'), findsOneWidget);
+      expect(find.text('Verify Cloudflare challenge'), findsOneWidget);
+
+      // Chapter bulk actions do not live in the novel overflow.
+      expect(find.text('Download selected'), findsNothing);
+      expect(find.text('Select all'), findsNothing);
+
+      await _settleAndClose(tester, db);
+    });
+  });
+
+  group('chapter selection', () {
+    Future<void> enterSelection(WidgetTester tester) async {
+      await tester.tap(find.byIcon(Icons.more_vert));
+      await tester.pumpAndSettle();
+      await tester.tap(find.text('Select chapters'));
+      await tester.pumpAndSettle();
+    }
+
+    testWidgets('selection arms with zero picks and shows bulk actions', (
+      tester,
+    ) async {
+      await _pumpDetail(tester, db, prefs);
+      await enterSelection(tester);
+
+      expect(find.text('0 selected'), findsOneWidget);
+      // Bulk actions live in a bottom bar, thumb-reachable, not the app bar.
+      for (final label in [
+        'Cancel',
+        'Select all',
+        'Download',
+        'Bookmark',
+        'Unmark',
+        'Mark read',
+        'Mark unread',
+      ]) {
+        expect(find.text(label), findsOneWidget, reason: '$label missing');
+      }
+
+      await _settleAndClose(tester, db);
+    });
+
+    testWidgets('opening the overflow menu does not overflow', (tester) async {
+      await _pumpDetail(tester, db, prefs);
+      // The popup items used to be Row[Icon, Text] with no flexible child,
+      // so the menu overflowed its clamped route by ~150px at every width.
+      await tester.tap(find.byIcon(Icons.more_vert));
+      await tester.pumpAndSettle();
+      expect(tester.takeException(), isNull);
+      expect(find.text('Verify Cloudflare challenge'), findsOneWidget);
+      await _settleAndClose(tester, db);
+    });
+
+    testWidgets('the selection bar does not overflow', (tester) async {
+      await _pumpDetail(tester, db, prefs);
+      await enterSelection(tester);
+      expect(tester.takeException(), isNull);
+      await _settleAndClose(tester, db);
+    });
+
+    testWidgets('tapping rows counts picks, select all fills the visible set', (
+      tester,
+    ) async {
+      await _pumpDetail(tester, db, prefs);
+      await enterSelection(tester);
+
+      await tester.tap(find.text('Plain Chapter'));
+      await tester.pumpAndSettle();
+      expect(find.text('1 selected'), findsOneWidget);
+
+      await tester.tap(find.text('Select all'));
+      await tester.pumpAndSettle();
+      expect(find.text('4 selected'), findsOneWidget);
+
+      // Once everything is picked the affordance flips to a clear action.
+      expect(find.text('Select none'), findsOneWidget);
+      await tester.tap(find.text('Select none'));
+      await tester.pumpAndSettle();
+      expect(find.text('0 selected'), findsOneWidget);
+
+      await _settleAndClose(tester, db);
+    });
+
+    testWidgets('bulk mark read and unread applies to the selection', (
+      tester,
+    ) async {
+      await _pumpDetail(tester, db, prefs);
+      await enterSelection(tester);
+      await tester.tap(find.text('Select all'));
+      await tester.pumpAndSettle();
+
+      await tester.tap(find.text('Mark read'));
+      await tester.pumpAndSettle();
+      await tester.pump(const Duration(milliseconds: 300));
+
+      var chapters = await db.chapterDao.getChaptersForNovel(1);
+      expect(chapters.where((c) => c.read).length, 4);
+
+      // Bulk actions leave selection mode behind them.
+      expect(find.text('0 selected'), findsNothing);
+      expect(find.text('Bookmark'), findsNothing);
+
+      await enterSelection(tester);
+      await tester.tap(find.text('Select all'));
+      await tester.pumpAndSettle();
+      await tester.tap(find.text('Mark unread'));
+      await tester.pumpAndSettle();
+      await tester.pump(const Duration(milliseconds: 300));
+
+      chapters = await db.chapterDao.getChaptersForNovel(1);
+      expect(chapters.where((c) => c.read).length, 0);
+
+      await _settleAndClose(tester, db);
+    });
+
+    testWidgets('bulk bookmark round-trips', (tester) async {
+      await _pumpDetail(tester, db, prefs);
+      await enterSelection(tester);
+      await tester.tap(find.text('Select all'));
+      await tester.pumpAndSettle();
+
+      await tester.tap(find.text('Bookmark'));
+      await tester.pumpAndSettle();
+      await tester.pump(const Duration(milliseconds: 300));
+      var chapters = await db.chapterDao.getChaptersForNovel(1);
+      expect(chapters.where((c) => c.bookmarked).length, 4);
+
+      await enterSelection(tester);
+      await tester.tap(find.text('Select all'));
+      await tester.pumpAndSettle();
+      await tester.tap(find.text('Unmark'));
+      await tester.pumpAndSettle();
+      await tester.pump(const Duration(milliseconds: 300));
+      chapters = await db.chapterDao.getChaptersForNovel(1);
+      expect(chapters.where((c) => c.bookmarked).length, 0);
+
+      await _settleAndClose(tester, db);
+    });
+
+    testWidgets('a selection tap does not open the reader', (tester) async {
+      await _pumpDetail(tester, db, prefs);
+      await enterSelection(tester);
+
+      await tester.tap(find.text('Plain Chapter'));
+      await tester.pumpAndSettle();
+
+      expect(find.text('reader'), findsNothing);
+      expect(find.text('1 selected'), findsOneWidget);
+
+      await _settleAndClose(tester, db);
+    });
+
+    testWidgets('cancel leaves selection mode', (tester) async {
+      await _pumpDetail(tester, db, prefs);
+      await enterSelection(tester);
+      expect(find.text('0 selected'), findsOneWidget);
+
+      await tester.tap(find.text('Cancel'));
+      await tester.pumpAndSettle();
+
+      expect(find.text('0 selected'), findsNothing);
+      expect(find.text('Bookmark'), findsNothing);
+      // The novel-level overflow is back.
+      expect(find.byIcon(Icons.more_vert), findsOneWidget);
+
+      await _settleAndClose(tester, db);
+    });
+
+    testWidgets('long press opens the chapter row menu', (tester) async {
+      await _pumpDetail(tester, db, prefs);
+
+      await tester.longPress(find.text('Plain Chapter'));
+      await tester.pumpAndSettle();
+
+      expect(find.text('Mark earlier as read'), findsOneWidget);
+      expect(find.text('Select from here down'), findsOneWidget);
+      expect(find.text('Bookmark'), findsOneWidget);
+      // Long press no longer jumps straight into selection mode.
+      expect(find.text('selected'), findsNothing);
+
+      await _settleAndClose(tester, db);
+    });
+
+    testWidgets('mark earlier as read greys out everything before', (
+      tester,
+    ) async {
+      await _pumpDetail(tester, db, prefs);
+
+      // The cross-provider resume case: 3 chapters already read, the reader
+      // restarts on the 4th in a source that carries more.
+      await tester.longPress(find.text('Bookmarked Chapter'));
+      await tester.pumpAndSettle();
+      await tester.tap(find.text('Mark earlier as read'));
+      await tester.pumpAndSettle();
+      await tester.pump(const Duration(milliseconds: 300));
+
+      final chapters = await db.chapterDao.getChaptersForNovel(1);
+      for (final c in chapters.where((c) => c.index < 3)) {
+        expect(c.read, isTrue, reason: 'chapter ${c.index} should be read');
+      }
+      // The chapter acted on and everything after it are untouched.
+      expect(chapters.firstWhere((c) => c.index == 3).read, isFalse);
+
+      await _settleAndClose(tester, db);
+    });
+
+    testWidgets('select from here down arms selection with the tail', (
+      tester,
+    ) async {
+      await _pumpDetail(tester, db, prefs);
+
+      await tester.longPress(find.text('Read Chapter'));
+      await tester.pumpAndSettle();
+      await tester.tap(find.text('Select from here down'));
+      await tester.pumpAndSettle();
+
+      // Seeded order: Plain(0), Downloaded(1), Read(2), Bookmarked(3).
+      expect(find.text('2 selected'), findsOneWidget);
+
+      await _settleAndClose(tester, db);
+    });
+
+    testWidgets('mark earlier is a no-op on the first chapter', (tester) async {
+      await _pumpDetail(tester, db, prefs);
+
+      await tester.longPress(find.text('Plain Chapter'));
+      await tester.pumpAndSettle();
+      await tester.tap(find.text('Mark earlier as read'));
+      await tester.pumpAndSettle();
+
+      expect(find.text('Nothing before this chapter'), findsOneWidget);
+
+      await _settleAndClose(tester, db);
+    });
   });
 }

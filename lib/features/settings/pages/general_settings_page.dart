@@ -5,6 +5,7 @@ import 'package:webview_all/webview_all.dart';
 
 import '../../../core/config/app_prefs.dart';
 import '../../../core/network/client.dart' show cookieJarProvider;
+import '../../../core/providers/browse_cache.dart';
 import '../../../core/utils/logger.dart';
 
 part 'general_settings_page.g.dart';
@@ -86,11 +87,89 @@ class GeneralSettingsNotifier extends _$GeneralSettingsNotifier {
   }
 }
 
-class GeneralSettingsPage extends ConsumerWidget {
+class GeneralSettingsPage extends ConsumerStatefulWidget {
   const GeneralSettingsPage({super.key});
 
   @override
-  Widget build(BuildContext context, WidgetRef ref) {
+  ConsumerState<GeneralSettingsPage> createState() =>
+      _GeneralSettingsPageState();
+}
+
+class _GeneralSettingsPageState extends ConsumerState<GeneralSettingsPage> {
+  /// Live cache size for the storage row. Null until the first read lands.
+  String? _browseCacheSummary;
+
+  @override
+  void initState() {
+    super.initState();
+    _loadBrowseCacheSummary();
+  }
+
+  Future<void> _loadBrowseCacheSummary() async {
+    try {
+      final cache = ref.read(BrowseResultCache.provider);
+      final entries = await cache.entryCount();
+      final bytes = await cache.sizeBytes();
+      if (!mounted) return;
+      setState(() {
+        _browseCacheSummary = entries == 0
+            ? 'Empty'
+            : '${_formatBytes(bytes)} across $entries cached page(s)';
+      });
+    } catch (_) {
+      if (mounted) setState(() => _browseCacheSummary = null);
+    }
+  }
+
+  static String _formatBytes(int bytes) {
+    if (bytes < 1024) return '$bytes B';
+    if (bytes < 1024 * 1024) return '${(bytes / 1024).toStringAsFixed(0)} KB';
+    return '${(bytes / (1024 * 1024)).toStringAsFixed(1)} MB';
+  }
+
+  Future<void> _confirmClearBrowseCache(WidgetRef ref) async {
+    final cache = ref.read(BrowseResultCache.provider);
+    final entries = await cache.entryCount();
+    if (!mounted) return;
+
+    if (entries == 0) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Browse cache is already empty')),
+      );
+      return;
+    }
+
+    final confirm = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: const Text('Clear browse cache?'),
+        content: Text(
+          'Removes $entries cached listing(s). Sources will load from the '
+          'network next time you open them. Downloads and library untouched.',
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(ctx, false),
+            child: const Text('Cancel'),
+          ),
+          FilledButton(
+            onPressed: () => Navigator.pop(ctx, true),
+            child: const Text('Clear'),
+          ),
+        ],
+      ),
+    );
+    if (confirm != true) return;
+    await cache.clear();
+    await _loadBrowseCacheSummary();
+    if (!mounted) return;
+    ScaffoldMessenger.of(
+      context,
+    ).showSnackBar(const SnackBar(content: Text('Browse cache cleared')));
+  }
+
+  @override
+  Widget build(BuildContext context) {
     final settings = ref.watch(generalSettingsProvider);
     final notifier = ref.read(generalSettingsProvider.notifier);
 
@@ -212,6 +291,18 @@ class GeneralSettingsPage extends ConsumerWidget {
                 notifier.setShowNsfw(false);
               }
             },
+          ),
+          const Divider(),
+          _buildSection(context, 'Storage'),
+          ListTile(
+            leading: const Icon(Icons.grid_view_outlined),
+            title: const Text('Browse cache'),
+            subtitle: Text(
+              _browseCacheSummary ??
+                  'Saved source listings for faster browsing',
+            ),
+            trailing: const Icon(Icons.chevron_right, size: 18),
+            onTap: () => _confirmClearBrowseCache(ref),
           ),
           const Divider(),
           _buildSection(context, 'Privacy'),

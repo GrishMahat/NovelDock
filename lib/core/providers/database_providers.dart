@@ -81,3 +81,8 @@ ProviderCacheDao providerCacheDao(Ref ref) {
 NovelProgressDao novelProgressDao(Ref ref) {
   return NovelProgressDao(ref.watch(appDatabaseProvider));
 }
+
+@Riverpod(keepAlive: true)
+BrowseCacheDao browseCacheDao(Ref ref) {
+  return BrowseCacheDao(ref.watch(appDatabaseProvider));
+}

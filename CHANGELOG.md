@@ -5,6 +5,41 @@ The format follows [Keep a Changelog](https://keepachangelog.com); versions aim 
 
 ## Unreleased
 
+### Added
+
+- Browse and in-source search results are cached. Opening a source's Popular or Latest tab used to be a cold network fetch plus HTML parse every single time; a repeat visit inside 30 minutes now renders from cache with no network round trip at all, and a stale entry still renders immediately while it refreshes behind the content. Cached pages are dropped when a source is updated or removed, since new provider code can change what a result page contains
+- Settings → General → Storage: browse cache size and entry count, with a "Clear browse cache" action
+- Chapter list: long-press a chapter for a row menu with "Mark earlier as read" and "Select from here down". Marks everything before the chapter you picked as read in one tap, for when you move a novel to another source that carries more chapters
+- Downloads screen: completed downloads can now be removed one at a time, with a confirmation. Previously a finished download could only be cleared by wiping every completed entry at once
+- Downloads screen: "Clear completed" deletes the saved files, not just the queue rows
+
+### Changed
+
+- Dependencies updated to their latest releases, including across major versions: `go_router` 17 → 18, `flex_color_scheme` 8 → 9, `shimmer` 3 → 4, `cached_network_image` 3 → 4, `file_picker` 12 → 13, `tray_manager` 0.5 → 0.7. App behaviour and appearance are unchanged; this is to pick up upstream fixes and stay on supported versions. The three forked git dependencies (`flutter_js`, `flutter_edge_tts`, `just_audio_media_kit`) stay pinned at their exact refs
+- Linux TTS tray updated for the `tray_manager` 0.7 API. Same behaviour: the icon appears when playback starts, Pause/Resume tracks playback state, and it disappears when playback stops
+- Novel detail: the dead "Soon" button is gone; library membership and the source page moved up beside the cover as inline actions
+- Novel detail: chapter rows support selection. Long-press opens the row menu, or use "Select chapters" from the overflow. Bulk download, bookmark, mark read and mark unread apply to the picked chapters from a bottom action bar
+- Novel detail: chapter sort moved into the chapter list header, where it belongs, instead of a second app bar icon
+- Catalog tab lists only sources you have not installed; installed sources live in the Installed tab. The same source used to appear in both lists with two different toggle affordances
+- Catalog: tapping a row installs or uninstalls it. Details moved to an explicit trailing button. Previously the row opened an info sheet while the switch beside it did the install, which made the switch feel like the only real control
+- Mobile layout now adapts on its own terms instead of inheriting desktop metrics. Layout decisions moved from the `isDesktop` boolean to real width tiers (`compact` / `medium` / `expanded`), so a narrow desktop window and a large phone resolve to the same sensible layout
+- Browse and search results: grid column counts are fixed per width tier and cards use a fixed height. Previously the count flipped between 2 and 3 columns across a 33dp width range, which put 120dp-wide cards with cropped covers on most phones
+- Library grid: 3 covers per row on phones, shared column count with Browse so the two screens no longer disagree on the same device
+- Browse catalog rows are ~35% shorter (72dp to 48dp) and show more sources per screen
+- Chapter list rows are denser, with read state shown as a leading rule instead of an "Available" label
+- Settings rows are denser with a single-line summary
+- Browse opens in list view on phones and grid view on desktop (still toggleable)
+- Reader settings are now per form factor: phones default to 16px text, 1.5 line height and 16dp margins, desktop keeps 17px / 1.6 / 24dp. Reader font and margin sliders are capped to ranges that keep the text measure readable on a phone, so desktop tuning no longer carries over
+- Reader chapter breaks take less vertical space on phones
+- UI text now uses lining figures. Literata defaulted to old-style figures, which put "Chapter 1" and "Chapter 2" at different heights and made chapter numbers read as borrowed glyphs
+
+### Fixed
+
+- App start no longer runs the full-library download reconcile immediately. It swept every novel's files in the first post-frame callback, blocking startup; it now starts after a short delay
+- Browse "Installed" sources were unreachable below the fold on phones: the grid was a non-scrolling shrinkWrap column inside a bounded viewport, so any source past the first screenful could not be scrolled to. It was hidden on desktop only because the sources fit
+- Large system font sizes no longer overflow the fixed-height grids and pills; text scale is clamped app-wide while still honoring large-text accessibility up to 1.3x
+- The novel detail overflow menu no longer overflows by ~150px at every screen width. Popup items were a `Row` with no flexible child, so the label could not shrink to the popup route's clamped width
+
 ## 0.1.5-beta - 2026-09-30
 
 ### Added

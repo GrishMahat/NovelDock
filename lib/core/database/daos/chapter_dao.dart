@@ -98,6 +98,15 @@ class ChapterDao extends DatabaseAccessor<AppDatabase> with _$ChapterDaoMixin {
     );
   }
 
+  /// Clears the read flag. Paired with [markChapterAsRead] so bulk
+  /// "mark unread" from the novel detail screen exists as a real operation
+  /// rather than a UI-only fiction.
+  Future<void> markChapterAsUnread(int chapterId) {
+    return (update(chapters)..where((t) => t.id.equals(chapterId))).write(
+      ChaptersCompanion(read: const Value(false)),
+    );
+  }
+
   Future<void> markChapterAsTtsRead(int chapterId) {
     return (update(chapters)..where((t) => t.id.equals(chapterId))).write(
       ChaptersCompanion(ttsRead: const Value(true)),

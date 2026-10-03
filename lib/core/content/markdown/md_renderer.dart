@@ -10,7 +10,7 @@ import 'md_ast.dart';
 
 TextStyle _buildTextStyle(ReaderSettings settings) {
   return TextStyle(
-    fontSize: settings.fontSize,
+    fontSize: settings.effectiveFontSize,
     fontFamily: settings.fontFamily.isEmpty
         ? kDefaultReaderFont
         : settings.fontFamily,

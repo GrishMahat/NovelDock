@@ -14,6 +14,11 @@ const _tag = 'ReaderSettings';
 /// Bundled default reader font (Literata, OFL license — designed for on-screen book reading).
 const String kDefaultReaderFont = 'Literata';
 
+/// Phone/tablet form factor at first launch. Desktop gets its own profile;
+/// see [ReaderSettingsNotifier.build].
+final bool _isCompactPlatform =
+    !(Platform.isLinux || Platform.isWindows || Platform.isMacOS);
+
 class ReaderSettings {
   final double fontSize;
   final String fontFamily;
@@ -139,6 +144,23 @@ class ReaderSettings {
   /// Every animated reader path (auto-scroll glides, sidebar slide,
   /// shimmer placeholders, page jumps) checks this and goes instant.
   bool get reduceMotion => readerTheme == 'eink';
+
+  /// Which persisted profile these values belong to. Reads are clamped to
+  /// the phone range: a phone asked for desktop's 24dp side margins should
+  /// not be granted them just because the value came from that profile.
+  bool get isCompactProfile => _isCompactPlatform;
+
+  /// Font size appropriate for the current form factor.
+  double get effectiveFontSize =>
+      isCompactProfile ? fontSize.clamp(14.0, 22.0) : fontSize;
+
+  /// Horizontal prose margin, capped so text never gets a narrow measure.
+  double get effectivePaddingH =>
+      isCompactProfile ? paddingH.clamp(8.0, 20.0) : paddingH;
+
+  /// Vertical prose margin, capped the same way.
+  double get effectivePaddingV =>
+      isCompactProfile ? paddingV.clamp(8.0, 32.0) : paddingV;
 }
 
 Future<List<String>> getSystemFonts() async {
@@ -202,14 +224,21 @@ class ReaderSettingsNotifier extends _$ReaderSettingsNotifier {
   ReaderSettings build() {
     final p = ref.watch(appPrefsProvider);
     final storedFont = p.getString('reader_font_family');
+    // Reader settings are per-form-factor. Desktop paddings are tuned for a
+    // wide window; reusing them on a phone spent 48dp of horizontal margin on
+    // a 360dp screen and left ~4 paragraphs visible.
+    final compact = p.getBool('reader_settings_compact') ?? _isCompactPlatform;
+    double pick(String key, double wide, double compactValue) => compact
+        ? (p.getDouble('${key}_compact') ?? compactValue)
+        : (p.getDouble(key) ?? wide);
     return ReaderSettings(
-      fontSize: p.getDouble('reader_font_size') ?? 16.0,
+      fontSize: pick('reader_font_size', 17.0, 16.0),
       fontFamily: (storedFont == null || storedFont.isEmpty)
           ? kDefaultReaderFont
           : storedFont,
-      lineHeight: p.getDouble('reader_line_height') ?? 1.6,
-      paddingH: p.getDouble('reader_padding_h') ?? 24.0,
-      paddingV: p.getDouble('reader_padding_v') ?? 24.0,
+      lineHeight: pick('reader_line_height', 1.6, 1.5),
+      paddingH: pick('reader_padding_h', 24.0, 16.0),
+      paddingV: pick('reader_padding_v', 24.0, 16.0),
       textAlignment: p.getString('reader_text_alignment') ?? 'justify',
       paragraphSpacing: p.getDouble('reader_paragraph_spacing') ?? 12.0,
       bionicReading: p.getBool('reader_bionic_reading') ?? false,
@@ -230,11 +259,13 @@ class ReaderSettingsNotifier extends _$ReaderSettingsNotifier {
   Future<void> _save() async {
     try {
       final p = ref.read(appPrefsProvider);
-      await p.setDouble('reader_font_size', state.fontSize);
+      final compact = state.isCompactProfile;
+      String k(String key) => compact ? '${key}_compact' : key;
+      await p.setDouble(k('reader_font_size'), state.fontSize);
       await p.setString('reader_font_family', state.fontFamily);
-      await p.setDouble('reader_line_height', state.lineHeight);
-      await p.setDouble('reader_padding_h', state.paddingH);
-      await p.setDouble('reader_padding_v', state.paddingV);
+      await p.setDouble(k('reader_line_height'), state.lineHeight);
+      await p.setDouble(k('reader_padding_h'), state.paddingH);
+      await p.setDouble(k('reader_padding_v'), state.paddingV);
       await p.setString('reader_text_alignment', state.textAlignment);
       await p.setDouble('reader_paragraph_spacing', state.paragraphSpacing);
       await p.setBool('reader_bionic_reading', state.bionicReading);

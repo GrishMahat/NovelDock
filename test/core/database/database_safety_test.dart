@@ -309,6 +309,8 @@ void main() {
               'downloads_queue_status',
               'bookmarks_novel_chapter',
               'chapters_novel_downloaded',
+              'browse_cache_provider',
+              'browse_cache_fetched',
             ]),
           );
 
@@ -319,7 +321,28 @@ void main() {
               .customSelect('PRAGMA user_version')
               .map((row) => row.read<int>('user_version'))
               .getSingle();
-          expect(version, 4);
+          expect(version, 5);
+
+          // v5 added the browse result cache; it must exist and be usable on
+          // an upgraded database, not just fresh installs.
+          final tableNames = await appDb
+              .customSelect(
+                "SELECT name FROM sqlite_master WHERE type = 'table'",
+              )
+              .map((row) => row.read<String>('name'))
+              .get();
+          expect(tableNames, contains('browse_cache'));
+
+          await appDb.browseCacheDao.putPage(
+            providerId: 'legacy',
+            mode: 'popular',
+            query: '',
+            filterHash: '0',
+            page: 1,
+            payload: '[]',
+            itemCount: 0,
+          );
+          expect(await appDb.browseCacheDao.count(), 1);
         } finally {
           await appDb.close();
         }

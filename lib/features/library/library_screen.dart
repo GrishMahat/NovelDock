@@ -324,6 +324,8 @@ class _LibraryScreenState extends ConsumerState<LibraryScreen>
           );
         }
 
+        final tier = screenSizeOf(context);
+
         // Pull-to-refresh re-fetches every novel on this tab (batched,
         // sequential — see _refreshCurrentTab). Streams update rows in place.
         switch (_displayMode) {
@@ -339,11 +341,14 @@ class _LibraryScreenState extends ConsumerState<LibraryScreen>
                   Insets.lg,
                   Insets.xl,
                 ),
-                gridDelegate: const SliverGridDelegateWithMaxCrossAxisExtent(
-                  maxCrossAxisExtent: 180,
-                  childAspectRatio: 0.68,
-                  crossAxisSpacing: Insets.md,
-                  mainAxisSpacing: Insets.md,
+                gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
+                  // Shared with the browse grid per tier (Grids), so the two
+                  // screens stopped disagreeing about column count on the
+                  // same phone.
+                  crossAxisCount: Grids.libraryColumns(tier),
+                  crossAxisSpacing: Insets.sm,
+                  mainAxisSpacing: Insets.sm,
+                  mainAxisExtent: Grids.libraryExtent(tier),
                 ),
                 itemCount: filtered.length,
                 itemBuilder: (context, index) => LibraryGridItem(
@@ -385,23 +390,30 @@ class _LibraryScreenState extends ConsumerState<LibraryScreen>
     final scheme = Theme.of(context).colorScheme;
     final text = Theme.of(context).textTheme;
     return ListTile(
+      dense: screenSizeOf(context).isCompact,
       leading: ClipRRect(
         borderRadius: BorderRadius.all(Radii.sm),
-        child: _buildCover(novel.coverUrl, 48, 64),
+        child: _buildCover(novel.coverUrl, 44, 58),
       ),
-      title: Text(novel.title, maxLines: 1, overflow: TextOverflow.ellipsis),
+      title: Text(
+        novel.title,
+        maxLines: 1,
+        overflow: TextOverflow.ellipsis,
+        style: text.bodyMedium,
+      ),
       subtitle: Text(
         [
           novel.author,
           novel.status,
         ].where((s) => s != null && s.isNotEmpty).join(' · '),
-        style: text.bodySmall,
+        style: text.labelSmall,
         maxLines: 1,
         overflow: TextOverflow.ellipsis,
       ),
       trailing: IconButton(
-        icon: const Icon(Icons.play_circle_outline, size: 28),
+        icon: const Icon(Icons.play_circle_outline, size: 24),
         color: scheme.primary,
+        tooltip: 'Read aloud',
         onPressed: () => _playNovel(novel.id),
       ),
       onTap: () => context.push('/novel/${novel.id}'),

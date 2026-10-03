@@ -350,6 +350,54 @@ class DownloadNotifier extends _$DownloadNotifier {
     unawaited(_processQueue());
   }
 
+  /// Removes one task and, when it had completed, the file it wrote plus the
+  /// chapter's downloaded flag.
+  ///
+  /// [cancelTask] only drops the queue row, so a finished download stayed in
+  /// the list forever and the file it referenced was orphaned on disk with the
+  /// chapter still flagged `downloaded`. This is the per-task counterpart to
+  /// [deleteDownloads], which is all-or-nothing per novel.
+  Future<void> removeTask(int taskId) async {
+    final downloadDao = ref.read(downloadDaoProvider);
+    final task = await downloadDao.getDownloadById(taskId);
+
+    _cancelTokens.remove(taskId)?.cancel('removed by user');
+
+    if (task != null && task.status == 'done') {
+      final chapterDao = ref.read(chapterDaoProvider);
+      final chapter = await chapterDao.getChapterById(task.chapterId);
+      final path = chapter?.downloadedPath;
+      if (path != null && path.isNotEmpty) {
+        final file = File(path);
+        if (await file.exists()) {
+          try {
+            await file.delete();
+          } catch (e) {
+            Log.w(_tag, 'Could not delete $path: $e');
+          }
+        }
+      }
+      await chapterDao.markNotDownloaded(task.chapterId);
+      await _updateProgress(task.novelId);
+    }
+
+    await downloadDao.removeDownload(taskId);
+    unawaited(_processQueue());
+  }
+
+  /// Removes every completed task for a novel, deleting the files too.
+  /// Returns how many entries were removed.
+  Future<int> removeCompletedForNovel(int novelId) async {
+    final downloadDao = ref.read(downloadDaoProvider);
+    final done = await downloadDao.getCompletedDownloads();
+    var removed = 0;
+    for (final task in done.where((d) => d.novelId == novelId)) {
+      await removeTask(task.id);
+      removed++;
+    }
+    return removed;
+  }
+
   /// Re-queues every failed task of a novel and kicks processing.
   Future<void> retryFailed(int novelId) async {
     final downloadDao = ref.read(downloadDaoProvider);
@@ -736,7 +784,10 @@ class DownloadNotifier extends _$DownloadNotifier {
         final path = chapter.downloadedPath;
         // Null/empty path with the flag set is corrupt state (the only
         // setter always writes a real path): no file can exist, clear it.
-        if (path == null || path.isEmpty || !File(path).existsSync()) {
+        // Async exists(), not existsSync(): the sync variant blocks the
+        // isolate for the whole sweep, which is felt as a frozen UI when
+        // the library holds thousands of downloaded chapters.
+        if (path == null || path.isEmpty || !await File(path).exists()) {
           stale.add(chapter.id);
         }
       }

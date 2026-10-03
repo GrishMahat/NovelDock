@@ -29,6 +29,18 @@ import 'widgets/download_range_sheet.dart';
 
 enum ChapterFilter { all, downloaded, bookmarked, read, unread }
 
+/// Per-novel overflow actions. Chapter-level actions live in selection mode
+/// instead, so this list stays short.
+enum _NovelMenuAction { selectChapters, refresh, cloudflare }
+
+/// Long-press actions on a single chapter row.
+enum _ChapterRowAction {
+  selectFromHere,
+  markBeforeRead,
+  addBookmark,
+  removeBookmark,
+}
+
 extension ChapterFilterLabel on ChapterFilter {
   String get label => switch (this) {
     ChapterFilter.all => 'All',
@@ -74,6 +86,81 @@ class _NovelDetailScreenState extends ConsumerState<NovelDetailScreen> {
   /// itself and the shimmer condition: idle + empty means "about to load"
   /// only before this flips.
   bool _autoFetchAttempted = false;
+
+  /// Chapter ids picked in selection mode. Empty until the user taps rows,
+  /// so selection mode is armed separately by [_selectionArmed].
+  final Set<int> _selectedChapterIds = <int>{};
+
+  /// Selection mode is armed by the overflow menu (or a long press) and stays
+  /// armed with zero picks, so "Select chapters" has somewhere to go before
+  /// the first tap.
+  bool _selectionArmed = false;
+
+  bool get _selecting => _selectionArmed;
+
+  void _armSelection() => setState(() {
+    _selectionArmed = true;
+    // A snackbar from the last bulk action sits exactly where the selection
+    // bar goes and would swallow taps on it.
+    ScaffoldMessenger.maybeOf(context)?.hideCurrentSnackBar();
+  });
+
+  void _toggleSelection(int chapterId) {
+    setState(() {
+      if (!_selectedChapterIds.remove(chapterId)) {
+        _selectedChapterIds.add(chapterId);
+      }
+    });
+  }
+
+  void _clearSelection() => setState(() {
+    _selectedChapterIds.clear();
+    _selectionArmed = false;
+  });
+
+  /// Selects every chapter currently visible under the active filter, so
+  /// "select all" means what the user is looking at rather than the whole
+  /// novel hidden behind a filter.
+  void _selectAllVisible(List<Chapter> visible) {
+    setState(() {
+      if (_selectedChapterIds.length == visible.length) {
+        _selectedChapterIds.clear();
+        return;
+      }
+      _selectedChapterIds
+        ..clear()
+        ..addAll(visible.map((c) => c.id));
+    });
+  }
+
+  /// Chapters currently rendered under the active filter. Bulk actions need
+  /// this to resolve picked ids back to rows without re-querying.
+  List<Chapter> _lastVisibleChapters = const [];
+
+  /// Runs [action] over the selection, reports the outcome, then leaves
+  /// selection mode.
+  Future<void> _runOnSelection(
+    String verb,
+    Future<void> Function(Chapter chapter) action,
+    List<Chapter> allChapters,
+  ) async {
+    final ids = _selectedChapterIds.toList();
+    final targets = allChapters.where((c) => ids.contains(c.id)).toList();
+    if (targets.isEmpty) return;
+
+    for (final chapter in targets) {
+      await action(chapter);
+    }
+
+    if (!mounted) return;
+    final messenger = ScaffoldMessenger.of(context);
+    _clearSelection();
+    messenger
+      ..hideCurrentSnackBar()
+      ..showSnackBar(
+        SnackBar(content: Text('$verb ${targets.length} chapter(s)')),
+      );
+  }
 
   @override
   void initState() {
@@ -402,12 +489,17 @@ class _NovelDetailScreenState extends ConsumerState<NovelDetailScreen> {
     }
 
     return Scaffold(
-      appBar: isDesktop ? null : AppBar(actions: _buildActions(context)),
+      appBar: isDesktop
+          ? null
+          : AppBar(
+              title: _headerTitle == null ? null : Text(_headerTitle!),
+              actions: _buildActions(context),
+            ),
       body: isDesktop
           ? Column(
               children: [
                 PageHeader(
-                  title: novel?.title ?? 'Novel',
+                  title: _headerTitle ?? novel?.title ?? 'Novel',
                   leading: IconButton(
                     icon: const Icon(Icons.arrow_back),
                     tooltip: 'Back',
@@ -424,50 +516,297 @@ class _NovelDetailScreenState extends ConsumerState<NovelDetailScreen> {
     );
   }
 
+  /// Header actions. The list is deliberately identical in both states so the
+  /// overflow button's RenderBox is never disposed: the popup route reads its
+  /// anchor while animating out, and swapping the anchor mid-animation made it
+  /// lay out against a dead box (a 151px overflow on every screen size).
   List<Widget> _buildActions(BuildContext context) {
     return [
       IconButton(
         icon: const Icon(Icons.download),
-        onPressed: () => _showDownloadDialog(context, ref),
+        onPressed: _selecting ? null : () => _showDownloadDialog(context, ref),
         tooltip: 'Download',
       ),
-      PopupMenuButton<ChapterSort>(
-        icon: const Icon(Icons.sort),
-        initialValue: _chapterSort,
-        tooltip: 'Sort chapters',
-        onSelected: (value) => setState(() => _chapterSort = value),
+      PopupMenuButton<_NovelMenuAction>(
+        key: const ValueKey('novel-overflow'),
+        icon: const Icon(Icons.more_vert),
+        tooltip: 'More actions',
+        onSelected: (action) => _onNovelMenuAction(context, action),
         itemBuilder: (context) => [
-          for (final sort in ChapterSort.values)
-            PopupMenuItem(
-              value: sort,
-              child: Row(
-                children: [
-                  Icon(_chapterSort == sort ? Icons.check : null, size: 18),
-                  const SizedBox(width: 8),
-                  Text(sort.label),
-                ],
-              ),
-            ),
-        ],
-      ),
-      PopupMenuButton<String>(
-        onSelected: (value) {
-          if (value == 'cloudflare') _triggerCloudflareBypass();
-        },
-        itemBuilder: (context) => [
-          const PopupMenuItem(
-            value: 'cloudflare',
-            child: Row(
-              children: [
-                Icon(Icons.shield, size: 20),
-                SizedBox(width: 8),
-                Text('Verify Cloudflare challenge'),
-              ],
-            ),
+          _menuItem(
+            context,
+            _NovelMenuAction.selectChapters,
+            Icons.checklist,
+            'Select chapters',
+          ),
+          _menuItem(
+            context,
+            _NovelMenuAction.refresh,
+            Icons.refresh,
+            'Refresh details',
+          ),
+          const PopupMenuDivider(),
+          _menuItem(
+            context,
+            _NovelMenuAction.cloudflare,
+            Icons.shield_outlined,
+            'Verify Cloudflare challenge',
           ),
         ],
       ),
     ];
+  }
+
+  void _onNovelMenuAction(BuildContext context, _NovelMenuAction action) {
+    switch (action) {
+      case _NovelMenuAction.selectChapters:
+        _armSelection();
+      case _NovelMenuAction.refresh:
+        unawaited(_refreshNovel());
+      case _NovelMenuAction.cloudflare:
+        unawaited(_triggerCloudflareBypass());
+    }
+  }
+
+  /// Bottom selection bar. Lives at the bottom rather than in the app bar
+  /// because all six verbs need real estate the title row cannot spare, and
+  /// because on a phone that is where the thumb already is.
+  Widget _buildSelectionBar(BuildContext context) {
+    final scheme = Theme.of(context).colorScheme;
+    final allPicked =
+        _lastVisibleChapters.isNotEmpty &&
+        _selectedChapterIds.length == _lastVisibleChapters.length;
+    final count = _selectedChapterIds.length;
+
+    return Material(
+      color: scheme.surfaceContainerHigh,
+      child: SafeArea(
+        top: false,
+        child: Padding(
+          padding: const EdgeInsets.symmetric(
+            horizontal: Insets.sm,
+            vertical: Insets.xs,
+          ),
+          child: Row(
+            children: [
+              _BarAction(
+                icon: Icons.close,
+                label: 'Cancel',
+                onPressed: _clearSelection,
+              ),
+              _BarAction(
+                icon: allPicked ? Icons.deselect : Icons.done_all,
+                label: allPicked ? 'Select none' : 'Select all',
+                onPressed: allPicked
+                    ? () => setState(_selectedChapterIds.clear)
+                    : () => _selectAllVisible(_lastVisibleChapters),
+              ),
+              const Spacer(),
+              _BarAction(
+                icon: Icons.download_outlined,
+                label: 'Download',
+                enabled: count > 0,
+                onPressed: () => _bulkDownload(context),
+              ),
+              _BarAction(
+                icon: Icons.bookmark_add_outlined,
+                label: 'Bookmark',
+                enabled: count > 0,
+                onPressed: () => _bulkBookmark(context, true),
+              ),
+              _BarAction(
+                icon: Icons.bookmark_remove_outlined,
+                label: 'Unmark',
+                enabled: count > 0,
+                onPressed: () => _bulkBookmark(context, false),
+              ),
+              _BarAction(
+                icon: Icons.mark_email_read_outlined,
+                label: 'Mark read',
+                enabled: count > 0,
+                onPressed: () => _bulkRead(context, read: true),
+              ),
+              _BarAction(
+                icon: Icons.mark_email_unread_outlined,
+                label: 'Mark unread',
+                enabled: count > 0,
+                onPressed: () => _bulkRead(context, read: false),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
+  /// Header title: the pick count while selecting, otherwise the novel title.
+  String? get _headerTitle =>
+      _selecting ? '${_selectedChapterIds.length} selected' : null;
+
+  /// Marks every chapter *before* [chapter] as read.
+  ///
+  /// The cross-provider resume case: you finish a novel on one source, find a
+  /// source with the same novel carrying more chapters, and need everything up
+  /// to where you stopped greyed out without tapping 400 rows. Chapters are
+  /// matched on position within the currently visible, sorted list, so "before"
+  /// means what the user can see rather than the provider's raw chapter ids.
+  Future<void> _markBeforeAsRead(List<Chapter> visible, Chapter chapter) async {
+    final index = visible.indexWhere((c) => c.id == chapter.id);
+    if (index <= 0) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Nothing before this chapter')),
+        );
+      }
+      return;
+    }
+    final earlier = visible.sublist(0, index);
+    final chapterDao = ref.read(chapterDaoProvider);
+    var changed = 0;
+    for (final c in earlier) {
+      if (c.read) continue;
+      await chapterDao.markChapterAsRead(c.id);
+      changed++;
+    }
+    if (!mounted) return;
+    ScaffoldMessenger.of(context)
+      ..hideCurrentSnackBar()
+      ..showSnackBar(
+        SnackBar(
+          content: Text(
+            changed == 0
+                ? 'Earlier chapters were already read'
+                : 'Marked $changed earlier chapter(s) as read',
+          ),
+        ),
+      );
+  }
+
+  /// Long-press menu on a chapter row. Kept as a sheet rather than a nested
+  /// popup so the destructive-ish bulk verbs are unambiguous.
+  Future<void> _showChapterRowMenu(
+    BuildContext context,
+    Chapter chapter,
+    List<Chapter> visible,
+  ) async {
+    final action = await showModalBottomSheet<_ChapterRowAction>(
+      context: context,
+      builder: (ctx) => SafeArea(
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            Padding(
+              padding: const EdgeInsets.fromLTRB(
+                Insets.lg,
+                Insets.sm,
+                Insets.lg,
+                Insets.sm,
+              ),
+              child: Text(
+                chapter.name,
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+                style: Theme.of(ctx).textTheme.titleSmall,
+              ),
+            ),
+            ListTile(
+              leading: const Icon(Icons.playlist_add_check),
+              title: const Text('Select from here down'),
+              onTap: () => Navigator.pop(ctx, _ChapterRowAction.selectFromHere),
+            ),
+            ListTile(
+              leading: const Icon(Icons.done_all),
+              title: const Text('Mark earlier as read'),
+              subtitle: const Text('Everything before this chapter'),
+              onTap: () => Navigator.pop(ctx, _ChapterRowAction.markBeforeRead),
+            ),
+            ListTile(
+              leading: Icon(
+                chapter.bookmarked
+                    ? Icons.bookmark_remove_outlined
+                    : Icons.bookmark_add_outlined,
+              ),
+              title: Text(chapter.bookmarked ? 'Remove bookmark' : 'Bookmark'),
+              onTap: () => Navigator.pop(
+                ctx,
+                chapter.bookmarked
+                    ? _ChapterRowAction.removeBookmark
+                    : _ChapterRowAction.addBookmark,
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+    if (action == null || !mounted) return;
+
+    final chapterDao = ref.read(chapterDaoProvider);
+    switch (action) {
+      case _ChapterRowAction.selectFromHere:
+        setState(() {
+          _selectionArmed = true;
+          _selectedChapterIds
+            ..clear()
+            ..addAll(
+              visible.where((c) => c.index >= chapter.index).map((c) => c.id),
+            );
+        });
+      case _ChapterRowAction.markBeforeRead:
+        await _markBeforeAsRead(visible, chapter);
+      case _ChapterRowAction.addBookmark:
+        await chapterDao.toggleBookmark(chapter.id, true);
+      case _ChapterRowAction.removeBookmark:
+        await chapterDao.toggleBookmark(chapter.id, false);
+    }
+  }
+
+  Future<void> _bulkDownload(BuildContext context) async {
+    final notifier = ref.read(downloadProvider.notifier);
+    await _runOnSelection(
+      'Queued',
+      (c) => notifier.downloadChapter(widget.novelId, c.id),
+      _lastVisibleChapters,
+    );
+  }
+
+  Future<void> _bulkBookmark(BuildContext context, bool bookmarked) async {
+    final chapterDao = ref.read(chapterDaoProvider);
+    await _runOnSelection(
+      bookmarked ? 'Bookmarked' : 'Unbookmarked',
+      (c) => chapterDao.toggleBookmark(c.id, bookmarked),
+      _lastVisibleChapters,
+    );
+  }
+
+  Future<void> _bulkRead(BuildContext context, {required bool read}) async {
+    final chapterDao = ref.read(chapterDaoProvider);
+    await _runOnSelection(
+      read ? 'Marked read' : 'Marked unread',
+      (c) => read
+          ? chapterDao.markChapterAsRead(c.id)
+          : chapterDao.markChapterAsUnread(c.id),
+      _lastVisibleChapters,
+    );
+  }
+
+  Future<void> _editLibraryStatus(
+    BuildContext context,
+    LibraryDao libraryDao,
+  ) async {
+    final status = await showModalBottomSheet<String>(
+      context: context,
+      builder: (ctx) => StatusPickerSheet(
+        title: _libraryStatus != null ? 'Set status' : 'Add to library',
+        initialStatus: _libraryStatus,
+      ),
+    );
+    if (status == null) return;
+    if (status == 'None') {
+      await libraryDao.removeFromLibrary(widget.novelId);
+    } else {
+      await libraryDao.addToLibrary(widget.novelId, status: status);
+    }
   }
 
   Widget _buildBody(
@@ -509,6 +848,8 @@ class _NovelDetailScreenState extends ConsumerState<NovelDetailScreen> {
         final fetchPhase = ref
             .watch(novelFetchStateProvider(widget.novelId))
             .phase;
+        // Bulk actions resolve picked ids through this instead of re-querying.
+        _lastVisibleChapters = filteredChapters;
         final showChapterShimmer =
             isLoadingChapters ||
             (sortedChapters.isEmpty &&
@@ -525,9 +866,16 @@ class _NovelDetailScreenState extends ConsumerState<NovelDetailScreen> {
               child: MaxWidthBox(
                 padding: const EdgeInsets.symmetric(horizontal: Insets.lg),
                 child: ListView(
-                  padding: const EdgeInsets.symmetric(vertical: 8),
+                  // Room for the selection bar when it is present.
+                  padding: EdgeInsets.only(
+                    top: Insets.sm,
+                    bottom: _selecting ? 72 : 80,
+                  ),
                   children: [
-                    // Header: Cover + Info
+                    // Header: cover + title/author/status, with the two
+                    // per-novel actions (library, source page) moved up
+                    // beside the cover. The old three-up action row also
+                    // carried a dead "Soon" button whose onTap was a no-op.
                     Row(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
@@ -542,42 +890,45 @@ class _NovelDetailScreenState extends ConsumerState<NovelDetailScreen> {
                               child: CoverImage(
                                 imageUrl: novel?.coverUrl,
                                 title: novel?.title,
-                                width: 105,
-                                height: 145,
-                                fontSize: 40,
+                                width: 96,
+                                height: 132,
+                                fontSize: 36,
                               ),
                             ),
                           ),
                         ),
-                        const SizedBox(width: 16),
+                        const SizedBox(width: Insets.md),
                         Expanded(
                           child: Column(
                             crossAxisAlignment: CrossAxisAlignment.start,
                             children: [
-                              if (!isDesktop)
+                              if (!isDesktop) ...[
                                 Text(
                                   novel?.title ?? 'Loading...',
-                                  style: Theme.of(context).textTheme.titleLarge,
+                                  style: Theme.of(
+                                    context,
+                                  ).textTheme.titleMedium,
                                   maxLines: 2,
                                   overflow: TextOverflow.ellipsis,
                                 ),
-                              if (!isDesktop) const SizedBox(height: 6),
+                                const SizedBox(height: Insets.xs),
+                              ],
                               Row(
                                 children: [
                                   Icon(
                                     Icons.person_outline,
-                                    size: 16,
+                                    size: 14,
                                     color: Theme.of(
                                       context,
                                     ).colorScheme.onSurfaceVariant,
                                   ),
-                                  const SizedBox(width: 4),
+                                  const SizedBox(width: Insets.xs),
                                   Expanded(
                                     child: Text(
                                       novel?.author ?? 'Unknown author',
                                       style: Theme.of(context)
                                           .textTheme
-                                          .bodyMedium
+                                          .bodySmall
                                           ?.copyWith(
                                             color: Theme.of(
                                               context,
@@ -589,27 +940,55 @@ class _NovelDetailScreenState extends ConsumerState<NovelDetailScreen> {
                                   ),
                                 ],
                               ),
-                              const SizedBox(height: 4),
+                              const SizedBox(height: 2),
                               Row(
                                 children: [
                                   Icon(
                                     Icons.access_time,
-                                    size: 16,
+                                    size: 14,
                                     color: Theme.of(
                                       context,
                                     ).colorScheme.onSurfaceVariant,
                                   ),
-                                  const SizedBox(width: 4),
-                                  Text(
-                                    novel?.status ?? 'Ongoing',
-                                    style: Theme.of(context)
-                                        .textTheme
-                                        .bodyMedium
-                                        ?.copyWith(
-                                          color: Theme.of(
-                                            context,
-                                          ).colorScheme.onSurfaceVariant,
-                                        ),
+                                  const SizedBox(width: Insets.xs),
+                                  Flexible(
+                                    child: Text(
+                                      novel?.status ?? 'Ongoing',
+                                      style: Theme.of(context)
+                                          .textTheme
+                                          .bodySmall
+                                          ?.copyWith(
+                                            color: Theme.of(
+                                              context,
+                                            ).colorScheme.onSurfaceVariant,
+                                          ),
+                                      maxLines: 1,
+                                      overflow: TextOverflow.ellipsis,
+                                    ),
+                                  ),
+                                ],
+                              ),
+                              const SizedBox(height: Insets.sm),
+                              // Library membership + source page sit with the
+                              // metadata instead of claiming a full-width
+                              // action row of their own.
+                              Row(
+                                children: [
+                                  _HeaderAction(
+                                    icon: _libraryStatus != null
+                                        ? Icons.favorite
+                                        : Icons.favorite_border,
+                                    label: _libraryStatus ?? 'Library',
+                                    active: _libraryStatus != null,
+                                    onTap: () =>
+                                        _editLibraryStatus(context, libraryDao),
+                                  ),
+                                  const SizedBox(width: Insets.sm),
+                                  _HeaderAction(
+                                    icon: Icons.language,
+                                    label: 'Source',
+                                    active: false,
+                                    onTap: _openInAppBrowser,
                                   ),
                                 ],
                               ),
@@ -618,54 +997,7 @@ class _NovelDetailScreenState extends ConsumerState<NovelDetailScreen> {
                         ),
                       ],
                     ),
-                    const SizedBox(height: 20),
-
-                    // Action Icon Buttons (In Library, Track, WebView, etc.)
-                    Row(
-                      mainAxisAlignment: MainAxisAlignment.spaceAround,
-                      children: [
-                        _buildActionButton(
-                          icon: Icons.favorite,
-                          label: _libraryStatus ?? 'Add to library',
-                          isSelected: _libraryStatus != null,
-                          onTap: () async {
-                            final status = await showModalBottomSheet<String>(
-                              context: context,
-                              builder: (ctx) => StatusPickerSheet(
-                                title: _libraryStatus != null
-                                    ? 'Set status'
-                                    : 'Add to library',
-                                initialStatus: _libraryStatus,
-                              ),
-                            );
-                            if (status == null) return;
-                            if (status == 'None') {
-                              await libraryDao.removeFromLibrary(
-                                widget.novelId,
-                              );
-                            } else {
-                              await libraryDao.addToLibrary(
-                                widget.novelId,
-                                status: status,
-                              );
-                            }
-                          },
-                        ),
-                        _buildActionButton(
-                          icon: Icons.hourglass_empty,
-                          label: 'Soon',
-                          isSelected: false,
-                          onTap: () {},
-                        ),
-                        _buildActionButton(
-                          icon: Icons.language,
-                          label: 'WebView',
-                          isSelected: false,
-                          onTap: _openInAppBrowser,
-                        ),
-                      ],
-                    ),
-                    const SizedBox(height: 16),
+                    const SizedBox(height: Insets.md),
 
                     // Description
                     if (novel?.description != null &&
@@ -718,8 +1050,30 @@ class _NovelDetailScreenState extends ConsumerState<NovelDetailScreen> {
                               _chapterFilter == ChapterFilter.all
                                   ? '${sortedChapters.length} chapters'
                                   : '${filteredChapters.length} of ${sortedChapters.length} chapters',
-                              style: Theme.of(context).textTheme.titleMedium,
+                              style: Theme.of(context).textTheme.titleSmall,
                             ),
+                          ),
+                          // Sort belongs to the chapter list, not the novel,
+                          // so it sits in the list header rather than the
+                          // app bar.
+                          PopupMenuButton<ChapterSort>(
+                            icon: const Icon(Icons.sort, size: 20),
+                            tooltip: 'Sort chapters',
+                            initialValue: _chapterSort,
+                            onSelected: (value) =>
+                                setState(() => _chapterSort = value),
+                            itemBuilder: (context) => [
+                              for (final sort in ChapterSort.values)
+                                _menuItem(
+                                  context,
+                                  sort,
+                                  _chapterSort == sort
+                                      ? Icons.check
+                                      : Icons.sort,
+                                  sort.label,
+                                  checked: _chapterSort == sort,
+                                ),
+                            ],
                           ),
                           if (_chapterFilter != ChapterFilter.all)
                             TextButton(
@@ -732,11 +1086,13 @@ class _NovelDetailScreenState extends ConsumerState<NovelDetailScreen> {
                       ),
                       const SizedBox(height: Insets.sm),
                       Wrap(
-                        spacing: 8,
+                        spacing: Insets.sm,
+                        runSpacing: Insets.xs,
                         children: ChapterFilter.values.map((filter) {
                           return FilterChip(
                             label: Text(filter.label),
                             selected: _chapterFilter == filter,
+                            visualDensity: VisualDensity.compact,
                             onSelected: (_) =>
                                 setState(() => _chapterFilter = filter),
                           );
@@ -807,62 +1163,42 @@ class _NovelDetailScreenState extends ConsumerState<NovelDetailScreen> {
                       )
                     else
                       ...filteredChapters.map(
-                        (chapter) => ListTile(
-                          contentPadding: EdgeInsets.zero,
-                          title: Text(
-                            chapter.name,
-                            maxLines: 1,
-                            overflow: TextOverflow.ellipsis,
-                            style: TextStyle(
-                              fontSize: Theme.of(
+                        (chapter) => _buildChapterRow(
+                          key: ValueKey(chapter.id),
+                          name: chapter.name,
+                          read: chapter.read,
+                          downloaded: chapter.downloaded,
+                          selected:
+                              _selecting &&
+                              _selectedChapterIds.contains(chapter.id),
+                          selectionArmed: _selecting,
+                          onDownload: chapter.downloaded
+                              ? null
+                              : () => ref
+                                    .read(downloadProvider.notifier)
+                                    .downloadChapter(
+                                      widget.novelId,
+                                      chapter.id,
+                                    ),
+                          onTap: () {
+                            if (_selecting) {
+                              _toggleSelection(chapter.id);
+                              return;
+                            }
+                            context.push(
+                              '/reader/${widget.novelId}/${chapter.id}',
+                            );
+                          },
+                          onLongPress: () {
+                            if (_selecting) return;
+                            unawaited(
+                              _showChapterRowMenu(
                                 context,
-                              ).textTheme.bodyMedium?.fontSize,
-                              fontWeight: chapter.read
-                                  ? FontWeight.normal
-                                  : FontWeight.w600,
-                              color: chapter.read
-                                  ? Theme.of(
-                                      context,
-                                    ).colorScheme.onSurfaceVariant
-                                  : Theme.of(context).colorScheme.onSurface,
-                            ),
-                          ),
-                          subtitle: Text(
-                            'Available',
-                            style: TextStyle(
-                              fontSize: Theme.of(
-                                context,
-                              ).textTheme.labelSmall?.fontSize,
-                              color: Theme.of(
-                                context,
-                              ).colorScheme.onSurfaceVariant,
-                            ),
-                          ),
-                          trailing: IconButton(
-                            icon: Icon(
-                              chapter.downloaded
-                                  ? Icons.download_done
-                                  : Icons.arrow_circle_down_outlined,
-                              size: 20,
-                              color: Theme.of(
-                                context,
-                              ).colorScheme.onSurfaceVariant,
-                            ),
-                            tooltip: chapter.downloaded
-                                ? 'Downloaded'
-                                : 'Download chapter',
-                            onPressed: chapter.downloaded
-                                ? null
-                                : () => ref
-                                      .read(downloadProvider.notifier)
-                                      .downloadChapter(
-                                        widget.novelId,
-                                        chapter.id,
-                                      ),
-                          ),
-                          onTap: () => context.push(
-                            '/reader/${widget.novelId}/${chapter.id}',
-                          ),
+                                chapter,
+                                filteredChapters,
+                              ),
+                            );
+                          },
                         ),
                       ),
                     _HighlightsSection(novel: novel, chapters: sortedChapters),
@@ -872,59 +1208,258 @@ class _NovelDetailScreenState extends ConsumerState<NovelDetailScreen> {
               ),
             ),
 
-            // Floating Play / Resume Button
-            Positioned(
-              right: 16,
-              bottom: 16,
-              child: FloatingActionButton.extended(
-                onPressed: () => _playFromStart(ref),
-                backgroundColor: Theme.of(context).colorScheme.primaryContainer,
-                icon: const Icon(Icons.play_arrow),
-                label: const Text(
-                  'Resume',
-                  style: TextStyle(fontWeight: FontWeight.bold),
+            // Floating Play / Resume Button. Hidden while picking chapters:
+            // it would sit on top of the selection bar.
+            if (!_selecting)
+              Positioned(
+                right: Insets.lg,
+                bottom: Insets.lg,
+                child: FloatingActionButton.extended(
+                  onPressed: () => _playFromStart(ref),
+                  backgroundColor: Theme.of(
+                    context,
+                  ).colorScheme.primaryContainer,
+                  icon: const Icon(Icons.play_arrow),
+                  label: const Text(
+                    'Resume',
+                    style: TextStyle(fontWeight: FontWeight.bold),
+                  ),
                 ),
               ),
-            ),
+
+            // Selection actions at the bottom, thumb-reachable.
+            if (_selecting)
+              Positioned(
+                left: 0,
+                right: 0,
+                bottom: 0,
+                child: _buildSelectionBar(context),
+              ),
           ],
         );
       },
     );
   }
 
-  Widget _buildActionButton({
-    required IconData icon,
-    required String label,
-    required bool isSelected,
+  /// One chapter row. Reads as a dense scan list rather than a card: the
+  /// previous ListTile showed only ~9 chapters per phone screen, each row
+  /// spending 72dp on a 14px title.
+  Widget _buildChapterRow({
+    required Key key,
+    required String name,
+    required bool read,
+    required bool downloaded,
+    required bool selected,
+    required bool selectionArmed,
+    required VoidCallback? onDownload,
     required VoidCallback onTap,
+    required VoidCallback onLongPress,
   }) {
-    final color = isSelected
-        ? Theme.of(context).colorScheme.primary
-        : Theme.of(context).colorScheme.onSurfaceVariant;
-    return InkWell(
-      onTap: onTap,
-      borderRadius: BorderRadius.all(Radii.md),
-      child: Padding(
-        padding: const EdgeInsets.symmetric(
-          horizontal: Insets.md,
-          vertical: Insets.sm,
-        ),
-        child: Column(
-          children: [
-            Icon(icon, color: color, size: 24),
-            const SizedBox(height: Insets.xs),
-            Text(
-              label,
-              style: Theme.of(context).textTheme.labelMedium?.copyWith(
-                color: color,
-                fontWeight: isSelected ? FontWeight.w600 : FontWeight.w400,
+    final scheme = Theme.of(context).colorScheme;
+    final text = Theme.of(context).textTheme;
+    final compact = screenSizeOf(context).isCompact;
+    return Material(
+      color: selected
+          ? scheme.primaryContainer.withValues(alpha: 0.35)
+          : Colors.transparent,
+      child: InkWell(
+        key: key,
+        onTap: onTap,
+        onLongPress: onLongPress,
+        child: Padding(
+          padding: EdgeInsets.symmetric(
+            horizontal: Insets.md,
+            vertical: compact ? Insets.xs : Insets.sm,
+          ),
+          child: Row(
+            children: [
+              // Selection checkbox replaces the read rule while picking, so
+              // the two never compete for the same leading column.
+              if (selectionArmed)
+                Icon(
+                  selected ? Icons.check_box : Icons.check_box_outline_blank,
+                  size: 20,
+                  color: selected ? scheme.primary : scheme.outline,
+                )
+              else
+                // Read state as a leading rule: scannable down the list
+                // without spending a text column on the word "Available".
+                Container(
+                  width: 3,
+                  height: compact ? 20 : 24,
+                  decoration: BoxDecoration(
+                    color: read ? scheme.outlineVariant : scheme.primary,
+                    borderRadius: BorderRadius.circular(2),
+                  ),
+                ),
+              const SizedBox(width: Insets.md),
+              Expanded(
+                child: Text(
+                  name,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: text.bodyMedium?.copyWith(
+                    fontWeight: read ? FontWeight.w400 : FontWeight.w600,
+                    color: read ? scheme.onSurfaceVariant : scheme.onSurface,
+                  ),
+                ),
               ),
-            ),
-          ],
+              // The per-row download button has no meaning mid-selection;
+              // the bulk action covers it.
+              if (!selectionArmed) ...[
+                const SizedBox(width: Insets.sm),
+                IconButton(
+                  icon: Icon(
+                    downloaded
+                        ? Icons.download_done
+                        : Icons.arrow_circle_down_outlined,
+                    size: 20,
+                    color: scheme.onSurfaceVariant,
+                  ),
+                  tooltip: downloaded ? 'Downloaded' : 'Download chapter',
+                  visualDensity: VisualDensity.compact,
+                  onPressed: onDownload,
+                ),
+              ],
+            ],
+          ),
         ),
       ),
     );
   }
+}
+
+/// One labelled action in the bottom selection bar.
+class _BarAction extends StatelessWidget {
+  final IconData icon;
+  final String label;
+  final VoidCallback onPressed;
+  final bool enabled;
+
+  const _BarAction({
+    required this.icon,
+    required this.label,
+    required this.onPressed,
+    this.enabled = true,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final scheme = Theme.of(context).colorScheme;
+    final color = enabled ? scheme.onSurfaceVariant : scheme.outline;
+    return Tooltip(
+      message: label,
+      child: InkWell(
+        onTap: enabled ? onPressed : null,
+        borderRadius: BorderRadius.all(Radii.sm),
+        child: Padding(
+          padding: const EdgeInsets.symmetric(
+            horizontal: Insets.sm,
+            vertical: Insets.xs,
+          ),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Icon(icon, size: 20, color: color),
+              const SizedBox(height: 2),
+              Text(
+                label,
+                style: Theme.of(
+                  context,
+                ).textTheme.labelSmall?.copyWith(color: color, fontSize: 10),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+/// Small icon+label action for the novel header, sitting inline with the
+/// title/author block instead of claiming a full-width row.
+class _HeaderAction extends StatelessWidget {
+  final IconData icon;
+  final String label;
+  final bool active;
+  final VoidCallback onTap;
+
+  const _HeaderAction({
+    required this.icon,
+    required this.label,
+    required this.active,
+    required this.onTap,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final scheme = Theme.of(context).colorScheme;
+    final color = active ? scheme.primary : scheme.onSurfaceVariant;
+    return Tooltip(
+      message: label,
+      child: InkWell(
+        onTap: onTap,
+        borderRadius: BorderRadius.all(Radii.sm),
+        child: Container(
+          padding: const EdgeInsets.symmetric(
+            horizontal: Insets.sm,
+            vertical: Insets.xs,
+          ),
+          decoration: BoxDecoration(
+            color: active
+                ? scheme.primaryContainer.withValues(alpha: 0.4)
+                : scheme.surfaceContainerHighest.withValues(alpha: 0.5),
+            borderRadius: BorderRadius.all(Radii.sm),
+          ),
+          child: Row(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Icon(icon, size: 16, color: color),
+              const SizedBox(width: Insets.xs),
+              Text(
+                label,
+                style: Theme.of(context).textTheme.labelSmall?.copyWith(
+                  color: color,
+                  fontWeight: active ? FontWeight.w600 : FontWeight.w500,
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+/// Popup item with a leading icon.
+///
+/// The label sits in an [Expanded] so it ellipsizes instead of forcing the
+/// row wider than the popup route's clamped width. A plain `Row[Icon, Text]`
+/// has no flexible child, so it overflowed by ~150px on every screen size.
+PopupMenuItem<T> _menuItem<T>(
+  BuildContext context,
+  T value,
+  IconData icon,
+  String label, {
+  bool checked = false,
+}) {
+  final scheme = Theme.of(context).colorScheme;
+  return PopupMenuItem<T>(
+    value: value,
+    child: Row(
+      children: [
+        Icon(
+          icon,
+          size: 18,
+          color: checked ? scheme.primary : scheme.onSurfaceVariant,
+        ),
+        const SizedBox(width: Insets.sm),
+        Expanded(
+          child: Text(label, maxLines: 1, overflow: TextOverflow.ellipsis),
+        ),
+      ],
+    ),
+  );
 }
 
 /// Reader highlights for this novel, with Markdown export. Own widget so

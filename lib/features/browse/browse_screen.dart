@@ -272,6 +272,11 @@ class InstalledTab extends ConsumerWidget {
           );
         }
 
+        final tier = screenSizeOf(context);
+
+        // Scrollable: this grid is the whole tab body, so a bounded
+        // shrinkWrap column made sources below the fold unreachable on a
+        // phone while looking fine on a tall desktop window.
         return MaxWidthBox(
           padding: const EdgeInsets.fromLTRB(
             Insets.lg,
@@ -279,32 +284,30 @@ class InstalledTab extends ConsumerWidget {
             Insets.lg,
             Insets.xl,
           ),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              _sectionHeader(context, 'Installed (${enabledProviders.length})'),
-              const SizedBox(height: Insets.sm),
-              LayoutBuilder(
-                builder: (context, constraints) {
-                  final columns = constraints.maxWidth >= 900
-                      ? 3
-                      : constraints.maxWidth >= 560
-                      ? 2
-                      : 1;
-                  return GridView.builder(
-                    shrinkWrap: true,
-                    physics: const NeverScrollableScrollPhysics(),
-                    gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
-                      crossAxisCount: columns,
-                      crossAxisSpacing: Insets.md,
-                      mainAxisSpacing: Insets.md,
-                      mainAxisExtent: 76,
-                    ),
-                    itemCount: enabledProviders.length,
-                    itemBuilder: (context, index) =>
-                        _SourceCard(provider: enabledProviders[index]),
-                  );
-                },
+          child: CustomScrollView(
+            slivers: [
+              SliverToBoxAdapter(
+                child: _sectionHeader(
+                  context,
+                  'Installed (${enabledProviders.length})',
+                ),
+              ),
+              const SliverToBoxAdapter(child: SizedBox(height: Insets.sm)),
+              SliverPadding(
+                padding: const EdgeInsets.symmetric(horizontal: Insets.xs),
+                sliver: SliverGrid.builder(
+                  gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
+                    // Fixed per tier: extent-derived counts gave phones a
+                    // single 328dp-wide card per source per screen.
+                    crossAxisCount: Grids.sourceColumns(tier),
+                    crossAxisSpacing: Insets.sm,
+                    mainAxisSpacing: Insets.sm,
+                    mainAxisExtent: Grids.sourceExtent(tier),
+                  ),
+                  itemCount: enabledProviders.length,
+                  itemBuilder: (context, index) =>
+                      _SourceCard(provider: enabledProviders[index]),
+                ),
               ),
             ],
           ),
@@ -347,8 +350,8 @@ class _SourceCard extends StatelessWidget {
           ),
           child: Row(
             children: [
-              ProviderAvatar(provider: provider, radius: 20),
-              const SizedBox(width: Insets.md),
+              ProviderAvatar(provider: provider, radius: 18),
+              const SizedBox(width: Insets.sm),
               Expanded(
                 child: Column(
                   mainAxisAlignment: MainAxisAlignment.center,
@@ -358,22 +361,23 @@ class _SourceCard extends StatelessWidget {
                       provider.name,
                       maxLines: 1,
                       overflow: TextOverflow.ellipsis,
-                      style: Theme.of(context).textTheme.titleSmall,
+                      style: Theme.of(context).textTheme.labelLarge,
                     ),
-                    const SizedBox(height: 2),
                     Text(
                       provider.lang.toUpperCase(),
-                      style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: Theme.of(context).textTheme.labelSmall?.copyWith(
                         color: scheme.onSurfaceVariant,
                       ),
                     ),
                   ],
                 ),
               ),
-              IconButton(
-                icon: const Icon(Icons.push_pin, size: 18),
-                tooltip: 'Browse source',
-                onPressed: () => context.push('/provider/${provider.id}'),
+              Icon(
+                Icons.chevron_right,
+                size: 18,
+                color: scheme.onSurfaceVariant,
               ),
             ],
           ),
@@ -423,10 +427,17 @@ class CatalogTab extends ConsumerWidget {
           );
         }
 
-        final installed = visible.where((p) => enabled.contains(p.id)).toList();
+        // Only not-yet-installed sources. They used to be duplicated here and
+        // in the Installed tab, so the same source appeared twice with two
+        // different toggle affordances and no reason for the user to know
+        // which list was authoritative. Installed has its own tab.
         final available = visible
             .where((p) => !enabled.contains(p.id))
             .toList();
+
+        if (available.isEmpty) {
+          return _CatalogAllInstalled(count: visible.length);
+        }
 
         // Group available by language
         final grouped = <String, List<ProviderMeta>>{};
@@ -459,19 +470,6 @@ class CatalogTab extends ConsumerWidget {
                     label: Text(updating ? 'Updating...' : 'Update all'),
                   ),
                 ),
-              if (installed.isNotEmpty) ...[
-                _sectionHeader(context, 'Installed'),
-                ...installed.map(
-                  (p) => Padding(
-                    padding: const EdgeInsets.only(bottom: Insets.sm),
-                    child: _ExtensionTile(
-                      provider: p,
-                      isInstalled: true,
-                      onToggle: () => toggleProvider(p.id, ref.container),
-                    ),
-                  ),
-                ),
-              ],
               for (final entry in grouped.entries) ...[
                 _sectionHeader(context, entry.key),
                 ...entry.value.map(
@@ -505,6 +503,49 @@ class CatalogTab extends ConsumerWidget {
   }
 }
 
+/// Catalog with nothing left to install. Points at the tab that owns
+/// installed sources instead of leaving a blank list.
+class _CatalogAllInstalled extends StatelessWidget {
+  final int count;
+  const _CatalogAllInstalled({required this.count});
+
+  @override
+  Widget build(BuildContext context) {
+    final scheme = Theme.of(context).colorScheme;
+    return Center(
+      child: Padding(
+        padding: const EdgeInsets.all(Insets.xl),
+        child: Column(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            Icon(
+              Icons.check_circle_outline,
+              size: 56,
+              color: scheme.onSurfaceVariant.withValues(alpha: 0.5),
+            ),
+            const SizedBox(height: Insets.md),
+            Text(
+              count == 0
+                  ? 'No sources found'
+                  : 'All $count source(s) installed',
+              style: Theme.of(context).textTheme.titleMedium,
+              textAlign: TextAlign.center,
+            ),
+            const SizedBox(height: Insets.xs),
+            Text(
+              'Manage the ones you added in the Installed tab.',
+              style: Theme.of(
+                context,
+              ).textTheme.bodySmall?.copyWith(color: scheme.onSurfaceVariant),
+              textAlign: TextAlign.center,
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
 class _ExtensionTile extends StatelessWidget {
   final ProviderMeta provider;
   final bool isInstalled;
@@ -520,62 +561,50 @@ class _ExtensionTile extends StatelessWidget {
   Widget build(BuildContext context) {
     final scheme = Theme.of(context).colorScheme;
     return Material(
-      color: scheme.surfaceContainerLow,
+      color: isInstalled
+          ? scheme.primaryContainer.withValues(alpha: 0.18)
+          : scheme.surfaceContainerLow,
       shape: RoundedRectangleBorder(
         borderRadius: Radii.card,
-        side: BorderSide(color: scheme.outlineVariant),
+        side: BorderSide(
+          color: isInstalled ? scheme.primary : scheme.outlineVariant,
+        ),
       ),
       clipBehavior: Clip.antiAlias,
+      // One row, one primary action: tapping the row installs or uninstalls,
+      // which is what the switch implied and what people actually come here
+      // to do. Details moved behind an explicit labelled button, because
+      // "tap row opens a sheet, tap switch installs" made the switch feel
+      // like the only real control and the row feel broken.
       child: ListTile(
-        leading: ProviderAvatar(provider: provider),
-        title: Text(provider.name),
-        subtitle: Row(
-          children: [
-            Text(
-              '${provider.lang.toUpperCase()} · v${provider.version}',
-              style: Theme.of(context).textTheme.bodySmall,
-            ),
-            if (provider.nsfw) ...[
-              const SizedBox(width: Insets.xs),
-              Container(
-                padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 1),
-                decoration: BoxDecoration(
-                  color: Theme.of(
-                    context,
-                  ).colorScheme.error.withValues(alpha: 0.2),
-                  borderRadius: BorderRadius.circular(3),
-                ),
-                child: Text(
-                  '18+',
-                  style: Theme.of(context).textTheme.labelSmall?.copyWith(
-                    color: Theme.of(context).colorScheme.error,
-                    letterSpacing: 0,
-                  ),
-                ),
-              ),
-            ],
-          ],
+        dense: true,
+        visualDensity: VisualDensity.compact,
+        leading: ProviderAvatar(provider: provider, radius: 18),
+        title: Text(
+          provider.name,
+          maxLines: 1,
+          overflow: TextOverflow.ellipsis,
+          style: Theme.of(context).textTheme.bodyMedium,
         ),
-        trailing: Row(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            IconButton(
-              icon: Icon(
-                Icons.info_outline,
-                size: 20,
-                color: isInstalled
-                    ? null
-                    : Theme.of(context).colorScheme.onSurfaceVariant,
-              ),
-              tooltip: 'Info',
-              onPressed: () =>
-                  _showProviderInfo(context, provider, isInstalled, onToggle),
-            ),
-            Switch(value: isInstalled, onChanged: (_) => onToggle()),
-          ],
+        subtitle: Text(
+          '${provider.lang.toUpperCase()} · v${provider.version}'
+          '${provider.nsfw ? ' · 18+' : ''}',
+          maxLines: 1,
+          overflow: TextOverflow.ellipsis,
+          style: Theme.of(context).textTheme.labelSmall,
         ),
-        onTap: () =>
-            _showProviderInfo(context, provider, isInstalled, onToggle),
+        trailing: IconButton(
+          icon: Icon(
+            isInstalled ? Icons.check_circle : Icons.info_outline,
+            size: 20,
+            color: isInstalled ? scheme.primary : scheme.onSurfaceVariant,
+          ),
+          tooltip: isInstalled ? 'Installed — tap row to remove' : 'Details',
+          onPressed: () => isInstalled
+              ? onToggle()
+              : _showProviderInfo(context, provider, isInstalled, onToggle),
+        ),
+        onTap: onToggle,
       ),
     );
   }

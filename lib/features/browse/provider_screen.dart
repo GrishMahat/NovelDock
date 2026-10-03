@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:dio/dio.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -5,6 +7,7 @@ import 'package:go_router/go_router.dart';
 import 'package:infinite_scroll_pagination/infinite_scroll_pagination.dart';
 
 import '../../core/providers/engine.dart';
+import '../../core/providers/browse_cache.dart';
 import '../../core/providers/filters.dart';
 import '../../core/network/client.dart';
 import '../../core/network/errors.dart';
@@ -36,7 +39,11 @@ class _ProviderScreenState extends ConsumerState<ProviderScreen>
     with SingleTickerProviderStateMixin {
   late final PagingController<int, SearchResultItem> _pagingController;
   late final TabController _tabController;
-  bool _isGridView = true;
+
+  /// Phones default to the list: a 2-up grid of ~180dp cards shows half the
+  /// sources per screen and truncates every title. Desktop keeps the grid,
+  /// where the width to spend on it exists.
+  bool _isGridView = !isDesktop;
   bool _isSearching = false;
   ProviderInstance? _instance;
   bool _hasReachedEnd = false;
@@ -99,13 +106,85 @@ class _ProviderScreenState extends ConsumerState<ProviderScreen>
     return _instance;
   }
 
+  /// Everything the cache key depends on, captured at fetch time. A record so
+  /// a background revalidate cannot write its results under a mode or filter
+  /// the user has since changed.
+  ({String mode, String query, FilterValues filters}) get _cacheScope => (
+    mode: _mode.name,
+    query: _mode == _ListMode.search ? _query : '',
+    filters: _filters,
+  );
+
   Future<List<SearchResultItem>> _fetchPage(int pageKey) async {
+    final scope = _cacheScope;
     Log.i(
       _tag,
       'Fetching page $pageKey for provider: ${widget.providerId} '
-      '(mode: $_mode, query: "$_query")',
+      '(mode: ${scope.mode}, query: "${scope.query}")',
     );
 
+    // Fresh entries answer with no network round trip at all. A stale entry is
+    // still served immediately, then refreshed behind the content so the list
+    // self-heals without the user waiting on it.
+    final cached = await ref
+        .read(BrowseResultCache.provider)
+        .read(
+          providerId: widget.providerId,
+          mode: scope.mode,
+          query: scope.query,
+          filters: scope.filters,
+          page: pageKey,
+        );
+    if (cached != null) {
+      Log.ok(
+        _tag,
+        'Cache hit for page $pageKey (${cached.items.length} items, '
+        '${cached.stale ? 'stale' : 'fresh'})',
+      );
+      if (cached.stale) unawaited(_refreshPageInBackground(pageKey, scope));
+      if (cached.items.isEmpty) _hasReachedEnd = true;
+      return cached.items;
+    }
+
+    final items = await _fetchPageFromNetwork(pageKey);
+    await ref
+        .read(BrowseResultCache.provider)
+        .write(
+          providerId: widget.providerId,
+          mode: scope.mode,
+          query: scope.query,
+          filters: scope.filters,
+          page: pageKey,
+          items: items,
+        );
+    return items;
+  }
+
+  /// Revalidates one page after a stale hit and rewrites its cache entry.
+  /// Swallows failures: the list already has content on screen, and a failed
+  /// background fetch must not surface as an error state over good data.
+  Future<void> _refreshPageInBackground(
+    int pageKey,
+    ({String mode, String query, FilterValues filters}) scope,
+  ) async {
+    try {
+      final items = await _fetchPageFromNetwork(pageKey);
+      await ref
+          .read(BrowseResultCache.provider)
+          .write(
+            providerId: widget.providerId,
+            mode: scope.mode,
+            query: scope.query,
+            filters: scope.filters,
+            page: pageKey,
+            items: items,
+          );
+    } catch (e) {
+      Log.w(_tag, 'Background refresh of page $pageKey failed: $e');
+    }
+  }
+
+  Future<List<SearchResultItem>> _fetchPageFromNetwork(int pageKey) async {
     // Fail fast offline: without this the 15s connect timeout plus retries
     // burn minutes behind a spinner that never explains itself.
     if (await isOffline()) {
@@ -299,6 +378,10 @@ class _ProviderScreenState extends ConsumerState<ProviderScreen>
             .firstOrNull
             ?.name ??
         widget.providerId;
+    // Recomputed each build so a resize or rotation re-flows.
+    final tier = screenSizeOf(context);
+    final gridColumns = Grids.browseColumns(tier);
+    final gridExtent = Grids.browseExtent(tier);
 
     return Scaffold(
       appBar: isDesktop
@@ -452,13 +535,18 @@ class _ProviderScreenState extends ConsumerState<ProviderScreen>
                             state: state,
                             fetchNextPage: fetchNextPage,
                             gridDelegate:
-                                const SliverGridDelegateWithMaxCrossAxisExtent(
-                                  maxCrossAxisExtent: 170,
-                                  childAspectRatio: 0.68,
-                                  crossAxisSpacing: 8,
-                                  mainAxisSpacing: 8,
+                                SliverGridDelegateWithFixedCrossAxisCount(
+                                  // Fixed per tier. maxCrossAxisExtent: 170
+                                  // resolved to 3 columns of 120dp at 393dp
+                                  // and 2 of 168dp at 360dp, so a 33dp width
+                                  // change flipped the layout and covers
+                                  // rendered nearly square.
+                                  crossAxisCount: gridColumns,
+                                  crossAxisSpacing: Insets.sm,
+                                  mainAxisSpacing: Insets.sm,
+                                  mainAxisExtent: gridExtent,
                                 ),
-                            padding: const EdgeInsets.all(8),
+                            padding: const EdgeInsets.all(Insets.sm),
                             builderDelegate:
                                 PagedChildBuilderDelegate<SearchResultItem>(
                                   itemBuilder: (context, item, index) =>

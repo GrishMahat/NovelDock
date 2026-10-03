@@ -41,7 +41,7 @@ Widget buildChapterContent({
           textAlign: TextAlign.center,
           style: TextStyle(
             color: settings.textColor.withValues(alpha: 0.65),
-            fontSize: settings.fontSize,
+            fontSize: settings.effectiveFontSize,
           ),
         ),
       ),
@@ -146,8 +146,8 @@ Widget buildContinuousContent({
     // find their target chunks quickly on long chapters.
     scrollCacheExtent: ScrollCacheExtent.pixels(4000),
     padding: EdgeInsets.symmetric(
-      horizontal: settings.paddingH,
-      vertical: settings.paddingV,
+      horizontal: settings.effectivePaddingH,
+      vertical: settings.effectivePaddingV,
     ),
     itemCount: chapters.length,
     itemBuilder: (context, index) {
@@ -188,36 +188,44 @@ Widget buildContinuousContent({
             (chapters.isNotEmpty && currentIndex < chapters.length)
             ? chapters[currentIndex].id
             : -1;
+        // Chapter break chrome scaled to the form factor: the old 64dp gap
+        // plus a 48dp divider block cost ~112dp per chapter turn, which on a
+        // phone was a third of the viewport for a title.
+        final compact = settings.isCompactProfile;
+        final breakGap = compact ? 24.0 : 64.0;
+        final breakPad = compact ? 12.0 : 24.0;
+        final breakSub = compact ? 12.0 : 24.0;
         return Column(
           children: [
-            const SizedBox(height: 64),
+            SizedBox(height: breakGap),
             Container(
               width: double.infinity,
-              padding: const EdgeInsets.symmetric(vertical: 24),
+              padding: EdgeInsets.symmetric(vertical: breakPad),
               child: Column(
                 children: [
                   Container(
                     height: 1,
                     color: settings.textColor.withValues(alpha: 0.2),
                   ),
-                  const SizedBox(height: 24),
+                  SizedBox(height: breakSub),
                   Text(
                     'Chapter ${index + 1}',
-                    style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                    style: Theme.of(context).textTheme.labelSmall?.copyWith(
                       color: settings.textColor.withValues(alpha: 0.65),
+                      letterSpacing: 0.6,
                     ),
                   ),
-                  const SizedBox(height: 8),
+                  SizedBox(height: breakSub / 3),
                   Text(
                     chapters[index].name,
                     textAlign: TextAlign.center,
                     style: TextStyle(
                       color: settings.textColor,
-                      fontSize: settings.fontSize + 2,
+                      fontSize: settings.effectiveFontSize + 2,
                       fontWeight: FontWeight.w600,
                     ),
                   ),
-                  const SizedBox(height: 24),
+                  SizedBox(height: breakSub),
                   Container(
                     height: 1,
                     color: settings.textColor.withValues(alpha: 0.2),
@@ -225,7 +233,7 @@ Widget buildContinuousContent({
                 ],
               ),
             ),
-            const SizedBox(height: 48),
+            SizedBox(height: compact ? 16.0 : 48.0),
             buildChapterContent(
               content: contentEntry!,
               currentChapterId: currentChapterId,

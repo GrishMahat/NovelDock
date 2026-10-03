@@ -60,7 +60,7 @@ final class ReadingProgressNotifierProvider
 }
 
 String _$readingProgressNotifierHash() =>
-    r'8cc3cf7ad330e6c83778fb93b6c8075d72c2bbfc';
+    r'54f8fa272438030ad33e42fe4a5f269ca35407ad';
 
 final class ReadingProgressNotifierFamily extends $Family
     with

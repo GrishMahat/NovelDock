@@ -125,6 +125,35 @@ class ProviderCache extends Table {
   IntColumn get lastUpdated => integer()();
 }
 
+// ─── browse_cache ─────────────────────────────────────────
+// Cached browse/search result pages. Every visit to a source used to be a cold
+// network fetch plus HTML parse, which is what made "Popular" feel slow on a
+// phone. Keyed by provider + mode + query + filters + page so a filter change
+// can never read another filter's results.
+@TableIndex(name: 'browse_cache_provider', columns: {#providerId})
+@TableIndex(name: 'browse_cache_fetched', columns: {#fetchedAt})
+class BrowseCache extends Table {
+  /// `providerId|mode|query|filterHash|page` (primary key)
+  TextColumn get cacheKey => text()();
+
+  TextColumn get providerId => text()();
+  TextColumn get mode => text()(); // popular | latest | search
+  TextColumn get query => text().withDefault(const Constant(''))();
+  IntColumn get page => integer().withDefault(const Constant(1))();
+
+  /// JSON-encoded `List<SearchResultItem>`.
+  TextColumn get payload => text()();
+  IntColumn get itemCount => integer().withDefault(const Constant(0))();
+  IntColumn get fetchedAt => integer()();
+
+  /// Epoch ms after which the entry is stale. Still served, but a refresh is
+  /// triggered in the background so the list self-heals without blocking.
+  IntColumn get staleAfter => integer()();
+
+  @override
+  Set<Column> get primaryKey => {cacheKey};
+}
+
 // ─── annotations (reader highlights + notes) ───────────────
 // Keyed by chapter row id for rendering, with chapterUrl + paragraphIndex
 // + quote so rows stay meaningful across chapter-list refreshes and can be

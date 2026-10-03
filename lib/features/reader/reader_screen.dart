@@ -1335,12 +1335,12 @@ class _ReaderLoadingSkeleton extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final s = settings;
-    final lineHeight = s.fontSize * 0.72;
+    final lineHeight = s.effectiveFontSize * 0.72;
     final prose = ListView.builder(
       physics: const NeverScrollableScrollPhysics(),
       padding: EdgeInsets.symmetric(
-        horizontal: s.paddingH,
-        vertical: s.paddingV,
+        horizontal: s.effectivePaddingH,
+        vertical: s.effectivePaddingV,
       ),
       itemCount: 14,
       itemBuilder: (_, paragraph) => Padding(

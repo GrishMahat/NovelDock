@@ -6,6 +6,7 @@ import 'package:path/path.dart' as p;
 import 'package:riverpod_annotation/riverpod_annotation.dart';
 
 import '../config/app_config.dart';
+import 'browse_cache.dart';
 import 'database_providers.dart';
 import 'engine.dart';
 import 'models.dart';
@@ -504,6 +505,9 @@ Future<int> updateAllRegistries(ProviderContainer ref) async {
     // Drop loaded JS instances so the updated provider code takes effect
     // without an app restart.
     ref.invalidate(providerInstanceProvider);
+    // Updated provider code can change what a result page looks like, so the
+    // cached browse/search pages for those sources are no longer trustworthy.
+    await ref.read(BrowseResultCache.provider).clear();
     Log.ok(_tag, 'Updated $updatedCount registry(ies)');
   } else {
     Log.i(_tag, 'No registry updates available');
@@ -520,6 +524,8 @@ Future<void> removeRegistry(String registryId, ProviderContainer ref) async {
   // remains would leave a "ghost" provider that still resolves via
   // loadCachedProviderJs.
   final cacheDir = registryManager.registryDir(registryId);
+  // Cached browse pages belong to sources this registry owns; they go with it.
+  await ref.read(BrowseResultCache.provider).clear();
   if (cacheDir.existsSync()) {
     try {
       cacheDir.deleteSync(recursive: true);

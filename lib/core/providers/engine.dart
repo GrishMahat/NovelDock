@@ -529,6 +529,20 @@ class SearchResultItem {
       ),
     );
   }
+
+  /// Inverse of [fromJson], minus the HTML decoding (a decoded string is
+  /// stored as-is; decoding an already-decoded string is a no-op). Used by the
+  /// browse result cache.
+  Map<String, dynamic> toJson() => {
+    'title': title,
+    'url': url,
+    if (cover != null) 'cover': cover,
+    if (author != null) 'author': author,
+    if (summary != null) 'summary': summary,
+    if (rating != null) 'rating': rating,
+    if (latestChapter != null) 'latestChapter': latestChapter,
+    if (coverHeaders != null) 'coverHeaders': coverHeaders,
+  };
 }
 
 class NovelInfo {
