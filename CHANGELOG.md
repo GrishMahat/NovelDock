@@ -5,55 +5,59 @@ The format follows [Keep a Changelog](https://keepachangelog.com); versions aim 
 
 ## Unreleased
 
+### Developer note
+
+I built this because Linux still lacks a good novel reader. It is decent enough that I use it constantly on desktop. Mobile is different: there are already many good readers, and mine is not one of them yet. I still use it every day, but I often have to fight the app instead of simply reading. **0.2.x is about closing that gap.**
+
+**0.1.x-beta ends here.** 0.2.x adds no new features. It is focused entirely on fixing and improving what already exists. they come after 0.3.x.
+
+Three things 0.2.x is about:
+
+* **Fixing what is broken.** A feature that does not work is worse than one that does not exist.
+* **Improving UI/UX.** Making the app smoother, clearer, and easier to use.
+* **Removing and simplifying.** Cutting things that do not earn their place and rewriting overly heavy parts for stability and simplicity. That includes the 300+ tests: many were AI-generated, and some test things that do not need testing. Fewer tests is not a loss if the remaining ones are better.
+
+This does not promise that 0.2.x will be perfect or fast. It means this is where the work is going.
+
+If something in 0.1.x is broken, awkward, or frustrating to use, report it. **That is exactly what 0.2.x is for.**
+
 ### Added
 
-- **Dev builds never touch release data.** Debug installs use `applicationIdSuffix = ".debug"` (plus a "NovelDock Dev" label and a slashed launcher icon), so a Play-installed release and a local dev build coexist on one device with separate sandboxes. Without this, every dev install would collide on the signing key and force an uninstall that wipes the library — the reason it was tempting not to dogfood on mobile
-- First launch now offers "Add default providers": a one-tap prompt to pull in the official source set, shown once and only when the app has no registries yet. Nothing is added without a tap, since adding a registry downloads and runs its provider JS
-- Every empty provider state — Browse Catalog, Browse Installed (with no registries), and Settings → Registries — has an "Add default providers" button. It disappears on its own once the official registry is present, so it is never offered to someone who already added it by hand, whatever URL spelling they used
-- Browse and in-source search results are cached. Opening a source's Popular or Latest tab used to be a cold network fetch plus HTML parse every single time; a repeat visit inside 30 minutes now renders from cache with no network round trip at all, and a stale entry still renders immediately while it refreshes behind the content. Cached pages are dropped when a source is updated or removed, since new provider code can change what a result page contains
-- Settings → General → Storage: browse cache size and entry count, with a "Clear browse cache" action
-- Chapter list: long-press a chapter for a row menu with "Mark earlier as read" and "Select from here down". Marks everything before the chapter you picked as read in one tap, for when you move a novel to another source that carries more chapters
-- Downloads screen: completed downloads can now be removed one at a time, with a confirmation. Previously a finished download could only be cleared by wiping every completed entry at once
-- Downloads screen: "Clear completed" deletes the saved files, not just the queue rows
+- Dev builds use a `.debug` application-id suffix, a "NovelDock Dev" label and a slashed launcher icon, so a Play release and a local build coexist on one device instead of colliding on the signing key and forcing an uninstall that wipes the library
+- "Add default providers" is offered on first launch when no registries exist, and in every empty provider state (Browse Catalog, Browse Installed, Settings → Registries). It hides itself once the official registry is present, whatever URL spelling was used to add it. Nothing is added without a tap, since it downloads and runs provider JS
+- Browse and in-source search results are cached: fresh for 30 minutes with no network round trip on a repeat visit, while a stale entry renders immediately and refreshes behind the content. Entries are dropped when a source is updated or removed, since new provider code can change what a page contains
+- Settings → General → Storage reports browse cache size and entry count, with "Clear browse cache"
+- Chapter long-press menu: "Mark earlier as read", "Select from here down", and "Download chapter" (greyed out once the chapter is on disk)
+- Downloads: a completed download can be removed one at a time with a confirmation, and "Clear completed" now deletes the saved files rather than only the queue rows
 
 ### Changed
 
-- Novel detail: chapter filter and sort moved into the app bar, beside Download and the overflow menu, so the list header carries only the count. Both are icon buttons now, and neither uses a filter glyph any more — the sort icon shows its direction (down for "Latest first", up otherwise) and the status filter uses a criteria icon with a corner dot while a filter is active, so an active filter is never hidden inside a menu
-- Novel detail: Library and Web View are labelled pills beside the cover. They were icon-only circles, which made a filled heart read as a decorative status badge — nothing about a lone glyph says whether tapping it adds the book or opens it. The pill now names the action ("Add to library", or your current reading status once you're in) and keeps the full phrasing plus the status in its tooltip. They wrap onto a second line rather than overflowing a 360dp phone
-- Novel detail: chapter rows are a flat list separated by hairlines, with read chapters dimmed by weight and colour. They were each their own bordered card, and at 109 chapters that stacks 109 rectangles with gaps between them — a wall of boxes where every row looked like a separate object the eye had to re-enter, and a border on every row spends far more ink than the thin separator it replaces. Roughly 14 chapters now fit on a phone screen instead of 9
-- Novel detail: the per-chapter download button is gone from each row, which meant a hundred near-identical glyphs down the right edge, almost all of them saying "not downloaded". Download one chapter from its long-press menu (greyed out once it is on disk) or several at once via selection, exactly as before. Downloaded chapters still show a quiet tick, now as state rather than as a button
-- Dependencies updated to their latest releases, including across major versions: `go_router` 17 → 18, `flex_color_scheme` 8 → 9, `shimmer` 3 → 4, `cached_network_image` 3 → 4, `file_picker` 12 → 13, `tray_manager` 0.5 → 0.7. App behaviour and appearance are unchanged; this is to pick up upstream fixes and stay on supported versions. The three forked git dependencies (`flutter_js`, `flutter_edge_tts`, `just_audio_media_kit`) stay pinned at their exact refs
-- Linux TTS tray updated for the `tray_manager` 0.7 API. Same behaviour: the icon appears when playback starts, Pause/Resume tracks playback state, and it disappears when playback stops
-- Novel detail: the dead "Soon" button is gone; library membership and the source page moved up beside the cover as inline actions
-- Novel detail: chapter rows support selection. Long-press opens the row menu, or use "Select chapters" from the overflow. Bulk download, bookmark, mark read and mark unread apply to the picked chapters from a bottom action bar's three-dots menu, which keeps that bar to Cancel plus the menu instead of six verbs crammed into one row
-- Novel detail: chapter sort moved into the chapter list header, where it belongs, instead of a second app bar icon
-- Novel detail: the chapter status filter is now its own labelled button in the chapter list header, opening a popup of checkboxes. It is multi-select — tick Downloaded and Read to see either — and shows its ticked count on the button, so an active filter is never hidden. Previously it was a row of five mutually exclusive chips under the count, which took a whole row and could only ever hold one state at a time
-- The Catalog is now the one place sources are installed *and* uninstalled. Every source stays in the list with a labelled button that says which verb it does — "Install" or "Uninstall". Installed sources used to be filtered out of this list entirely, so tapping a row installed it and the row vanished, and the reverse verb existed nowhere in the app; before that, the same source appeared in both tabs with two different toggle affordances and no way to tell which list was authoritative. Uninstall confirms first, then offers Undo, and is honest about its scope: the source leaves Browse and Search, while library books, their downloads and your history keep working, because those resolve the provider by id from the registry cache. Browse → Installed is a pure browse surface again, with no per-card overflow menu hiding a destructive verb one tap deeper than the tap that installed the source. A not-installed row still installs on a tap, since that list exists to be tapped, and an installed row opens its details; the destructive direction always takes the labelled button, never a stray tap in a list of 27
-- Mobile layout now adapts on its own terms instead of inheriting desktop metrics. Layout decisions moved from the `isDesktop` boolean to real width tiers (`compact` / `medium` / `expanded`), so a narrow desktop window and a large phone resolve to the same sensible layout
-- Browse and search results: grid column counts are fixed per width tier and cards use a fixed height. Previously the count flipped between 2 and 3 columns across a 33dp width range, which put 120dp-wide cards with cropped covers on most phones
-- Library grid: 3 covers per row on phones, shared column count with Browse so the two screens no longer disagree on the same device
-- Browse catalog rows are ~35% shorter (72dp to 48dp) and show more sources per screen
-- Chapter list rows are denser: read chapters are dimmed rather than carrying a label, and roughly 14 rows fit on a phone screen instead of 9
-- Settings rows are denser with a single-line summary
-- Browse opens in list view on phones and grid view on desktop (still toggleable)
-- Reader settings are now per form factor: phones default to 16px text, 1.5 line height and 16dp margins, desktop keeps 17px / 1.6 / 24dp. Reader font and margin sliders are capped to ranges that keep the text measure readable on a phone, so desktop tuning no longer carries over
-- Reader chapter breaks take less vertical space on phones
-- UI text now uses lining figures. Literata defaulted to old-style figures, which put "Chapter 1" and "Chapter 2" at different heights and made chapter numbers read as borrowed glyphs
+- Novel detail: the chapter status filters moved out of the list header and behind one "Filter chapters" entry in the overflow menu, which opens them as checkboxes. They stay multi-select and OR-combined, the entry carries the active count, and Cancel now genuinely discards. Sort is back in the app bar beside Download
+- Novel detail: Library, Soon and WebView are back in their own centred row of action buttons under the cover, replacing the inline pills the redesign had moved beside it
+- Novel detail: chapter rows support selection via long-press or "Select chapters" from the overflow, with bulk download, bookmark, unmark and mark read/unread from the bottom bar
+- Novel detail: denser chapter rows — read state is a leading rule rather than a word, the per-row download button stays. Roughly 14 rows fit a phone screen instead of 9
+- Dependencies bumped across majors: `go_router` 17→18, `flex_color_scheme` 8→9, `shimmer` 3→4, `cached_network_image` 3→4, `file_picker` 12→13, `tray_manager` 0.5→0.7. No behaviour or appearance change; the three forked git dependencies stay pinned
+- Linux TTS tray ported to the `tray_manager` 0.7 API (same behaviour: icon appears on playback, Pause/Resume tracks state, icon leaves on stop)
+- The Catalog is the single place sources are installed *and* uninstalled, with a labelled button naming the verb. Uninstall confirms, then offers Undo, and is honest about scope: the source leaves Browse and Search, while library books, downloads and history keep working by resolving the provider from the registry cache. A not-installed row still installs on a tap; the destructive direction always takes the labelled button
+- Layout decisions moved from the `isDesktop` boolean to width tiers (compact/medium/expanded), so a narrow desktop window and a large phone resolve alike. Browse and search grids use fixed per-tier columns and card heights; library shows 3 covers per row on phones and shares the count with Browse; catalog rows are 48dp instead of 72dp; settings rows carry a single-line summary
+- Browse and search results default to the grid on every screen size
+- Reader settings are per form factor: phones 16px / 1.6 line height / 16dp margins, desktop 17px / 1.6 / 24dp, with slider caps so desktop tuning does not carry over to a phone. Chapter breaks take less vertical space on phones
+- UI text uses lining figures, so "Chapter 1" and "Chapter 2" no longer sit at different heights
 
 ### Fixed
 
-- A source's grid/list layout now sticks. The toggle was local widget state seeded from `!isDesktop`, so it reset on every push: switch a source to grid, open a different source, and it came back as list. It is now a persisted setting, so the choice follows you across sources and across restarts, and a toggle on one source is picked up live by another already open
-- Source results default to the grid on every screen size, phones included. They used to default to list on phones, back when a browse card was 120dp wide and swallowed its own title; the grid is now 2 columns at 260dp on a phone, so the exception no longer earns its keep
-- Read-aloud no longer fills the log with `error running command _command(seek, 0.0000, absolute)` on Linux. Whenever synthesis fell behind playback, the player reached the end of its loaded playlist, and recovery seeked it to the next chunk *with a position* — a seek mpv always rejects while parked at EOF, because no file is loaded. Recovery now switches playlist items on its own, which is what actually resumes playback (the new item starts at zero anyway); ExoPlayer reads the same index-only seek as `TIME_UNSET`
-- Read-aloud premature-EOF recovery logged the same event twice with contradictory chunk numbers — once with the chunk that had just finished, once with the chunk it continues at. One line now, naming the playlist item, the chunk it lands on, and how much of the session was loaded
-- Android builds work again. The Gradle daemon never started because `android/gradle.properties` passed `-XX:+UseStringDuplication`, which is not a real JVM option (it is `UseStringDeduplication`), so every `flutter build apk` failed at daemon startup — previously reported only as an unhelpful "Failed connecting to the daemon". Daemon heap is now 2g to match this 3.2 GB machine. A full `flutter build apk --debug` completes in ~11 min cold
-- App start no longer runs the full-library download reconcile immediately. It swept every novel's files in the first post-frame callback, blocking startup; it now starts after a short delay
-- Browse "Installed" sources were unreachable below the fold on phones: the grid was a non-scrolling shrinkWrap column inside a bounded viewport, so any source past the first screenful could not be scrolled to. It was hidden on desktop only because the sources fit
-- Large system font sizes no longer overflow the fixed-height grids and pills; text scale is clamped app-wide while still honoring large-text accessibility up to 1.3x
-- The novel detail overflow menu no longer overflows by ~150px at every screen width. Popup items were a `Row` with no flexible child, so the label could not shrink to the popup route's clamped width
-- The Library and Source actions beside the cover no longer paint a red overflow bar on a 360dp phone once the status label runs long. They have only ~220dp of room next to the 96dp cover and needed ~230dp together; they now wrap onto a second line instead of running off the edge
-- Linux build fails with `-Wunused-but-set-global` under `clang++ -Werror` in `flutter_js_plugin.cc`; that warning is now suppressed for Clang builds only (GCC does not know the flag)
-- Startup no longer dies with "No MaterialLocalizations found". The `material_ui` migration had converted only `app.dart` and `app_theme.dart`, leaving the rest of the app importing `package:flutter/material.dart` — two parallel Material universes, so widgets built by one had no localizations from the other. Every `flutter/material.dart` import in `lib/`, `test/` and `integration_test/` now goes through `material_ui`
+- **Tapping a novel in a source did nothing.** The browse cache stored each result without its `providerId`, so every cached item came back unattached and the tap handler gave up on its first check — silently, with no error. First opens worked, which is why it read as intermittent: only *cached* pages were affected. New entries persist the source, and entries already poisoned on disk are repaired on read instead of staying dead until they age out
+- Android builds work again. `gradle.properties` passed `-XX:+UseStringDuplication`, which is not a real JVM option, so the Gradle daemon never started and every `flutter build apk` failed at daemon startup
+- Startup no longer dies with "No MaterialLocalizations found". The `material_ui` migration had converted only `app.dart` and `app_theme.dart`, leaving two parallel Material universes where widgets built by one had no localizations from the other
+- Read-aloud: when synthesis fell behind playback the player sat at EOF and recovery seeked it to a position with no file loaded, which mpv always rejects. Recovery switches playlist items instead. The same recovery event also logged twice with contradictory chunk numbers; it now logs once, naming the item, the chunk and how much was loaded
+- A source's grid/list toggle persists instead of resetting on every push, and follows you across sources and restarts
+- The library status sheet no longer crashes when the theme's custom colours are absent, and scrolls instead of overflowing a short window with Save and Cancel cut off
+- App start defers the full-library download reconcile instead of sweeping every novel's files in the first frame, which was blocking startup
+- Browse "Installed" sources are reachable below the fold on phones; the grid was a non-scrolling shrinkWrap column inside a bounded viewport
+- Large system font sizes no longer overflow the fixed-height grids and pills; text scale is clamped app-wide to 1.3x
+- The novel detail overflow menu no longer overflows by ~150px at any width (popup items had no flexible child to ellipsize)
+- Linux builds no longer fail on `-Wunused-but-set-global`; the warning is suppressed for Clang only, which is the only compiler that knows it
+- GitHub release notes now come from `CHANGELOG.md` instead of being generated from commit messages. A tag with no matching changelog section warns in the run log rather than publishing an empty body
 
 ## 0.1.5-beta - 2026-09-30
 

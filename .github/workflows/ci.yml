@@ -39,3 +39,13 @@ jobs:
 
       - name: Test
         run: flutter test
+
+      # Catches the "I tagged but forgot to cut the Unreleased section" case
+      # here rather than at release time, when the notes would silently fall
+      # back to commit messages.
+      - name: Changelog has an Unreleased section
+        run: |
+          if ! grep -q '^## Unreleased' CHANGELOG.md; then
+            echo "::error::CHANGELOG.md has no '## Unreleased' heading. Keep one for work in progress."
+            exit 1
+          fi
