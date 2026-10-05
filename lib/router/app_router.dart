@@ -24,9 +24,12 @@ import '../features/settings/pages/general_settings_page.dart';
 import '../features/import/import_screen.dart';
 import '../main.dart' show sharedFilePath;
 import '../core/config/app_prefs.dart';
+import '../core/utils/logger.dart';
 import 'root_navigator.dart';
 
 part 'app_router.g.dart';
+
+const _routerTag = 'Router';
 
 /// Shell-tab locations indexed by the "Startup tab" general setting.
 const _tabLocations = ['/library', '/browse', '/history'];
@@ -40,7 +43,7 @@ final GlobalKey<NavigatorState> _shellNavigatorKey =
 @Riverpod(keepAlive: true)
 GoRouter router(Ref ref) {
   final startupTab = ref.watch(appPrefsProvider).getInt('startup_tab') ?? 0;
-  return GoRouter(
+  final router = GoRouter(
     navigatorKey: rootNavigatorKey,
     initialLocation:
         _tabLocations[startupTab.clamp(0, _tabLocations.length - 1)],
@@ -170,4 +173,15 @@ GoRouter router(Ref ref) {
       ),
     ],
   );
+  // Nav tracing: fires for every location change, whatever caused it (tap,
+  // deep link, intent, keyboard shortcut). If a TAP log is followed by a
+  // ROUTE line, navigation happened; if the TAP log never appears, the tap
+  // never reached the handler at all.
+  router.routerDelegate.addListener(() {
+    Log.i(
+      _routerTag,
+      'ROUTE -> ${router.routerDelegate.currentConfiguration.uri}',
+    );
+  });
+  return router;
 }

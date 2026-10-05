@@ -1,4 +1,5 @@
 import 'dart:io';
+import 'dart:ui' show PlatformDispatcher;
 
 import 'package:material_ui/material_ui.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -10,6 +11,7 @@ import 'package:shared_preferences/shared_preferences.dart';
 import 'app.dart';
 import 'core/config/app_prefs.dart';
 import 'core/utils/log_buffer.dart';
+import 'core/utils/logger.dart';
 import 'core/tts/background_audio_handler.dart';
 
 import 'core/utils/window_state.dart';
@@ -24,6 +26,20 @@ String? sharedFilePath;
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
+
+  // Surface framework errors instead of letting a failed build/route die
+  // silently behind a no-op tap. Debug builds print a red screen; this makes
+  // the message appear in the same console log as the rest of the tracing.
+  final priorOnError = FlutterError.onError;
+  FlutterError.onError = (details) {
+    Log.e('FlutterError', details.exceptionAsString(), details.stack);
+    priorOnError?.call(details);
+  };
+  PlatformDispatcher.instance.onError = (error, stack) {
+    Log.e('PlatformError', error.toString(), stack);
+    return true; // handled: keep the app alive, but the error is now logged.
+  };
+
   // mpv's network-timeout (media_kit default 5s) maps to ffmpeg's rw_timeout and
   // aborts an idle-but-open stream connection, ending TTS playback early while
   // the engine is still synthesizing the next chunk. Disable it. Also disable

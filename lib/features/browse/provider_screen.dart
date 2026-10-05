@@ -317,10 +317,24 @@ class _ProviderScreenState extends ConsumerState<ProviderScreen>
   }
 
   Future<void> _openNovel(SearchResultItem item) async {
-    if (item.providerId == null) return;
+    Log.i(_tag, 'TAP novel "${item.title}" url=${item.url}');
+    if (item.providerId == null) {
+      Log.e(_tag, 'ABORT: item.providerId is null', item.url);
+      return;
+    }
     final id = await ref.read(novelOpenerProvider).open(item);
-    if (!mounted || id <= 0) return;
+    Log.i(_tag, 'opener returned id=$id mounted=$mounted');
+    if (!mounted) {
+      Log.e(_tag, 'ABORT: screen unmounted while opening');
+      return;
+    }
+    if (id <= 0) {
+      Log.e(_tag, 'ABORT: opener gave id=$id, not navigating');
+      return;
+    }
+    Log.i(_tag, 'pushing /novel/$id');
     context.push('/novel/$id');
+    Log.i(_tag, 'push() returned for /novel/$id');
   }
 
   void _setMode(_ListMode mode) {

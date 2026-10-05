@@ -90,7 +90,45 @@ class BrowseResultCache {
         );
         return null;
       }
-      final items = decoded.map(SearchResultItem.fromJson).toList();
+      // Backfill providerId for entries written before toJson() persisted it.
+      // Such items came from this provider's own cache key, so the id is known
+      // here; rehydrating them makes the tapped row openable again instead of
+      // silently aborting in _openNovel.
+      var repaired = 0;
+      final items = decoded.map((json) {
+        final item = SearchResultItem.fromJson(json);
+        if (item.providerId != null) return item;
+        repaired++;
+        return SearchResultItem(
+          title: item.title,
+          url: item.url,
+          cover: item.cover,
+          author: item.author,
+          summary: item.summary,
+          rating: item.rating,
+          latestChapter: item.latestChapter,
+          providerId: providerId,
+          coverHeaders: item.coverHeaders,
+        );
+      }).toList();
+      if (repaired > 0) {
+        Log.i(
+          _tag,
+          'Backfilled providerId="$providerId" on $repaired cached item(s)',
+        );
+        unawaited(
+          write(
+            providerId: providerId,
+            mode: mode,
+            query: query,
+            filters: filters,
+            page: page,
+            items: items,
+          ).catchError((Object e) {
+            Log.w(_tag, 'Could not persist repaired cache entry: $e');
+          }),
+        );
+      }
       final stale = DateTime.now().millisecondsSinceEpoch > row.staleAfter;
       return BrowsePageCacheEntry(items, stale: stale);
     } catch (e) {

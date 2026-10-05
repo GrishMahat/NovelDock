@@ -536,6 +536,10 @@ class SearchResultItem {
   Map<String, dynamic> toJson() => {
     'title': title,
     'url': url,
+    // Must round-trip: BrowseCache persists items as JSON, and _openNovel
+    // aborts on a null providerId. Omitting it left every cache-hit item
+    // unopenable — silently, because that guard just returned.
+    if (providerId != null) 'providerId': providerId,
     if (cover != null) 'cover': cover,
     if (author != null) 'author': author,
     if (summary != null) 'summary': summary,

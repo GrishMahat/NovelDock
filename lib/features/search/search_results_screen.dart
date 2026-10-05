@@ -5,6 +5,7 @@ import 'package:go_router/go_router.dart';
 import '../../core/providers/engine.dart';
 import '../../core/providers/models.dart';
 import '../../core/providers/novel_opener.dart';
+import '../../core/utils/logger.dart';
 import '../../core/utils/platform.dart';
 import '../../theme/tokens.dart';
 import '../../widgets/cover_image.dart';
@@ -15,6 +16,8 @@ import '../../core/providers/registries.dart';
 import 'providers/search_providers.dart';
 import 'search_rank.dart';
 import 'widgets/filter_sheet.dart';
+
+const _tag = 'SearchResults';
 
 /// Global search results, one horizontal row per source.
 ///
@@ -84,12 +87,18 @@ class _SearchResultsScreenState extends ConsumerState<SearchResultsScreen> {
   }
 
   Future<void> _openNovel(SearchResultItem item) async {
-    if (item.providerId == null) return;
-
+    Log.i(_tag, 'TAP search novel "${item.title}"');
+    if (item.providerId == null) {
+      Log.e(_tag, 'ABORT: providerId null');
+      return;
+    }
     final id = await ref.read(novelOpenerProvider).open(item);
-
-    if (!mounted || id <= 0) return;
-
+    Log.i(_tag, 'opener id=$id mounted=$mounted');
+    if (!mounted || id <= 0) {
+      Log.e(_tag, 'ABORT: mounted=$mounted id=$id');
+      return;
+    }
+    Log.i(_tag, 'pushing /novel/$id');
     context.push('/novel/$id');
   }
 

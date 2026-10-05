@@ -121,6 +121,73 @@ void main() {
       expect(restored.coverHeaders, original.first.coverHeaders);
     });
 
+    test('providerId survives the round trip', () async {
+      // Regression: toJson() omitted providerId, so every item read back from
+      // the cache arrived with a null providerId and provider_screen's
+      // _openNovel bailed on its first guard. Tapping a cached browse row
+      // silently did nothing; only a fresh network fetch worked.
+      final c = cache();
+      await c.write(
+        providerId: 'royalroad',
+        mode: 'popular',
+        query: '',
+        filters: const FilterValues(),
+        page: 1,
+        items: [
+          SearchResultItem(
+            title: 'The Perfect Run',
+            url: 'https://example.com/fiction/36735',
+            providerId: 'royalroad',
+          ),
+        ],
+      );
+
+      final entry = await c.read(
+        providerId: 'royalroad',
+        mode: 'popular',
+        query: '',
+        filters: const FilterValues(),
+        page: 1,
+      );
+
+      expect(entry, isNotNull);
+      expect(
+        entry!.items.single.providerId,
+        'royalroad',
+        reason: 'a cached item without providerId cannot be opened',
+      );
+    });
+
+    test('a legacy entry without providerId is backfilled on read', () async {
+      // Rows written before the toJson fix are already poisoned on disk. The
+      // reader must repair them, otherwise users stay stuck until the entry
+      // ages out of the cache.
+      await db.browseCacheDao.putPage(
+        providerId: 'legacy',
+        mode: 'popular',
+        query: '',
+        filterHash: filterFingerprint(const FilterValues()),
+        page: 1,
+        // A payload in the old shape: no providerId key at all.
+        payload: jsonEncode([
+          {'title': 'Old Novel', 'url': 'https://example.com/old'},
+        ]),
+        itemCount: 1,
+      );
+
+      final entry = await cache().read(
+        providerId: 'legacy',
+        mode: 'popular',
+        query: '',
+        filters: const FilterValues(),
+        page: 1,
+      );
+
+      expect(entry, isNotNull);
+      expect(entry!.items.single.providerId, 'legacy');
+      expect(entry.items.single.title, 'Old Novel');
+    });
+
     test('a miss returns null rather than throwing', () async {
       final entry = await cache().read(
         providerId: 'nope',

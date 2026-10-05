@@ -8,6 +8,7 @@ import '../../core/database/database.dart';
 import '../../core/display_mode.dart';
 import '../../core/providers/database_providers.dart';
 import '../../core/providers/novel_opener.dart';
+import '../../core/utils/logger.dart';
 import '../../core/utils/platform.dart';
 
 import '../../theme/tokens.dart';
@@ -19,6 +20,8 @@ import '../../widgets/shimmer_list.dart';
 import '../novel/widgets/status_picker_sheet.dart';
 import '../settings/pages/general_settings_page.dart';
 import 'widgets/library_grid_item.dart';
+
+const _tag = 'Library';
 
 class LibraryScreen extends ConsumerStatefulWidget {
   const LibraryScreen({super.key});
@@ -353,7 +356,7 @@ class _LibraryScreenState extends ConsumerState<LibraryScreen>
                 itemCount: filtered.length,
                 itemBuilder: (context, index) => LibraryGridItem(
                   novel: filtered[index],
-                  onTap: () => context.push('/novel/${filtered[index].id}'),
+                  onTap: () => _openNovel(filtered[index].id),
                   onPlay: () => _playNovel(filtered[index].id),
                   onLongPress: () => _showStatusMenu(filtered[index]),
                 ),
@@ -416,7 +419,7 @@ class _LibraryScreenState extends ConsumerState<LibraryScreen>
         tooltip: 'Read aloud',
         onPressed: () => _playNovel(novel.id),
       ),
-      onTap: () => context.push('/novel/${novel.id}'),
+      onTap: () => _openNovel(novel.id),
       onLongPress: () => _showStatusMenu(novel),
     );
   }
@@ -425,7 +428,7 @@ class _LibraryScreenState extends ConsumerState<LibraryScreen>
     final scheme = Theme.of(context).colorScheme;
     final text = Theme.of(context).textTheme;
     return InkWell(
-      onTap: () => context.push('/novel/${novel.id}'),
+      onTap: () => _openNovel(novel.id),
       onLongPress: () => _showStatusMenu(novel),
       child: Padding(
         padding: const EdgeInsets.symmetric(
@@ -482,6 +485,14 @@ class _LibraryScreenState extends ConsumerState<LibraryScreen>
         ),
       ),
     );
+  }
+
+  /// Single entry point for every library row tap (grid, list, compact), so a
+  /// nav failure has one place to be logged instead of three silent pushes.
+  void _openNovel(int novelId) {
+    Log.i(_tag, 'TAP library novel id=$novelId');
+    context.push('/novel/$novelId');
+    Log.i(_tag, 'pushed /novel/$novelId');
   }
 
   void _playNovel(int novelId) async {

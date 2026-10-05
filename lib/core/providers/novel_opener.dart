@@ -67,6 +67,7 @@ class NovelOpener {
       return -1;
     }
     final (id, isNew) = await insertNovel(item);
+    Log.i(_tag, 'insertOrGet -> id=$id isNew=$isNew for ${item.url}');
     if (id > 0) {
       // Skip the background re-fetch for novels that already have chapters:
       // re-opening an existing novel must not clobber refreshed metadata
@@ -76,6 +77,10 @@ class NovelOpener {
       final chapterCount = await ref
           .read(chapterDaoProvider)
           .getChapterCount(id);
+      Log.i(
+        _tag,
+        'chapterCount=$chapterCount; backgroundFetch=${isNew || chapterCount == 0}',
+      );
       if (isNew || chapterCount == 0) {
         fetchNovelDetails(id, item, isNew: isNew);
       }
