@@ -42,6 +42,11 @@ endif()
 function(APPLY_STANDARD_SETTINGS TARGET)
   target_compile_features(${TARGET} PUBLIC cxx_std_14)
   target_compile_options(${TARGET} PRIVATE -Wall -Werror)
+  # G_DEFINE_TYPE stores a parent-class pointer that plugin shims with empty
+  # class_init hooks never read; clang flags it under -Werror. GCC has no such
+  # warning (and rejects the flag), so scope it to clang.
+  target_compile_options(${TARGET} PRIVATE
+    "$<$<CXX_COMPILER_ID:Clang>:-Wno-unused-but-set-global>")
   target_compile_options(${TARGET} PRIVATE "$<$<NOT:$<CONFIG:Debug>>:-O3>")
   target_compile_definitions(${TARGET} PRIVATE "$<$<NOT:$<CONFIG:Debug>>:NDEBUG>")
 endfunction()

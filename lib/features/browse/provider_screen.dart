@@ -1,7 +1,7 @@
 import 'dart:async';
 
 import 'package:dio/dio.dart';
-import 'package:flutter/material.dart';
+import 'package:material_ui/material_ui.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:infinite_scroll_pagination/infinite_scroll_pagination.dart';
@@ -20,6 +20,7 @@ import '../../widgets/max_width_box.dart';
 import '../../widgets/novel_card.dart';
 import '../search/providers/search_providers.dart';
 import '../search/widgets/filter_sheet.dart';
+import '../settings/pages/general_settings_page.dart';
 import '../../core/providers/registries.dart';
 
 const _tag = 'ProviderScreen';
@@ -40,10 +41,15 @@ class _ProviderScreenState extends ConsumerState<ProviderScreen>
   late final PagingController<int, SearchResultItem> _pagingController;
   late final TabController _tabController;
 
-  /// Phones default to the list: a 2-up grid of ~180dp cards shows half the
-  /// sources per screen and truncates every title. Desktop keeps the grid,
-  /// where the width to spend on it exists.
-  bool _isGridView = !isDesktop;
+  /// Layout for this source's results.
+  ///
+  /// Read from the persisted setting rather than held here. It used to be local
+  /// state seeded from `!isDesktop`, so it reset on every push: switch a source
+  /// to grid, open a different source, and it came back as list. Watched, so a
+  /// toggle anywhere (including back on a screen still in the stack) is picked
+  /// up live, and the choice survives leaving the source entirely.
+  bool get _isGridView =>
+      ref.watch(generalSettingsProvider.select((s) => s.browseGridView));
   bool _isSearching = false;
   ProviderInstance? _instance;
   bool _hasReachedEnd = false;
@@ -421,7 +427,9 @@ class _ProviderScreenState extends ConsumerState<ProviderScreen>
                     minWidth: 48,
                     minHeight: 48,
                   ),
-                  onPressed: () => setState(() => _isGridView = !_isGridView),
+                  onPressed: () => ref
+                      .read(generalSettingsProvider.notifier)
+                      .setBrowseGridView(!_isGridView),
                 ),
               ],
             ),
@@ -483,7 +491,9 @@ class _ProviderScreenState extends ConsumerState<ProviderScreen>
                       minWidth: 48,
                       minHeight: 48,
                     ),
-                    onPressed: () => setState(() => _isGridView = !_isGridView),
+                    onPressed: () => ref
+                        .read(generalSettingsProvider.notifier)
+                        .setBrowseGridView(!_isGridView),
                   ),
                 ],
               ),

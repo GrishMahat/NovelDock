@@ -565,16 +565,11 @@ class TtsPlaybackController {
         // The player may have reached the end of the currently loaded
         // playlist while synthesis was still in progress. Resuming playback
         // directly (instead of a full restart) avoids re-playing cached
-        // chunks and does not burn stall-restart attempts.
+        // chunks and does not burn stall-restart attempts. The resume itself
+        // logs the item it lands on: the playhead is still the chunk that just
+        // finished, not the chunk playback continues at.
         if (_prematurelyCompleted && !_cancelled && generation == _generation) {
           _prematurelyCompleted = false;
-
-          Log.i(
-            _tag,
-            'Resuming playlist at '
-            'chunk $_playhead after '
-            'premature EOF',
-          );
 
           await _resumeAfterPrematureEof();
         }
@@ -599,6 +594,39 @@ class TtsPlaybackController {
     }
   }
 
+  /// Playlist item playback has to return to after a premature EOF.
+  ///
+  /// The player completed the loaded playlist, so it sits on the last loaded
+  /// item at its end. The pipeline appends the next chunk before calling
+  /// [_resumeAfterPrematureEof], which makes the last playlist item exactly
+  /// the chunk that has not been played yet.
+  ///
+  /// Returns -1 when there is nothing to resume.
+  @visibleForTesting
+  static int resumePlaylistItem({
+    required int pipelineFromIndex,
+    required int chunkCount,
+    required int playlistLength,
+  }) {
+    if (playlistLength <= 0 || chunkCount <= 0) {
+      return -1;
+    }
+
+    final lastItem = playlistLength - 1;
+
+    // The playlist spans [pipelineFromIndex, pipelineFromIndex + lastItem].
+    // It must never reach past the session, but if it somehow does, fall back
+    // to the last item that still maps onto a real chunk instead of handing
+    // the player an index it cannot use.
+    final lastChunk = pipelineFromIndex + lastItem;
+
+    if (lastChunk > chunkCount - 1) {
+      return (chunkCount - 1 - pipelineFromIndex).clamp(0, lastItem);
+    }
+
+    return lastItem;
+  }
+
   Future<void> _resumeAfterPrematureEof() async {
     if (_disposed || _cancelled || _stopped || _completed) {
       return;
@@ -616,28 +644,49 @@ class TtsPlaybackController {
       return;
     }
 
+    final loaded = _player.playlistLength;
+
+    final nextItem = resumePlaylistItem(
+      pipelineFromIndex: _pipelineFromIndex,
+      chunkCount: _chunks.length,
+      playlistLength: loaded,
+    );
+
+    if (nextItem < 0) {
+      // Nothing was ever attached (or the session has no chunks left), so
+      // there is no item to jump to. Playback cannot be resumed by seeking;
+      // hand back to the pipeline and let the stall breaker restart the
+      // session if it really is stuck.
+      Log.w(_tag, 'Premature EOF with an empty playlist');
+
+      _startPlayback(_generation);
+
+      return;
+    }
+
+    final nextChunk = _pipelineFromIndex + nextItem;
+
+    Log.i(
+      _tag,
+      'Resuming playlist at item $nextItem '
+      '(chunk $nextChunk of ${_chunks.length}) after '
+      'premature EOF at chunk $_playhead '
+      '($loaded loaded)',
+    );
+
     try {
       // The player completed the playlist, so it is parked in the completed
       // state on the LAST loaded item — where seekToNext() is a no-op and
-      // play() would just replay the whole playlist from the top. Seek
-      // explicitly to the first item that has not been played yet.
-      final lastLoadedItem = _player.playlistLength - 1;
-      final nextChunk = (_pipelineFromIndex + lastLoadedItem + 1).clamp(
-        0,
-        _chunks.length - 1,
-      );
-      final nextItem = (nextChunk - _pipelineFromIndex).clamp(
-        0,
-        lastLoadedItem,
-      );
-
-      Log.i(
-        _tag,
-        'Resuming playlist at chunk '
-        '${_pipelineFromIndex + nextItem} after premature EOF',
-      );
-
-      await _player.audioPlayer.seek(Duration.zero, index: nextItem);
+      // play() would just replay the whole playlist from the top. Switch the
+      // playlist item instead.
+      //
+      // Deliberately index-only, with no position: the item was just appended
+      // and starts at zero anyway, while a position seek is rejected outright
+      // by a player parked at EOF (mpv answers "error running command
+      // _command(seek, 0.0000, absolute)" because no file is loaded, once per
+      // attempt, and every gap in the pipeline produced that pair of errors).
+      // ExoPlayer reads a null position as TIME_UNSET on the target item.
+      await _player.audioPlayer.seek(null, index: nextItem);
     } catch (e) {
       Log.w(_tag, 'Seek after premature EOF failed: $e');
     }

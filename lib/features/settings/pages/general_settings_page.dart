@@ -1,4 +1,4 @@
-import 'package:flutter/material.dart';
+import 'package:material_ui/material_ui.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:riverpod_annotation/riverpod_annotation.dart';
 import 'package:webview_all/webview_all.dart';
@@ -15,6 +15,14 @@ const _tag = 'GeneralSettings';
 class GeneralSettings {
   final int startupTab;
   final String defaultDisplayMode;
+
+  /// Layout for a source's Popular/Latest results.
+  ///
+  /// Deliberately its own key rather than [defaultDisplayMode]: that one is a
+  /// three-way mode for the library (grid/list/compact) written by the library's
+  /// own toggle. Sharing it would let the browse toggle silently overwrite a
+  /// library preference, since "compact" has no browse equivalent.
+  final bool browseGridView;
   final bool confirmExit;
   final bool showNsfw;
 
@@ -25,6 +33,12 @@ class GeneralSettings {
   const GeneralSettings({
     this.startupTab = 0,
     this.defaultDisplayMode = 'grid',
+
+    /// Grid on every form factor. The old default was "list on phones", chosen
+    /// when a browse card was 120dp wide and ate its own title; the mobile
+    /// density pass fixed the geometry (2 columns at 260dp on a phone), so that
+    /// default no longer earns its keep.
+    this.browseGridView = true,
     this.confirmExit = false,
     this.showNsfw = false,
     this.ratingFormat = 'stars',
@@ -33,6 +47,7 @@ class GeneralSettings {
   GeneralSettings copyWith({
     int? startupTab,
     String? defaultDisplayMode,
+    bool? browseGridView,
     bool? confirmExit,
     bool? showNsfw,
     String? ratingFormat,
@@ -40,6 +55,7 @@ class GeneralSettings {
     return GeneralSettings(
       startupTab: startupTab ?? this.startupTab,
       defaultDisplayMode: defaultDisplayMode ?? this.defaultDisplayMode,
+      browseGridView: browseGridView ?? this.browseGridView,
       confirmExit: confirmExit ?? this.confirmExit,
       showNsfw: showNsfw ?? this.showNsfw,
       ratingFormat: ratingFormat ?? this.ratingFormat,
@@ -55,6 +71,7 @@ class GeneralSettingsNotifier extends _$GeneralSettingsNotifier {
     return GeneralSettings(
       startupTab: p.getInt('startup_tab') ?? 0,
       defaultDisplayMode: p.getString('default_display_mode') ?? 'grid',
+      browseGridView: p.getBool('browse_grid_view') ?? true,
       confirmExit: p.getBool('confirm_exit') ?? false,
       showNsfw: p.getBool('show_nsfw') ?? false,
       ratingFormat: p.getString('rating_format') ?? 'stars',
@@ -69,6 +86,11 @@ class GeneralSettingsNotifier extends _$GeneralSettingsNotifier {
   Future<void> setDefaultDisplayMode(String mode) async {
     state = state.copyWith(defaultDisplayMode: mode);
     await ref.read(appPrefsProvider).setString('default_display_mode', mode);
+  }
+
+  Future<void> setBrowseGridView(bool value) async {
+    state = state.copyWith(browseGridView: value);
+    await ref.read(appPrefsProvider).setBool('browse_grid_view', value);
   }
 
   Future<void> setConfirmExit(bool value) async {

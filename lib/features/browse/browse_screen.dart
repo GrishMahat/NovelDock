@@ -1,10 +1,12 @@
-import 'package:flutter/material.dart';
+import 'package:material_ui/material_ui.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
 import '../../core/providers/models.dart';
 import '../../core/utils/platform.dart';
 import '../../theme/tokens.dart';
+import '../../widgets/add_default_providers_button.dart';
+import '../../widgets/empty_state.dart';
 import '../../widgets/error_view.dart';
 import '../../widgets/header_search_field.dart';
 import '../../widgets/max_width_box.dart';
@@ -15,8 +17,8 @@ import '../../core/providers/registries.dart';
 import '../settings/pages/general_settings_page.dart';
 import 'webview_screen.dart';
 
-/// Browse screen. Installed tab for browsing sources, Catalog tab for
-/// install/uninstall.
+/// Browse screen. Installed tab for browsing and removing sources, Catalog tab
+/// for adding them.
 class BrowseScreen extends ConsumerStatefulWidget {
   const BrowseScreen({super.key});
 
@@ -244,31 +246,31 @@ class InstalledTab extends ConsumerWidget {
             .toList();
 
         if (enabledProviders.isEmpty) {
-          return Center(
-            child: Column(
-              mainAxisAlignment: MainAxisAlignment.center,
-              children: [
-                Icon(
-                  Icons.explore_off,
-                  size: 64,
-                  color: Theme.of(
-                    context,
-                  ).colorScheme.onSurfaceVariant.withValues(alpha: 0.5),
-                ),
-                const SizedBox(height: 16),
-                Text(
-                  'No sources installed',
-                  style: Theme.of(context).textTheme.titleLarge,
-                ),
-                const SizedBox(height: 8),
-                Text(
-                  'Go to the Catalog tab to add sources.',
-                  style: TextStyle(
-                    color: Theme.of(context).colorScheme.onSurfaceVariant,
-                  ),
-                ),
-              ],
-            ),
+          // Nothing installed. With no registries at all there is nothing to
+          // install, so point at the default add; with a populated catalog the
+          // Catalog tab is the answer and this stays a pointer to it.
+          final noRegistries = providers.isEmpty;
+          return EmptyState(
+            icon: noRegistries ? Icons.cloud_off : Icons.explore_off,
+            title: noRegistries ? 'No sources yet' : 'No sources installed',
+            subtitle: noRegistries
+                ? 'NovelDock has no sources to browse. Add the default set to '
+                      'get started.'
+                : 'Go to the Catalog tab to add sources.',
+            action: noRegistries
+                ? Column(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      const AddDefaultProvidersButton(),
+                      const SizedBox(height: Insets.sm),
+                      TextButton.icon(
+                        onPressed: () => context.push('/settings/providers'),
+                        icon: const Icon(Icons.tune, size: 18),
+                        label: const Text('Manage registries'),
+                      ),
+                    ],
+                  )
+                : null,
           );
         }
 
@@ -327,6 +329,11 @@ class InstalledTab extends ConsumerWidget {
 }
 
 /// Compact source card: logo, name, language, and a browse action.
+///
+/// Purely a browse surface — tapping opens the source. It deliberately has no
+/// verb of its own: a per-card overflow menu meant uninstall lived only behind
+/// three dots here, one tap deeper than the tap that installed the source.
+/// Both verbs live in the Catalog, where the whole list is visible at once.
 class _SourceCard extends StatelessWidget {
   final ProviderMeta provider;
   const _SourceCard({required this.provider});
@@ -387,6 +394,58 @@ class _SourceCard extends StatelessWidget {
   }
 }
 
+/// Uninstall an installed source, after confirming.
+///
+/// Uninstall only clears the enabled flag: the source leaves Browse and Search,
+/// while library books, downloads and history keep working because they
+/// resolve the provider by id straight from the registry cache. So this is
+/// reversible rather than a data delete — but it is still one tap on a list of
+/// 27-odd rows, hence the dialog plus Undo.
+Future<void> _confirmUninstallSource(
+  BuildContext context,
+  ProviderContainer container,
+  ProviderMeta provider,
+) async {
+  final messenger = ScaffoldMessenger.of(context);
+
+  final confirmed = await showDialog<bool>(
+    context: context,
+    builder: (ctx) => AlertDialog(
+      title: Text('Uninstall ${provider.name}?'),
+      content: const Text(
+        'The source leaves Browse and Search. Books you already added, their '
+        'downloads and your history stay. You can install it again from this '
+        'Catalog at any time.',
+      ),
+      actions: [
+        TextButton(
+          onPressed: () => Navigator.pop(ctx, false),
+          child: const Text('Cancel'),
+        ),
+        FilledButton(
+          onPressed: () => Navigator.pop(ctx, true),
+          child: const Text('Uninstall'),
+        ),
+      ],
+    ),
+  );
+
+  if (confirmed != true) return;
+
+  setProviderEnabled(provider.id, false, container);
+
+  messenger.hideCurrentSnackBar();
+  messenger.showSnackBar(
+    SnackBar(
+      content: Text('Uninstalled ${provider.name}'),
+      action: SnackBarAction(
+        label: 'Undo',
+        onPressed: () => setProviderEnabled(provider.id, true, container),
+      ),
+    ),
+  );
+}
+
 // ═══════════════════════════════════════════════════════════
 // Catalog Tab
 // ═══════════════════════════════════════════════════════════
@@ -422,29 +481,46 @@ class CatalogTab extends ConsumerWidget {
             ? providers
             : providers.where((p) => !p.nsfw).toList();
         if (visible.isEmpty) {
-          return const Center(
-            child: Text('No providers found.\nAdd a registry to get started.'),
+          // No catalog at all: the most likely cause is zero registries, so
+          // offer the one-click default add instead of only explaining that a
+          // registry is needed somewhere else.
+          return EmptyState(
+            icon: Icons.cloud_off,
+            title: 'No sources found',
+            subtitle:
+                'Add the default providers, or point NovelDock at your own '
+                'registry.',
+            action: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                const AddDefaultProvidersButton(),
+                const SizedBox(height: Insets.sm),
+                TextButton.icon(
+                  onPressed: () => context.push('/settings/providers'),
+                  icon: const Icon(Icons.tune, size: 18),
+                  label: const Text('Manage registries'),
+                ),
+              ],
+            ),
           );
         }
 
-        // Only not-yet-installed sources. They used to be duplicated here and
-        // in the Installed tab, so the same source appeared twice with two
-        // different toggle affordances and no reason for the user to know
-        // which list was authoritative. Installed has its own tab.
-        final available = visible
-            .where((p) => !enabled.contains(p.id))
-            .toList();
-
-        if (available.isEmpty) {
-          return _CatalogAllInstalled(count: visible.length);
-        }
-
-        // Group available by language
+        // Every source, installed or not. This list is the app's source
+        // management surface: whichever verb you need — install or uninstall —
+        // is here, on the row, spelled out. Hiding installed sources (they were
+        // filtered out) meant the row you tapped to install simply vanished and
+        // the reverse verb lived nowhere; splitting the two states across two
+        // tabs meant the same source showed up twice with no way to tell which
+        // list was authoritative.
         final grouped = <String, List<ProviderMeta>>{};
-        for (final p in available) {
+        for (final p in visible) {
           final lang = p.lang.isEmpty ? 'Other' : p.lang.toUpperCase();
           grouped.putIfAbsent(lang, () => []).add(p);
         }
+
+        final installedCount = visible
+            .where((p) => enabled.contains(p.id))
+            .length;
 
         return MaxWidthBox(
           padding: const EdgeInsets.fromLTRB(
@@ -470,6 +546,17 @@ class CatalogTab extends ConsumerWidget {
                     label: Text(updating ? 'Updating...' : 'Update all'),
                   ),
                 ),
+              Padding(
+                padding: const EdgeInsets.only(bottom: Insets.xs),
+                child: Text(
+                  installedCount == 0
+                      ? 'None installed yet'
+                      : '$installedCount of ${visible.length} installed',
+                  style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                    color: Theme.of(context).colorScheme.onSurfaceVariant,
+                  ),
+                ),
+              ),
               for (final entry in grouped.entries) ...[
                 _sectionHeader(context, entry.key),
                 ...entry.value.map(
@@ -477,8 +564,11 @@ class CatalogTab extends ConsumerWidget {
                     padding: const EdgeInsets.only(bottom: Insets.sm),
                     child: _ExtensionTile(
                       provider: p,
-                      isInstalled: false,
-                      onToggle: () => toggleProvider(p.id, ref.container),
+                      isInstalled: enabled.contains(p.id),
+                      onInstall: () =>
+                          setProviderEnabled(p.id, true, ref.container),
+                      onUninstall: () =>
+                          _confirmUninstallSource(context, ref.container, p),
                     ),
                   ),
                 ),
@@ -503,63 +593,35 @@ class CatalogTab extends ConsumerWidget {
   }
 }
 
-/// Catalog with nothing left to install. Points at the tab that owns
-/// installed sources instead of leaving a blank list.
-class _CatalogAllInstalled extends StatelessWidget {
-  final int count;
-  const _CatalogAllInstalled({required this.count});
-
-  @override
-  Widget build(BuildContext context) {
-    final scheme = Theme.of(context).colorScheme;
-    return Center(
-      child: Padding(
-        padding: const EdgeInsets.all(Insets.xl),
-        child: Column(
-          mainAxisAlignment: MainAxisAlignment.center,
-          children: [
-            Icon(
-              Icons.check_circle_outline,
-              size: 56,
-              color: scheme.onSurfaceVariant.withValues(alpha: 0.5),
-            ),
-            const SizedBox(height: Insets.md),
-            Text(
-              count == 0
-                  ? 'No sources found'
-                  : 'All $count source(s) installed',
-              style: Theme.of(context).textTheme.titleMedium,
-              textAlign: TextAlign.center,
-            ),
-            const SizedBox(height: Insets.xs),
-            Text(
-              'Manage the ones you added in the Installed tab.',
-              style: Theme.of(
-                context,
-              ).textTheme.bodySmall?.copyWith(color: scheme.onSurfaceVariant),
-              textAlign: TextAlign.center,
-            ),
-          ],
-        ),
-      ),
-    );
-  }
-}
-
+/// Catalog row — the app's install/uninstall control.
+///
+/// One row, one visible verb, and the verb is written out: "Install" or
+/// "Uninstall" on a labelled button. Not an icon, not a switch, and not
+/// something hidden behind three dots. An installed row keeps the verb visible
+/// rather than dropping out of the list, which is what makes this the one
+/// place both directions are reachable.
+///
+/// The row itself does not toggle. Tapping a not-installed row installs, since
+/// this list exists to be tapped; tapping an installed row opens its details,
+/// because the destructive direction must always take the labelled button
+/// rather than a stray tap somewhere in 27 rows.
 class _ExtensionTile extends StatelessWidget {
   final ProviderMeta provider;
   final bool isInstalled;
-  final VoidCallback onToggle;
+  final VoidCallback onInstall;
+  final VoidCallback onUninstall;
 
   const _ExtensionTile({
     required this.provider,
     required this.isInstalled,
-    required this.onToggle,
+    required this.onInstall,
+    required this.onUninstall,
   });
 
   @override
   Widget build(BuildContext context) {
     final scheme = Theme.of(context).colorScheme;
+
     return Material(
       color: isInstalled
           ? scheme.primaryContainer.withValues(alpha: 0.18)
@@ -571,20 +633,27 @@ class _ExtensionTile extends StatelessWidget {
         ),
       ),
       clipBehavior: Clip.antiAlias,
-      // One row, one primary action: tapping the row installs or uninstalls,
-      // which is what the switch implied and what people actually come here
-      // to do. Details moved behind an explicit labelled button, because
-      // "tap row opens a sheet, tap switch installs" made the switch feel
-      // like the only real control and the row feel broken.
       child: ListTile(
         dense: true,
         visualDensity: VisualDensity.compact,
         leading: ProviderAvatar(provider: provider, radius: 18),
-        title: Text(
-          provider.name,
-          maxLines: 1,
-          overflow: TextOverflow.ellipsis,
-          style: Theme.of(context).textTheme.bodyMedium,
+        title: Row(
+          children: [
+            // State is readable without tapping anything, and not only from the
+            // button label: the tick rides with the name.
+            if (isInstalled) ...[
+              Icon(Icons.check_circle, size: 14, color: scheme.primary),
+              const SizedBox(width: Insets.xs),
+            ],
+            Expanded(
+              child: Text(
+                provider.name,
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+                style: Theme.of(context).textTheme.bodyMedium,
+              ),
+            ),
+          ],
         ),
         subtitle: Text(
           '${provider.lang.toUpperCase()} · v${provider.version}'
@@ -593,18 +662,22 @@ class _ExtensionTile extends StatelessWidget {
           overflow: TextOverflow.ellipsis,
           style: Theme.of(context).textTheme.labelSmall,
         ),
-        trailing: IconButton(
-          icon: Icon(
-            isInstalled ? Icons.check_circle : Icons.info_outline,
-            size: 20,
-            color: isInstalled ? scheme.primary : scheme.onSurfaceVariant,
-          ),
-          tooltip: isInstalled ? 'Installed — tap row to remove' : 'Details',
-          onPressed: () => isInstalled
-              ? onToggle()
-              : _showProviderInfo(context, provider, isInstalled, onToggle),
-        ),
-        onTap: onToggle,
+        trailing: isInstalled
+            ? TextButton(
+                onPressed: onUninstall,
+                style: TextButton.styleFrom(foregroundColor: scheme.error),
+                child: const Text('Uninstall'),
+              )
+            : TextButton(onPressed: onInstall, child: const Text('Install')),
+        onTap: isInstalled
+            ? () => _showProviderInfo(
+                context,
+                provider,
+                true,
+                onInstall,
+                onUninstall,
+              )
+            : onInstall,
       ),
     );
   }
@@ -618,104 +691,127 @@ void _showProviderInfo(
   BuildContext context,
   ProviderMeta provider,
   bool isInstalled,
-  VoidCallback onToggle,
+  VoidCallback onInstall,
+  VoidCallback onUninstall,
 ) {
   showModalBottomSheet(
     context: context,
     isScrollControlled: true,
-    builder: (context) => DraggableScrollableSheet(
-      initialChildSize: 0.6,
-      minChildSize: 0.3,
-      maxChildSize: 0.9,
-      expand: false,
-      builder: (context, scrollController) => ListView(
-        controller: scrollController,
-        children: [
-          // Header
-          Padding(
-            padding: const EdgeInsets.all(16),
-            child: Row(
-              children: [
-                ProviderAvatar(provider: provider),
-                const SizedBox(width: 12),
-                Expanded(
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Text(
-                        provider.name,
-                        style: Theme.of(context).textTheme.titleLarge,
-                      ),
-                      Text(
-                        provider.baseUrl,
-                        style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                          color: Theme.of(context).colorScheme.onSurfaceVariant,
+    builder: (context) {
+      final scheme = Theme.of(context).colorScheme;
+
+      return DraggableScrollableSheet(
+        initialChildSize: 0.6,
+        minChildSize: 0.3,
+        maxChildSize: 0.9,
+        expand: false,
+        builder: (context, scrollController) => ListView(
+          controller: scrollController,
+          children: [
+            // Header
+            Padding(
+              padding: const EdgeInsets.all(16),
+              child: Row(
+                children: [
+                  ProviderAvatar(provider: provider),
+                  const SizedBox(width: 12),
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          provider.name,
+                          style: Theme.of(context).textTheme.titleLarge,
                         ),
-                      ),
-                    ],
+                        Text(
+                          provider.baseUrl,
+                          style: Theme.of(context).textTheme.bodySmall
+                              ?.copyWith(
+                                color: Theme.of(
+                                  context,
+                                ).colorScheme.onSurfaceVariant,
+                              ),
+                        ),
+                      ],
+                    ),
                   ),
-                ),
-              ],
+                ],
+              ),
             ),
-          ),
-          const Divider(height: 1),
+            const Divider(height: 1),
 
-          // Info section
-          _infoTile(
-            context,
-            Icons.language,
-            'Language',
-            provider.lang.toUpperCase(),
-          ),
-          _infoTile(context, Icons.code, 'Version', provider.version),
-          if (provider.author != null)
+            // Info section
             _infoTile(
               context,
-              Icons.person_outline,
-              'Author',
-              provider.author!,
+              Icons.language,
+              'Language',
+              provider.lang.toUpperCase(),
             ),
-          if (provider.nsfw)
-            _infoTile(context, Icons.warning_amber, 'Content', 'NSFW (18+)'),
-          if (provider.registryId != null)
-            _infoTile(
-              context,
-              Icons.folder_open,
-              'Registry',
-              provider.registryId!,
-            ),
-
-          const Divider(height: 1),
-
-          // Actions
-          SwitchListTile(
-            secondary: const Icon(Icons.download_done),
-            title: const Text('Installed'),
-            value: isInstalled,
-            onChanged: (_) {
-              Navigator.pop(context);
-              onToggle();
-            },
-          ),
-          ListTile(
-            leading: const Icon(Icons.open_in_browser),
-            title: const Text('Open homepage'),
-            onTap: () {
-              Navigator.pop(context);
-              Navigator.push(
+            _infoTile(context, Icons.code, 'Version', provider.version),
+            if (provider.author != null)
+              _infoTile(
                 context,
-                MaterialPageRoute(
-                  builder: (_) => WebViewScreen(
-                    url: provider.baseUrl,
-                    title: provider.name,
+                Icons.person_outline,
+                'Author',
+                provider.author!,
+              ),
+            if (provider.nsfw)
+              _infoTile(context, Icons.warning_amber, 'Content', 'NSFW (18+)'),
+            if (provider.registryId != null)
+              _infoTile(
+                context,
+                Icons.folder_open,
+                'Registry',
+                provider.registryId!,
+              ),
+
+            const Divider(height: 1),
+
+            // Actions
+            //
+            // Labelled verbs, not a switch: this sheet is reachable from the
+            // Catalog row, and which verb it offers depends on the state, so a
+            // toggle would be a control whose meaning changes under the user.
+            if (isInstalled)
+              ListTile(
+                leading: Icon(Icons.delete_outline, color: scheme.error),
+                title: Text('Uninstall', style: TextStyle(color: scheme.error)),
+                subtitle: const Text('Remove from Browse and Search'),
+                onTap: () {
+                  Navigator.pop(context);
+                  onUninstall();
+                },
+              )
+            else
+              ListTile(
+                leading: const Icon(Icons.download_done),
+                title: const Text('Install'),
+                subtitle: const Text('Adds it to Browse and Search'),
+                onTap: () {
+                  Navigator.pop(context);
+                  onInstall();
+                },
+              ),
+            ListTile(
+              leading: const Icon(Icons.open_in_browser),
+              title: const Text('Open homepage'),
+              onTap: () {
+                Navigator.pop(context);
+                Navigator.push(
+                  context,
+                  MaterialPageRoute(
+                    builder: (_) => WebViewScreen(
+                      url: provider.baseUrl,
+                      title: provider.name,
+                    ),
                   ),
-                ),
-              );
-            },
-          ),
-        ],
-      ),
-    ),
+                );
+              },
+            ),
+          ],
+        ),
+      );
+    },
   );
 }
 

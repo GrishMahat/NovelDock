@@ -1,0 +1,17 @@
+<!-- Debug-build adaptive icon (API 26+). Overrides main's same-named file so
+     the launcher shows a slashed book on amber instead of the release icon.
+     The references resolve against THIS source set, picking up the slashed
+     foreground and the amber background. -->
+<adaptive-icon xmlns:android="http://schemas.android.com/apk/res/android">
+  <background android:drawable="@color/ic_launcher_background"/>
+  <foreground>
+      <inset
+          android:drawable="@drawable/ic_launcher_foreground"
+          android:inset="8%" />
+  </foreground>
+  <monochrome>
+      <inset
+          android:drawable="@drawable/ic_launcher_monochrome"
+          android:inset="8%" />
+  </monochrome>
+</adaptive-icon>

@@ -1,0 +1,7 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- Debug builds use a warm amber background so the launcher icon is
+         distinguishable from the release icon's #F5F7FA at a glance. The
+         slashed foreground in this source set supplies the second signal. -->
+    <color name="ic_launcher_background">#FFB300</color>
+</resources>

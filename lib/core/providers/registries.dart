@@ -409,6 +409,36 @@ Future<String?> addRegistryFromFile(
 bool _isLocalRegistryUrl(String url) =>
     url.startsWith('/') || url.startsWith('file://');
 
+/// The registry NovelDock ships with. Every install starts with zero
+/// registries, so this is the one-click way in — offered on first launch and
+/// from every empty-provider state, never added silently.
+const kDefaultRegistryUrl = 'https://github.com/GrishMahat/noveldock-providers';
+
+/// Whether the default registry is already in the user's list.
+///
+/// Canonicalizes both sides so any URL spelling of the same repo (github.com,
+/// raw.githubusercontent.com, trailing slash) counts as present: a user who
+/// already added it by hand must not be offered it again.
+bool hasDefaultRegistry(List<RegistryInfo> registries) {
+  final resolved = RegistryManager.resolveRawUrl(kDefaultRegistryUrl);
+  return registries.any((r) {
+    if (_isLocalRegistryUrl(r.url)) return false;
+    return RegistryManager.resolveRawUrl(r.url) == resolved;
+  });
+}
+
+/// Add the default registry. Returns null on success, an error string on
+/// failure. A no-op success (already present) reports as added so callers can
+/// treat "now has the default registry" the same either way.
+Future<String?> addDefaultRegistry(ProviderContainer ref) async {
+  final existing = ref.read(registriesProvider).value ?? const [];
+  if (hasDefaultRegistry(existing)) {
+    Log.i(_tag, 'Default registry already added');
+    return null;
+  }
+  return addRegistry(kDefaultRegistryUrl, ref);
+}
+
 /// Check a single registry for updates and apply them if available.
 /// Returns true if it was updated, false if already up to date or failed.
 Future<bool> updateRegistryNow(String registryId, ProviderContainer ref) async {
@@ -543,4 +573,18 @@ Future<void> removeRegistry(String registryId, ProviderContainer ref) async {
 /// Toggle a provider's enabled state (convenience wrapper).
 void toggleProvider(String providerId, ProviderContainer ref) {
   ref.read(enabledProvidersProvider.notifier).toggle(providerId);
+}
+
+/// Set a provider's enabled state explicitly (convenience wrapper).
+///
+/// Takes a [ProviderContainer] rather than a [WidgetRef] because removal
+/// rebuilds the very list that owned the button: an Undo tapped from the
+/// snackbar afterwards lands after that widget is gone, and a captured
+/// WidgetRef would throw on a disposed element.
+void setProviderEnabled(
+  String providerId,
+  bool enabled,
+  ProviderContainer ref,
+) {
+  ref.read(enabledProvidersProvider.notifier).setEnabled(providerId, enabled);
 }

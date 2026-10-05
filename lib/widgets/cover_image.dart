@@ -1,6 +1,6 @@
 import 'dart:io';
 
-import 'package:flutter/material.dart';
+import 'package:material_ui/material_ui.dart';
 
 /// Letter tile shown when a novel has no cover (or it fails to load):
 /// the title initial on a stable tint derived from the title, instead of a

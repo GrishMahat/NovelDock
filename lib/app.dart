@@ -15,6 +15,7 @@ import 'core/utils/incoming_intent.dart';
 import 'core/utils/platform.dart';
 import 'core/utils/window_title.dart';
 import 'features/downloads/providers/download_provider.dart';
+import 'features/onboarding/default_providers_prompt.dart';
 import 'features/settings/pages/general_settings_page.dart';
 import 'features/settings/pages/theme_settings_page.dart';
 import 'router/app_router.dart';
@@ -60,6 +61,9 @@ class _NovelDockAppState extends ConsumerState<NovelDockApp> {
       // Cold-start share/deep-link/shortcut intent (warm ones arrive via
       // the channel push). No-ops on non-Android shells.
       unawaited(IncomingIntent.handleStartup(ref));
+      // First launch only: offer the default sources. A no-op for anyone who
+      // already has registries, and it never adds anything on its own.
+      unawaited(maybePromptDefaultProviders(ref));
       // The full-library reconcile is an unbounded filesystem sweep (every
       // downloaded chapter stat, plus a directory listing per novel). It used
       // to run here, in the same post-frame callback, so on a real library it

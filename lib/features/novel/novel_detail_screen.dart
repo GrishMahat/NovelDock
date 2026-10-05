@@ -2,7 +2,7 @@ import 'dart:async';
 import 'dart:io';
 
 import 'package:dio/dio.dart';
-import 'package:flutter/material.dart';
+import 'package:material_ui/material_ui.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:path_provider/path_provider.dart';
@@ -27,7 +27,14 @@ import 'chapter_sort.dart';
 import 'widgets/status_picker_sheet.dart';
 import 'widgets/download_range_sheet.dart';
 
-enum ChapterFilter { all, downloaded, bookmarked, read, unread }
+/// Status filters offered as checkboxes in the chapter Filter button's popup.
+/// An empty selection means "no filter" — there is no `all` member for that,
+/// because an unchecked box is how you say all.
+///
+/// Checked filters are OR-ed together, matching the original chapter filter
+/// popup this replaces: picking Downloaded and Read shows chapters that are
+/// downloaded *or* read. AND would make most combinations unreachable.
+enum ChapterFilter { downloaded, bookmarked, read, unread }
 
 /// Per-novel overflow actions. Chapter-level actions live in selection mode
 /// instead, so this list stays short.
@@ -39,11 +46,14 @@ enum _ChapterRowAction {
   markBeforeRead,
   addBookmark,
   removeBookmark,
+  download,
 }
+
+/// Bulk verbs reachable from the selection bar's three-dots menu.
+enum _BulkAction { selectAll, download, bookmark, unmark, markRead, markUnread }
 
 extension ChapterFilterLabel on ChapterFilter {
   String get label => switch (this) {
-    ChapterFilter.all => 'All',
     ChapterFilter.downloaded => 'Downloaded',
     ChapterFilter.bookmarked => 'Bookmarked',
     ChapterFilter.read => 'Read',
@@ -80,7 +90,9 @@ class _NovelDetailScreenState extends ConsumerState<NovelDetailScreen> {
   /// and flashes the chapter skeleton.
   Stream<List<Chapter>>? _chaptersStream;
   ChapterSort _chapterSort = ChapterSort.normal;
-  ChapterFilter _chapterFilter = ChapterFilter.all;
+
+  /// Statuses ticked in the Filter button's popup. Empty = show everything.
+  final Set<ChapterFilter> _chapterFilters = <ChapterFilter>{};
 
   /// Whether the open-time auto-fetch below has run. Guards both the fetch
   /// itself and the shimmer condition: idle + empty means "about to load"
@@ -527,6 +539,13 @@ class _NovelDetailScreenState extends ConsumerState<NovelDetailScreen> {
         onPressed: _selecting ? null : () => _showDownloadDialog(context, ref),
         tooltip: 'Download',
       ),
+      // Chapter scope lives in the app bar with the rest of this novel's
+      // actions: the list header then carries only the count, so the row of
+      // controls stops competing with "18 chapters" for the same line.
+      if (!_selecting) ...[
+        _buildFilterButton(context),
+        _buildSortButton(context),
+      ],
       PopupMenuButton<_NovelMenuAction>(
         key: const ValueKey('novel-overflow'),
         icon: const Icon(Icons.more_vert),
@@ -568,9 +587,108 @@ class _NovelDetailScreenState extends ConsumerState<NovelDetailScreen> {
     }
   }
 
+  /// Chapter status filter: one tap opens a popup of status checkboxes that
+  /// can be ticked in any combination.
+  ///
+  /// An app-bar icon button now, beside Sort and the novel's own actions,
+  /// rather than a labelled button floating over the list. Its icon is
+  /// deliberately not `filter_list`: that reads as "filter a list", which is
+  /// what Sort looks like it does too, and neither said what these actually
+  /// scope — this one narrows by chapter *status*. `fact_check` says
+  /// criteria/state, and the corner dot keeps an active filter from hiding in
+  /// a menu.
+  Widget _buildFilterButton(BuildContext context) {
+    final scheme = Theme.of(context).colorScheme;
+    final ticked = _chapterFilters.length;
+    final active = ticked > 0;
+    return PopupMenuButton<bool>(
+      key: const ValueKey('chapter-filter'),
+      tooltip: active ? 'Filter chapters ($ticked)' : 'Filter chapters',
+      borderRadius: const BorderRadius.all(Radii.sm),
+      style: const ButtonStyle(tapTargetSize: MaterialTapTargetSize.padded),
+      // The checkbox entry below never pops the route, so the popup stays up
+      // across ticks; only "Done" or an outside tap closes it. No onSelected:
+      // closing carries no state — every tick has already landed.
+      itemBuilder: (context) => [
+        _ChapterFilterEntry(
+          selected: Set.of(_chapterFilters),
+          onChanged: (next) => setState(() {
+            _chapterFilters
+              ..clear()
+              ..addAll(next);
+          }),
+        ),
+        _menuItem(context, true, Icons.check, 'Done'),
+      ],
+      child: SizedBox(
+        width: kMinInteractiveDimension,
+        height: kMinInteractiveDimension,
+        child: Stack(
+          alignment: Alignment.center,
+          children: [
+            Icon(
+              Icons.fact_check,
+              size: 24,
+              color: active ? scheme.primary : null,
+            ),
+            if (active)
+              Positioned(
+                top: 11,
+                right: 11,
+                child: Container(
+                  width: 8,
+                  height: 8,
+                  decoration: BoxDecoration(
+                    color: scheme.primary,
+                    shape: BoxShape.circle,
+                  ),
+                ),
+              ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  /// Chapter sort, beside the filter in the app bar.
+  ///
+  /// The icon carries the direction rather than a generic funnel-ish glyph: an
+  /// arrow down for "Latest first" (newest/descending, the order people
+  /// actually reach for on a long list), up for the two ascending orders. The
+  /// old `Icons.sort` looked like a filter next to the filter.
+  Widget _buildSortButton(BuildContext context) {
+    final descending = _chapterSort == ChapterSort.latest;
+    return PopupMenuButton<ChapterSort>(
+      key: const ValueKey('chapter-sort'),
+      tooltip: 'Sort chapters (${_chapterSort.label})',
+      icon: Icon(descending ? Icons.arrow_downward : Icons.arrow_upward),
+      initialValue: _chapterSort,
+      onSelected: (value) => setState(() => _chapterSort = value),
+      itemBuilder: (context) => [
+        for (final sort in ChapterSort.values)
+          _menuItem(
+            context,
+            sort,
+            _chapterSort == sort
+                ? Icons.check
+                : (sort == ChapterSort.latest
+                      ? Icons.arrow_downward
+                      : Icons.arrow_upward),
+            sort.label,
+            checked: _chapterSort == sort,
+          ),
+      ],
+    );
+  }
+
   /// Bottom selection bar. Lives at the bottom rather than in the app bar
-  /// because all six verbs need real estate the title row cannot spare, and
   /// because on a phone that is where the thumb already is.
+  ///
+  /// The bulk verbs sit behind a three-dots menu instead of as six inline
+  /// buttons: seven controls never fit a phone-width row, and the bar's job
+  /// is to stay one row. The trigger still lives here — below the chapters,
+  /// not in the app bar — so the verbs are one tap away from the selection
+  /// they act on.
   Widget _buildSelectionBar(BuildContext context) {
     final scheme = Theme.of(context).colorScheme;
     final allPicked =
@@ -594,49 +712,92 @@ class _NovelDetailScreenState extends ConsumerState<NovelDetailScreen> {
                 label: 'Cancel',
                 onPressed: _clearSelection,
               ),
-              _BarAction(
-                icon: allPicked ? Icons.deselect : Icons.done_all,
-                label: allPicked ? 'Select none' : 'Select all',
-                onPressed: allPicked
-                    ? () => setState(_selectedChapterIds.clear)
-                    : () => _selectAllVisible(_lastVisibleChapters),
-              ),
               const Spacer(),
-              _BarAction(
-                icon: Icons.download_outlined,
-                label: 'Download',
-                enabled: count > 0,
-                onPressed: () => _bulkDownload(context),
-              ),
-              _BarAction(
-                icon: Icons.bookmark_add_outlined,
-                label: 'Bookmark',
-                enabled: count > 0,
-                onPressed: () => _bulkBookmark(context, true),
-              ),
-              _BarAction(
-                icon: Icons.bookmark_remove_outlined,
-                label: 'Unmark',
-                enabled: count > 0,
-                onPressed: () => _bulkBookmark(context, false),
-              ),
-              _BarAction(
-                icon: Icons.mark_email_read_outlined,
-                label: 'Mark read',
-                enabled: count > 0,
-                onPressed: () => _bulkRead(context, read: true),
-              ),
-              _BarAction(
-                icon: Icons.mark_email_unread_outlined,
-                label: 'Mark unread',
-                enabled: count > 0,
-                onPressed: () => _bulkRead(context, read: false),
+              // The pick count lives in the app bar title; the bar only
+              // carries the way out and the way to the verbs.
+              PopupMenuButton<_BulkAction>(
+                key: const ValueKey('bulk-actions'),
+                icon: const Icon(Icons.more_vert),
+                tooltip: 'Bulk actions',
+                onSelected: (action) =>
+                    _runBulkAction(context, action, allPicked: allPicked),
+                itemBuilder: (context) => [
+                  _menuItem(
+                    context,
+                    _BulkAction.selectAll,
+                    allPicked ? Icons.deselect : Icons.done_all,
+                    allPicked ? 'Select none' : 'Select all',
+                  ),
+                  _menuItem(
+                    context,
+                    _BulkAction.download,
+                    Icons.download_outlined,
+                    'Download',
+                    enabled: count > 0,
+                  ),
+                  _menuItem(
+                    context,
+                    _BulkAction.bookmark,
+                    Icons.bookmark_add_outlined,
+                    'Bookmark',
+                    enabled: count > 0,
+                  ),
+                  _menuItem(
+                    context,
+                    _BulkAction.unmark,
+                    Icons.bookmark_remove_outlined,
+                    'Unmark',
+                    enabled: count > 0,
+                  ),
+                  _menuItem(
+                    context,
+                    _BulkAction.markRead,
+                    Icons.mark_email_read_outlined,
+                    'Mark read',
+                    enabled: count > 0,
+                  ),
+                  _menuItem(
+                    context,
+                    _BulkAction.markUnread,
+                    Icons.mark_email_unread_outlined,
+                    'Mark unread',
+                    enabled: count > 0,
+                  ),
+                ],
               ),
             ],
           ),
         ),
       ),
     );
+  }
+
+  /// Runs one verb from the selection bar's three-dots menu. The menu has
+  /// already closed itself by the time this fires, so the caller's build
+  /// context is the screen's — the safe one to reach a Scaffold from.
+  void _runBulkAction(
+    BuildContext context,
+    _BulkAction action, {
+    required bool allPicked,
+  }) {
+    switch (action) {
+      case _BulkAction.selectAll:
+        if (allPicked) {
+          setState(_selectedChapterIds.clear);
+        } else {
+          _selectAllVisible(_lastVisibleChapters);
+        }
+      case _BulkAction.download:
+        _bulkDownload(context);
+      case _BulkAction.bookmark:
+        _bulkBookmark(context, true);
+      case _BulkAction.unmark:
+        _bulkBookmark(context, false);
+      case _BulkAction.markRead:
+        _bulkRead(context, read: true);
+      case _BulkAction.markUnread:
+        _bulkRead(context, read: false);
+    }
   }
 
   /// Header title: the pick count while selecting, otherwise the novel title.
@@ -723,6 +884,22 @@ class _NovelDetailScreenState extends ConsumerState<NovelDetailScreen> {
             ),
             ListTile(
               leading: Icon(
+                chapter.downloaded
+                    ? Icons.download_done
+                    : Icons.arrow_circle_down_outlined,
+              ),
+              title: Text(
+                chapter.downloaded ? 'Downloaded' : 'Download chapter',
+              ),
+              // Already on disk: the row stays as a state readout, not a
+              // button that would queue the same file twice.
+              enabled: !chapter.downloaded,
+              onTap: chapter.downloaded
+                  ? null
+                  : () => Navigator.pop(ctx, _ChapterRowAction.download),
+            ),
+            ListTile(
+              leading: Icon(
                 chapter.bookmarked
                     ? Icons.bookmark_remove_outlined
                     : Icons.bookmark_add_outlined,
@@ -758,6 +935,10 @@ class _NovelDetailScreenState extends ConsumerState<NovelDetailScreen> {
         await chapterDao.toggleBookmark(chapter.id, true);
       case _ChapterRowAction.removeBookmark:
         await chapterDao.toggleBookmark(chapter.id, false);
+      case _ChapterRowAction.download:
+        await ref
+            .read(downloadProvider.notifier)
+            .downloadChapter(widget.novelId, chapter.id);
     }
   }
 
@@ -823,16 +1004,23 @@ class _NovelDetailScreenState extends ConsumerState<NovelDetailScreen> {
         final chapters = chapterSnapshot.data ?? [];
         final sortedChapters = sortChapters(chapters, _chapterSort);
         // Client-side status filter (mirrors the original's chapter filter
-        // popup: downloaded / bookmarked / read / unread).
-        final filteredChapters = switch (_chapterFilter) {
-          ChapterFilter.all => sortedChapters,
-          ChapterFilter.downloaded =>
-            sortedChapters.where((c) => c.downloaded).toList(),
-          ChapterFilter.bookmarked =>
-            sortedChapters.where((c) => c.bookmarked).toList(),
-          ChapterFilter.read => sortedChapters.where((c) => c.read).toList(),
-          ChapterFilter.unread => sortedChapters.where((c) => !c.read).toList(),
-        };
+        // popup: downloaded / bookmarked / read / unread). Ticked filters
+        // are OR-ed; none ticked means no filtering at all.
+        final filteredChapters = _chapterFilters.isEmpty
+            ? sortedChapters
+            : sortedChapters
+                  .where(
+                    (c) =>
+                        (_chapterFilters.contains(ChapterFilter.downloaded) &&
+                            c.downloaded) ||
+                        (_chapterFilters.contains(ChapterFilter.bookmarked) &&
+                            c.bookmarked) ||
+                        (_chapterFilters.contains(ChapterFilter.read) &&
+                            c.read) ||
+                        (_chapterFilters.contains(ChapterFilter.unread) &&
+                            !c.read),
+                  )
+                  .toList();
         // Only show the skeleton when there is nothing to show yet AND
         // chapters may still arrive; re-emissions must never blank an
         // existing list. The fetch phase is authoritative: an empty stream
@@ -905,9 +1093,8 @@ class _NovelDetailScreenState extends ConsumerState<NovelDetailScreen> {
                               if (!isDesktop) ...[
                                 Text(
                                   novel?.title ?? 'Loading...',
-                                  style: Theme.of(
-                                    context,
-                                  ).textTheme.titleMedium,
+                                  style: Theme.of(context).textTheme.titleLarge
+                                      ?.copyWith(fontWeight: FontWeight.w700),
                                   maxLines: 2,
                                   overflow: TextOverflow.ellipsis,
                                 ),
@@ -968,25 +1155,39 @@ class _NovelDetailScreenState extends ConsumerState<NovelDetailScreen> {
                                   ),
                                 ],
                               ),
-                              const SizedBox(height: Insets.sm),
-                              // Library membership + source page sit with the
-                              // metadata instead of claiming a full-width
-                              // action row of their own.
-                              Row(
+                              const SizedBox(height: Insets.md),
+                              // Library membership + source page as labelled
+                              // pills: icon plus the verb it performs. Bare
+                              // circles (the previous shape) made a filled
+                              // heart look like a decorative badge — nothing
+                              // about a lone glyph says "press to add this to
+                              // your library". The label does.
+                              //
+                              // A Wrap, not a Row: beside a 96dp cover a
+                              // 360dp phone has ~220dp for both pills, and a
+                              // long status would overflow rather than wrap.
+                              Wrap(
+                                spacing: Insets.sm,
+                                runSpacing: Insets.sm,
                                 children: [
                                   _HeaderAction(
                                     icon: _libraryStatus != null
                                         ? Icons.favorite
                                         : Icons.favorite_border,
-                                    label: _libraryStatus ?? 'Library',
+                                    label: _libraryStatus == null
+                                        ? 'Add to library'
+                                        : _libraryStatus!,
+                                    tooltip: _libraryStatus == null
+                                        ? 'Add to library'
+                                        : 'In library — $_libraryStatus',
                                     active: _libraryStatus != null,
                                     onTap: () =>
                                         _editLibraryStatus(context, libraryDao),
                                   ),
-                                  const SizedBox(width: Insets.sm),
                                   _HeaderAction(
-                                    icon: Icons.language,
-                                    label: 'Source',
+                                    icon: Icons.public,
+                                    label: 'Web View',
+                                    tooltip: 'Open source page in Web View',
                                     active: false,
                                     onTap: _openInAppBrowser,
                                   ),
@@ -1041,62 +1242,29 @@ class _NovelDetailScreenState extends ConsumerState<NovelDetailScreen> {
                       const SizedBox(height: 20),
                     ],
 
-                    // Chapter Header count + status filter chips
+                    // Chapter Header count + the dedicated Filter button
                     if (!showChapterShimmer && sortedChapters.isNotEmpty) ...[
                       Row(
                         children: [
                           Expanded(
                             child: Text(
-                              _chapterFilter == ChapterFilter.all
+                              _chapterFilters.isEmpty
                                   ? '${sortedChapters.length} chapters'
                                   : '${filteredChapters.length} of ${sortedChapters.length} chapters',
+                              maxLines: 1,
+                              overflow: TextOverflow.ellipsis,
                               style: Theme.of(context).textTheme.titleSmall,
                             ),
                           ),
-                          // Sort belongs to the chapter list, not the novel,
-                          // so it sits in the list header rather than the
-                          // app bar.
-                          PopupMenuButton<ChapterSort>(
-                            icon: const Icon(Icons.sort, size: 20),
-                            tooltip: 'Sort chapters',
-                            initialValue: _chapterSort,
-                            onSelected: (value) =>
-                                setState(() => _chapterSort = value),
-                            itemBuilder: (context) => [
-                              for (final sort in ChapterSort.values)
-                                _menuItem(
-                                  context,
-                                  sort,
-                                  _chapterSort == sort
-                                      ? Icons.check
-                                      : Icons.sort,
-                                  sort.label,
-                                  checked: _chapterSort == sort,
-                                ),
-                            ],
-                          ),
-                          if (_chapterFilter != ChapterFilter.all)
+                          // Filter and sort sit in the app bar next to
+                          // Download and the overflow. Here, only the count
+                          // and, while one is applied, a way to drop it.
+                          if (_chapterFilters.isNotEmpty)
                             TextButton(
-                              onPressed: () => setState(
-                                () => _chapterFilter = ChapterFilter.all,
-                              ),
+                              onPressed: () => setState(_chapterFilters.clear),
                               child: const Text('Clear'),
                             ),
                         ],
-                      ),
-                      const SizedBox(height: Insets.sm),
-                      Wrap(
-                        spacing: Insets.sm,
-                        runSpacing: Insets.xs,
-                        children: ChapterFilter.values.map((filter) {
-                          return FilterChip(
-                            label: Text(filter.label),
-                            selected: _chapterFilter == filter,
-                            visualDensity: VisualDensity.compact,
-                            onSelected: (_) =>
-                                setState(() => _chapterFilter = filter),
-                          );
-                        }).toList(),
                       ),
                       const SizedBox(height: Insets.md),
                     ],
@@ -1105,14 +1273,14 @@ class _NovelDetailScreenState extends ConsumerState<NovelDetailScreen> {
                     if (showChapterShimmer)
                       ...List.generate(8, (_) => const ShimmerChapterTile())
                     else if (filteredChapters.isEmpty &&
-                        _chapterFilter != ChapterFilter.all &&
+                        _chapterFilters.isNotEmpty &&
                         sortedChapters.isNotEmpty)
                       Padding(
                         padding: const EdgeInsets.symmetric(vertical: 24),
                         child: Column(
                           children: [
                             Text(
-                              'No ${_chapterFilter.label.toLowerCase()} chapters.',
+                              'No chapters match this filter.',
                               style: Theme.of(context).textTheme.bodyMedium
                                   ?.copyWith(
                                     color: Theme.of(
@@ -1122,9 +1290,7 @@ class _NovelDetailScreenState extends ConsumerState<NovelDetailScreen> {
                             ),
                             const SizedBox(height: Insets.md),
                             OutlinedButton(
-                              onPressed: () => setState(
-                                () => _chapterFilter = ChapterFilter.all,
-                              ),
+                              onPressed: () => setState(_chapterFilters.clear),
                               child: const Text('Show all chapters'),
                             ),
                           ],
@@ -1162,45 +1328,7 @@ class _NovelDetailScreenState extends ConsumerState<NovelDetailScreen> {
                         ),
                       )
                     else
-                      ...filteredChapters.map(
-                        (chapter) => _buildChapterRow(
-                          key: ValueKey(chapter.id),
-                          name: chapter.name,
-                          read: chapter.read,
-                          downloaded: chapter.downloaded,
-                          selected:
-                              _selecting &&
-                              _selectedChapterIds.contains(chapter.id),
-                          selectionArmed: _selecting,
-                          onDownload: chapter.downloaded
-                              ? null
-                              : () => ref
-                                    .read(downloadProvider.notifier)
-                                    .downloadChapter(
-                                      widget.novelId,
-                                      chapter.id,
-                                    ),
-                          onTap: () {
-                            if (_selecting) {
-                              _toggleSelection(chapter.id);
-                              return;
-                            }
-                            context.push(
-                              '/reader/${widget.novelId}/${chapter.id}',
-                            );
-                          },
-                          onLongPress: () {
-                            if (_selecting) return;
-                            unawaited(
-                              _showChapterRowMenu(
-                                context,
-                                chapter,
-                                filteredChapters,
-                              ),
-                            );
-                          },
-                        ),
-                      ),
+                      ..._buildChapterRows(context, ref, filteredChapters),
                     _HighlightsSection(novel: novel, chapters: sortedChapters),
                     const SizedBox(height: 80),
                   ],
@@ -1241,9 +1369,57 @@ class _NovelDetailScreenState extends ConsumerState<NovelDetailScreen> {
     );
   }
 
-  /// One chapter row. Reads as a dense scan list rather than a card: the
-  /// previous ListTile showed only ~9 chapters per phone screen, each row
-  /// spending 72dp on a 14px title.
+  /// Chapter rows with a hairline between neighbours.
+  ///
+  /// The separator is what makes a flat list legible: it groups rows into
+  /// readable bands without boxing each one, so a hundred chapters still scan
+  /// as a single column. It is drawn as the row's own bottom edge rather than
+  /// a [Divider] widget so it cannot drift out of step with the row heights,
+  /// and the last row gets no trailing line — a rule under the final entry
+  /// reads as an unfinished table.
+  List<Widget> _buildChapterRows(
+    BuildContext context,
+    WidgetRef ref,
+    List<Chapter> chapters,
+  ) {
+    final rows = <Widget>[];
+    for (var i = 0; i < chapters.length; i++) {
+      final chapter = chapters[i];
+      rows.add(
+        _buildChapterRow(
+          key: ValueKey(chapter.id),
+          name: chapter.name,
+          read: chapter.read,
+          downloaded: chapter.downloaded,
+          selected: _selecting && _selectedChapterIds.contains(chapter.id),
+          selectionArmed: _selecting,
+          onTap: () {
+            if (_selecting) {
+              _toggleSelection(chapter.id);
+              return;
+            }
+            context.push('/reader/${widget.novelId}/${chapter.id}');
+          },
+          onLongPress: () {
+            if (_selecting) return;
+            unawaited(_showChapterRowMenu(context, chapter, chapters));
+          },
+        ),
+      );
+      if (i < chapters.length - 1) rows.add(const _ChapterSeparator());
+    }
+    return rows;
+  }
+
+  /// One chapter row, drawn as a flat list entry.
+  ///
+  /// These used to be individually bordered cards. With a hundred chapters
+  /// that stacked a hundred rectangles separated by gaps, which reads as a
+  /// wall of boxes rather than one continuous list — every row looked like a
+  /// separate object the eye had to re-enter, and a border on every row spends
+  /// far more ink than the thin separator it replaces. A hairline plus
+  /// vertical padding groups the rows just as clearly and lets the titles
+  /// scan as one column.
   Widget _buildChapterRow({
     required Key key,
     required String name,
@@ -1251,29 +1427,33 @@ class _NovelDetailScreenState extends ConsumerState<NovelDetailScreen> {
     required bool downloaded,
     required bool selected,
     required bool selectionArmed,
-    required VoidCallback? onDownload,
     required VoidCallback onTap,
     required VoidCallback onLongPress,
   }) {
     final scheme = Theme.of(context).colorScheme;
     final text = Theme.of(context).textTheme;
-    final compact = screenSizeOf(context).isCompact;
+    // Download state moved to the long-press menu: a per-row button meant 100
+    // near-identical glyphs down the right edge, all of them saying
+    // "not downloaded". The bulk action still covers it during selection.
     return Material(
       color: selected
           ? scheme.primaryContainer.withValues(alpha: 0.35)
           : Colors.transparent,
+      // Clipped to the row so the selection fill and the ink splash stop at
+      // the row edge instead of bleeding into its neighbour.
+      clipBehavior: Clip.antiAlias,
       child: InkWell(
         key: key,
         onTap: onTap,
         onLongPress: onLongPress,
         child: Padding(
-          padding: EdgeInsets.symmetric(
-            horizontal: Insets.md,
-            vertical: compact ? Insets.xs : Insets.sm,
+          padding: const EdgeInsets.symmetric(
+            horizontal: Insets.sm,
+            vertical: Insets.md,
           ),
           child: Row(
             children: [
-              // Selection checkbox replaces the read rule while picking, so
+              // Selection checkbox replaces the read dot while picking, so
               // the two never compete for the same leading column.
               if (selectionArmed)
                 Icon(
@@ -1282,14 +1462,15 @@ class _NovelDetailScreenState extends ConsumerState<NovelDetailScreen> {
                   color: selected ? scheme.primary : scheme.outline,
                 )
               else
-                // Read state as a leading rule: scannable down the list
-                // without spending a text column on the word "Available".
+                // Unread marker. A dot rather than the old full-height green
+                // rule: on a flat row the rule read as a left border, which is
+                // what made the list look ruled rather than listed.
                 Container(
-                  width: 3,
-                  height: compact ? 20 : 24,
+                  width: 7,
+                  height: 7,
                   decoration: BoxDecoration(
-                    color: read ? scheme.outlineVariant : scheme.primary,
-                    borderRadius: BorderRadius.circular(2),
+                    shape: BoxShape.circle,
+                    color: read ? Colors.transparent : scheme.primary,
                   ),
                 ),
               const SizedBox(width: Insets.md),
@@ -1298,27 +1479,22 @@ class _NovelDetailScreenState extends ConsumerState<NovelDetailScreen> {
                   name,
                   maxLines: 1,
                   overflow: TextOverflow.ellipsis,
+                  // Read chapters recede by weight and colour together, so a
+                  // finished run is obvious while scanning down the list.
                   style: text.bodyMedium?.copyWith(
                     fontWeight: read ? FontWeight.w400 : FontWeight.w600,
                     color: read ? scheme.onSurfaceVariant : scheme.onSurface,
                   ),
                 ),
               ),
-              // The per-row download button has no meaning mid-selection;
-              // the bulk action covers it.
-              if (!selectionArmed) ...[
+              // A quiet confirmation for chapters already on disk. No button:
+              // nothing to press, nothing to mis-tap.
+              if (!selectionArmed && downloaded) ...[
                 const SizedBox(width: Insets.sm),
-                IconButton(
-                  icon: Icon(
-                    downloaded
-                        ? Icons.download_done
-                        : Icons.arrow_circle_down_outlined,
-                    size: 20,
-                    color: scheme.onSurfaceVariant,
-                  ),
-                  tooltip: downloaded ? 'Downloaded' : 'Download chapter',
-                  visualDensity: VisualDensity.compact,
-                  onPressed: onDownload,
+                Icon(
+                  Icons.download_done,
+                  size: 16,
+                  color: scheme.onSurfaceVariant.withValues(alpha: 0.7),
                 ),
               ],
             ],
@@ -1329,28 +1505,125 @@ class _NovelDetailScreenState extends ConsumerState<NovelDetailScreen> {
   }
 }
 
+/// Hairline between two chapter rows.
+///
+/// Inset past the leading unread dot so the rule separates the *text* of two
+/// chapters rather than slicing through their markers.
+class _ChapterSeparator extends StatelessWidget {
+  const _ChapterSeparator();
+
+  @override
+  Widget build(BuildContext context) {
+    return Padding(
+      padding: const EdgeInsets.only(left: Insets.sm + 7 + Insets.md),
+      child: Divider(
+        height: 1,
+        thickness: 1,
+        color: Theme.of(context).colorScheme.outlineVariant,
+      ),
+    );
+  }
+}
+
 /// One labelled action in the bottom selection bar.
+/// Checkbox rows for the chapter Filter popup.
+///
+/// Unlike [PopupMenuItem], this entry never pops the route on tap: the filter
+/// is multi-select, so the menu has to stay up while boxes are toggled. Every
+/// tick has already applied by the time it lands, so dismissing — outside tap,
+/// back, or the "Done" row — commits nothing and loses nothing.
+///
+/// It keeps its own copy of the selection because a popup builds its items
+/// once, when it opens; the parent's rebuild never reaches back in here.
+class _ChapterFilterEntry extends StatefulWidget
+    implements PopupMenuEntry<bool> {
+  const _ChapterFilterEntry({required this.selected, required this.onChanged});
+
+  final Set<ChapterFilter> selected;
+  final ValueChanged<Set<ChapterFilter>> onChanged;
+
+  /// Only read by [showMenu] when aligning an `initialValue` over the anchor,
+  /// which this popup never passes — the route measures its laid-out children.
+  /// An estimate of the closed-up height keeps the contract honest anyway.
+  @override
+  double get height => Insets.xl + 4 * kMinInteractiveDimension;
+
+  @override
+  bool represents(bool? value) => false;
+
+  @override
+  State<_ChapterFilterEntry> createState() => _ChapterFilterEntryState();
+}
+
+class _ChapterFilterEntryState extends State<_ChapterFilterEntry> {
+  late final Set<ChapterFilter> _selected = Set.of(widget.selected);
+
+  void _toggle(ChapterFilter filter) {
+    setState(() {
+      if (!_selected.remove(filter)) _selected.add(filter);
+    });
+    widget.onChanged(Set.of(_selected));
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final scheme = Theme.of(context).colorScheme;
+    return Column(
+      mainAxisSize: MainAxisSize.min,
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        Padding(
+          padding: const EdgeInsets.fromLTRB(
+            Insets.lg,
+            Insets.md,
+            Insets.lg,
+            Insets.xs,
+          ),
+          child: Text(
+            'Show chapters that are',
+            style: Theme.of(
+              context,
+            ).textTheme.labelMedium?.copyWith(color: scheme.onSurfaceVariant),
+          ),
+        ),
+        for (final filter in ChapterFilter.values)
+          CheckboxListTile(
+            value: _selected.contains(filter),
+            onChanged: (_) => _toggle(filter),
+            title: Text(
+              filter.label,
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
+            ),
+            controlAffinity: ListTileControlAffinity.leading,
+            dense: true,
+            contentPadding: const EdgeInsets.symmetric(horizontal: Insets.lg),
+            materialTapTargetSize: MaterialTapTargetSize.shrinkWrap,
+          ),
+      ],
+    );
+  }
+}
+
 class _BarAction extends StatelessWidget {
   final IconData icon;
   final String label;
   final VoidCallback onPressed;
-  final bool enabled;
 
   const _BarAction({
     required this.icon,
     required this.label,
     required this.onPressed,
-    this.enabled = true,
   });
 
   @override
   Widget build(BuildContext context) {
     final scheme = Theme.of(context).colorScheme;
-    final color = enabled ? scheme.onSurfaceVariant : scheme.outline;
+    final color = scheme.onSurfaceVariant;
     return Tooltip(
       message: label,
       child: InkWell(
-        onTap: enabled ? onPressed : null,
+        onTap: onPressed,
         borderRadius: BorderRadius.all(Radii.sm),
         child: Padding(
           padding: const EdgeInsets.symmetric(
@@ -1376,17 +1649,29 @@ class _BarAction extends StatelessWidget {
   }
 }
 
-/// Small icon+label action for the novel header, sitting inline with the
+/// Icon + label pill for the novel header, sitting inline with the
 /// title/author block instead of claiming a full-width row.
+///
+/// The label is not decoration. As a bare circle a filled heart reads as a
+/// status badge, not an invitation — the user cannot tell whether tapping it
+/// adds the book or opens it. Naming the action ("Add to library", "Web View")
+/// makes it a button.
 class _HeaderAction extends StatelessWidget {
   final IconData icon;
+
+  /// Visible verb or current library status.
   final String label;
+
+  /// Hover/long-press label. Carries what the pill cannot fit: the full
+  /// phrasing, and the reading status while the novel is in the library.
+  final String tooltip;
   final bool active;
   final VoidCallback onTap;
 
   const _HeaderAction({
     required this.icon,
     required this.label,
+    required this.tooltip,
     required this.active,
     required this.onTap,
   });
@@ -1394,36 +1679,53 @@ class _HeaderAction extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final scheme = Theme.of(context).colorScheme;
-    final color = active ? scheme.primary : scheme.onSurfaceVariant;
+    final fg = active ? scheme.primary : scheme.onSurfaceVariant;
+
     return Tooltip(
-      message: label,
-      child: InkWell(
-        onTap: onTap,
-        borderRadius: BorderRadius.all(Radii.sm),
-        child: Container(
-          padding: const EdgeInsets.symmetric(
-            horizontal: Insets.sm,
-            vertical: Insets.xs,
+      message: tooltip,
+      child: Material(
+        // A real button surface: tonal when the state is on, outlined
+        // otherwise. Vertical padding is `Insets.lg` rather than `Insets.md`
+        // so the pill clears the 48dp tap target instead of landing ~4dp short.
+        color: active
+            ? scheme.primaryContainer.withValues(alpha: 0.45)
+            : Colors.transparent,
+        shape: RoundedRectangleBorder(
+          borderRadius: const BorderRadius.all(Radii.sm),
+          side: BorderSide(
+            color: active ? scheme.primary : scheme.outlineVariant,
           ),
-          decoration: BoxDecoration(
-            color: active
-                ? scheme.primaryContainer.withValues(alpha: 0.4)
-                : scheme.surfaceContainerHighest.withValues(alpha: 0.5),
-            borderRadius: BorderRadius.all(Radii.sm),
-          ),
-          child: Row(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              Icon(icon, size: 16, color: color),
-              const SizedBox(width: Insets.xs),
-              Text(
-                label,
-                style: Theme.of(context).textTheme.labelSmall?.copyWith(
-                  color: color,
-                  fontWeight: active ? FontWeight.w600 : FontWeight.w500,
+        ),
+        clipBehavior: Clip.antiAlias,
+        child: InkWell(
+          onTap: onTap,
+          child: Padding(
+            padding: const EdgeInsets.symmetric(
+              horizontal: Insets.md,
+              vertical: Insets.lg,
+            ),
+            child: Row(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Icon(icon, size: 18, color: fg),
+                const SizedBox(width: Insets.sm),
+                // The label is what names the action, so it must not be the
+                // thing that gets dropped when space runs short — cap its
+                // length instead and let the pill stay on one line.
+                ConstrainedBox(
+                  constraints: const BoxConstraints(maxWidth: 132),
+                  child: Text(
+                    label,
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: Theme.of(context).textTheme.labelLarge?.copyWith(
+                      color: fg,
+                      fontWeight: active ? FontWeight.w600 : FontWeight.w500,
+                    ),
+                  ),
                 ),
-              ),
-            ],
+              ],
+            ),
           ),
         ),
       ),
@@ -1442,10 +1744,14 @@ PopupMenuItem<T> _menuItem<T>(
   IconData icon,
   String label, {
   bool checked = false,
+  bool enabled = true,
 }) {
   final scheme = Theme.of(context).colorScheme;
+  // Disabled items are dimmed by the entry itself (resolved label style plus
+  // icon opacity), so the colour here stays the enabled one.
   return PopupMenuItem<T>(
     value: value,
+    enabled: enabled,
     child: Row(
       children: [
         Icon(

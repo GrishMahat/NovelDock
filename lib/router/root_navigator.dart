@@ -1,4 +1,4 @@
-import 'package:flutter/material.dart';
+import 'package:material_ui/material_ui.dart';
 
 /// Root navigator key, exposed so intent/update handlers can dialog and
 /// navigate without a widget context (e.g. cold-start intents, app-start

@@ -1,5 +1,8 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
+    <!-- Overridden by a debug-only resValue in build.gradle.kts ("NovelDock
+         Dev"); keeps the release launcher name unchanged. -->
+    <string name="app_name">NovelDock</string>
     <string name="shortcut_library">Library</string>
     <string name="shortcut_library_long">Open your library</string>
     <string name="shortcut_browse">Browse</string>

@@ -55,6 +55,21 @@ android {
     }
 
     buildTypes {
+        // Dev installs must not be able to destroy a Play-installed release's
+        // data. Release builds are signed with the keystore from
+        // key.properties and dev builds with the debug key; Android refuses to
+        // install over an existing app signed with a different key, so the
+        // only way forward would be "uninstall first" — which wipes the app
+        // sandbox (library, history, downloads). A distinct application ID makes
+        // dev a separate app with its own sandbox: both can sit on the device
+        // at once and neither can touch the other's data.
+        debug {
+            applicationIdSuffix = ".debug"
+            // The launcher name is overridden by src/debug/res/values/strings.xml
+            // (a source-set overlay, same as the slashed icons below). Not a
+            // resValue here: that would collide with the app_name in main's
+            // strings.xml and fail the build with "Duplicate resources".
+        }
         release {
             signingConfig = if (hasReleaseKeystore) {
                 signingConfigs.getByName("release")

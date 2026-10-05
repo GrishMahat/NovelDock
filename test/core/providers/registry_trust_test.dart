@@ -9,6 +9,56 @@ import 'package:noveldock/core/providers/registry.dart';
 // pure functions, so they are tested without instances or platform
 // channels.
 void main() {
+  group('default registry', () {
+    RegistryInfo info(String url) => RegistryInfo(id: 'x', url: url);
+
+    test('absent from an empty list', () {
+      expect(hasDefaultRegistry(const []), isFalse);
+    });
+
+    test('detected from the github.com spelling', () {
+      expect(hasDefaultRegistry([info(kDefaultRegistryUrl)]), isTrue);
+    });
+
+    test('detected from the raw.githubusercontent spelling', () {
+      expect(
+        hasDefaultRegistry([
+          info(
+            'https://raw.githubusercontent.com/GrishMahat/'
+            'noveldock-providers/main/registry.json',
+          ),
+        ]),
+        isTrue,
+      );
+    });
+
+    test('not confused by another registry', () {
+      expect(
+        hasDefaultRegistry([info('https://github.com/someone/else')]),
+        isFalse,
+      );
+    });
+
+    test('a local file registry is never the default one', () {
+      // Local registries are the dev-edit loop and are always re-synced, so
+      // they must not satisfy the "user already has the defaults" check.
+      expect(
+        hasDefaultRegistry([
+          info('/home/dev/noveldock-providers/registry.json'),
+        ]),
+        isFalse,
+      );
+    });
+
+    test('the default URL resolves to the official registry.json', () {
+      expect(
+        RegistryManager.resolveRawUrl(kDefaultRegistryUrl),
+        'https://raw.githubusercontent.com/GrishMahat/'
+        'noveldock-providers/main/registry.json',
+      );
+    });
+  });
+
   group('resolveRawUrl', () {
     test('github.com repo URL resolves to raw main registry.json', () {
       expect(

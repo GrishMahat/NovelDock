@@ -1,4 +1,4 @@
-import 'package:flutter/material.dart';
+import 'package:material_ui/material_ui.dart';
 
 /// Compact search field for [PageHeader] action rows. Mirrors the global
 /// top-bar search styling (pill radius, filled surface) at header scale.

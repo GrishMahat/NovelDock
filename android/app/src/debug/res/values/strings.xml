@@ -1,0 +1,7 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- Debug-only overlay: the release app stays "NovelDock". The launcher
+         name is how a user tells two same-looking icons apart, so it has to
+         differ — the slashed icon is the second signal. -->
+    <string name="app_name">NovelDock Dev</string>
+</resources>

@@ -1,5 +1,12 @@
 <?xml version="1.0" encoding="utf-8"?>
 <shortcuts xmlns:android="http://schemas.android.com/apk/res/android">
+    <!-- No android:targetPackage: when omitted, a shortcut targets the app
+         that defines it, which is correct for both variants. An explicit value
+         cannot work here — resource processing substitutes ${applicationId}
+         BEFORE applicationIdSuffix is applied, so the debug build would still
+         be handed the release package and its shortcuts would open the Play
+         app. targetClass is still required, and stays un-suffixed because
+         applicationIdSuffix renames the installed package, not the class. -->
     <shortcut
         android:shortcutId="library"
         android:enabled="true"
@@ -8,7 +15,6 @@
         android:shortcutLongLabel="@string/shortcut_library_long">
         <intent
             android:action="android.intent.action.VIEW"
-            android:targetPackage="dev.grish.noveldock"
             android:targetClass="dev.grish.noveldock.MainActivity"
             android:data="noveldock://library" />
     </shortcut>
@@ -20,7 +26,6 @@
         android:shortcutLongLabel="@string/shortcut_browse_long">
         <intent
             android:action="android.intent.action.VIEW"
-            android:targetPackage="dev.grish.noveldock"
             android:targetClass="dev.grish.noveldock.MainActivity"
             android:data="noveldock://browse" />
     </shortcut>
@@ -32,7 +37,6 @@
         android:shortcutLongLabel="@string/shortcut_history_long">
         <intent
             android:action="android.intent.action.VIEW"
-            android:targetPackage="dev.grish.noveldock"
             android:targetClass="dev.grish.noveldock.MainActivity"
             android:data="noveldock://history" />
     </shortcut>
@@ -44,7 +48,6 @@
         android:shortcutLongLabel="@string/shortcut_downloads_long">
         <intent
             android:action="android.intent.action.VIEW"
-            android:targetPackage="dev.grish.noveldock"
             android:targetClass="dev.grish.noveldock.MainActivity"
             android:data="noveldock://downloads" />
     </shortcut>

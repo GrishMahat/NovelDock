@@ -1,11 +1,13 @@
 import 'package:file_picker/file_picker.dart';
-import 'package:flutter/material.dart';
+import 'package:material_ui/material_ui.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../../core/providers/models.dart';
 import '../../../core/utils/logger.dart';
 import '../../../theme/app_theme.dart';
 import '../../../theme/tokens.dart';
+import '../../../widgets/add_default_providers_button.dart';
+import '../../../widgets/empty_state.dart';
 import '../../../widgets/shimmer_list.dart';
 import '../../../core/providers/registries.dart';
 
@@ -83,31 +85,17 @@ class _ProviderManagementPageState
   }
 
   Widget _buildEmptyState(BuildContext context, WidgetRef ref) {
-    return Center(
-      child: Column(
-        mainAxisAlignment: MainAxisAlignment.center,
+    return EmptyState(
+      icon: Icons.cloud_off,
+      title: 'No registries added',
+      subtitle:
+          'Add the default providers in one tap, or bring your own registry '
+          'from a URL or JSON file.',
+      action: Column(
+        mainAxisSize: MainAxisSize.min,
         children: [
-          Icon(
-            Icons.cloud_off,
-            size: 64,
-            color: Theme.of(
-              context,
-            ).colorScheme.onSurfaceVariant.withValues(alpha: 0.5),
-          ),
-          const SizedBox(height: 16),
-          Text(
-            'No registries added',
-            style: Theme.of(context).textTheme.titleLarge,
-          ),
-          const SizedBox(height: 8),
-          Text(
-            'Add a registry URL or import a JSON file\nto get started.',
-            textAlign: TextAlign.center,
-            style: TextStyle(
-              color: Theme.of(context).colorScheme.onSurfaceVariant,
-            ),
-          ),
-          const SizedBox(height: 24),
+          const AddDefaultProvidersButton(),
+          const SizedBox(height: Insets.lg),
           Row(
             mainAxisAlignment: MainAxisAlignment.center,
             children: [
@@ -117,7 +105,7 @@ class _ProviderManagementPageState
                 label: const Text('Add URL'),
               ),
               const SizedBox(width: 12),
-              FilledButton.icon(
+              OutlinedButton.icon(
                 onPressed: () => _importRegistryFile(context, ref),
                 icon: const Icon(Icons.file_open, size: 18),
                 label: const Text('Import JSON'),
