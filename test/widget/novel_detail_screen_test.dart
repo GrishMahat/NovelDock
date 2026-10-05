@@ -13,6 +13,7 @@ import 'package:noveldock/core/database/database.dart';
 import 'package:noveldock/core/providers/database_providers.dart';
 import 'package:noveldock/core/providers/novel_fetch_state.dart';
 import 'package:noveldock/features/novel/novel_detail_screen.dart';
+import 'package:noveldock/features/novel/widgets/status_picker_sheet.dart';
 import 'package:noveldock/widgets/shimmer_list.dart';
 
 /// Deterministically failed fetch for failure-UI tests (no network).
@@ -130,35 +131,105 @@ void main() {
 
   // DB is closed per-test via _settleAndClose (see above); nothing here.
 
-  Future<void> openFilter(WidgetTester tester) async {
-    await tester.tap(find.byKey(const ValueKey('chapter-filter')));
+  /// Opens the chapter filter dialog from the overflow menu's single
+  /// "Filter chapters" entry — the path the UI actually offers now.
+  Future<void> openFilterDialog(WidgetTester tester) async {
+    await tester.tap(find.byKey(const ValueKey('novel-overflow')));
+    await tester.pumpAndSettle();
+    // The entry carries a count once filters are active ("Filter chapters
+    // (2)"), so match on the prefix rather than the exact label.
+    await tester.tap(find.textContaining('Filter chapters'));
     await tester.pumpAndSettle();
   }
 
-  testWidgets('the filter is one button that opens a checkbox popup', (
+  /// Ticks [labels] in the open dialog and applies them.
+  Future<void> applyFilters(WidgetTester tester, List<String> labels) async {
+    for (final label in labels) {
+      await tester.tap(find.widgetWithText(CheckboxListTile, label));
+      await tester.pumpAndSettle();
+    }
+    await tester.tap(find.text('Apply'));
+    await tester.pumpAndSettle();
+  }
+
+  testWidgets('filter chips render with the chapter count', (tester) async {
+    await _pumpDetail(tester, db, prefs);
+    expect(find.text('4 chapters'), findsOneWidget);
+    // The chips are gone: the filters live behind one "Filter chapters" entry
+    // in the overflow menu, so nothing competes with the count for that line.
+    for (final label in ['Downloaded', 'Bookmarked', 'Read', 'Unread']) {
+      expect(find.widgetWithText(FilterChip, label), findsNothing);
+    }
+    await _settleAndClose(tester, db);
+  });
+
+  testWidgets('the filter dialog lists every status and applies on Apply', (
     tester,
   ) async {
     await _pumpDetail(tester, db, prefs);
-    expect(find.text('4 chapters'), findsOneWidget);
-    expect(find.byKey(const ValueKey('chapter-filter')), findsOneWidget);
-    // No chip row: the four states live behind the button.
-    expect(find.text('Downloaded'), findsNothing);
+    await openFilterDialog(tester);
 
-    await openFilter(tester);
     for (final label in ['Downloaded', 'Bookmarked', 'Read', 'Unread']) {
-      expect(find.text(label), findsOneWidget, reason: '$label missing');
+      expect(find.widgetWithText(CheckboxListTile, label), findsOneWidget);
     }
-    expect(find.text('Done'), findsOneWidget);
-    // Nothing ticked, so the list is untouched behind the popup.
+    // Nothing is ticked to begin with: an empty set means no filter. The
+    // boxes render, they just render unchecked.
+    expect(
+      tester
+          .widgetList<CheckboxListTile>(find.byType(CheckboxListTile))
+          .every((tile) => tile.value == false),
+      isTrue,
+    );
+    // Backing out leaves the list untouched.
+    await tester.tap(find.text('Cancel'));
+    await tester.pumpAndSettle();
     expect(find.text('4 chapters'), findsOneWidget);
+
+    await _settleAndClose(tester, db);
+  });
+
+  testWidgets('multiple filters combine as OR and Clear resets them', (
+    tester,
+  ) async {
+    await _pumpDetail(tester, db, prefs);
+    await openFilterDialog(tester);
+    await applyFilters(tester, ['Downloaded', 'Bookmarked']);
+
+    // Downloaded OR Bookmarked: the two matching chapters, nothing else.
+    expect(find.text('2 of 4 chapters'), findsOneWidget);
+    expect(find.text('Downloaded Chapter'), findsOneWidget);
+    expect(find.text('Bookmarked Chapter'), findsOneWidget);
+    expect(find.text('Plain Chapter'), findsNothing);
+
+    await tester.tap(find.text('Clear'));
+    await tester.pumpAndSettle();
+    expect(find.text('4 chapters'), findsOneWidget);
+    expect(find.text('Plain Chapter'), findsOneWidget);
+    await _settleAndClose(tester, db);
+  });
+
+  testWidgets('un-ticking one box clears just that filter', (tester) async {
+    await _pumpDetail(tester, db, prefs);
+    await openFilterDialog(tester);
+    await applyFilters(tester, ['Downloaded', 'Bookmarked']);
+    expect(find.text('2 of 4 chapters'), findsOneWidget);
+
+    // Reopen, drop one box, apply.
+    await openFilterDialog(tester);
+    await tester.tap(find.widgetWithText(CheckboxListTile, 'Downloaded'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('Apply'));
+    await tester.pumpAndSettle();
+
+    expect(find.text('1 of 4 chapters'), findsOneWidget);
+    expect(find.text('Bookmarked Chapter'), findsOneWidget);
     await _settleAndClose(tester, db);
   });
 
   testWidgets('Downloaded filter narrows the list', (tester) async {
     await _pumpDetail(tester, db, prefs);
-    await openFilter(tester);
-    await tester.tap(find.text('Downloaded'));
-    await tester.pump(const Duration(milliseconds: 200));
+    await openFilterDialog(tester);
+    await applyFilters(tester, ['Downloaded']);
 
     expect(find.text('1 of 4 chapters'), findsOneWidget);
     expect(find.text('Downloaded Chapter'), findsOneWidget);
@@ -168,9 +239,8 @@ void main() {
 
   testWidgets('Unread filter excludes read chapters', (tester) async {
     await _pumpDetail(tester, db, prefs);
-    await openFilter(tester);
-    await tester.tap(find.text('Unread'));
-    await tester.pump(const Duration(milliseconds: 200));
+    await openFilterDialog(tester);
+    await applyFilters(tester, ['Unread']);
 
     expect(find.text('3 of 4 chapters'), findsOneWidget);
     expect(find.text('Read Chapter'), findsNothing);
@@ -180,83 +250,11 @@ void main() {
 
   testWidgets('Bookmarked filter shows only bookmarked', (tester) async {
     await _pumpDetail(tester, db, prefs);
-    await openFilter(tester);
-    await tester.tap(find.text('Bookmarked'));
-    await tester.pump(const Duration(milliseconds: 200));
+    await openFilterDialog(tester);
+    await applyFilters(tester, ['Bookmarked']);
 
     expect(find.text('1 of 4 chapters'), findsOneWidget);
     expect(find.text('Bookmarked Chapter'), findsOneWidget);
-    await _settleAndClose(tester, db);
-  });
-
-  testWidgets('filters are multi-select and combine as a union', (
-    tester,
-  ) async {
-    await _pumpDetail(tester, db, prefs);
-    await openFilter(tester);
-
-    await tester.tap(find.text('Downloaded'));
-    await tester.pumpAndSettle();
-    await tester.tap(find.text('Bookmarked'));
-    await tester.pumpAndSettle();
-
-    // The popup must not close on a tick — that is the whole point of the
-    // checkboxes instead of menu items.
-    CheckboxListTile box(String label) => tester.widget<CheckboxListTile>(
-      find.widgetWithText(CheckboxListTile, label),
-    );
-    expect(box('Downloaded').value, isTrue);
-    expect(box('Bookmarked').value, isTrue);
-    expect(box('Read').value, isFalse);
-
-    // Downloaded (1) ∪ Bookmarked (1) = 2 of 4.
-    expect(find.text('2 of 4 chapters'), findsOneWidget);
-    expect(find.byTooltip('Filter chapters (2)'), findsOneWidget);
-    expect(find.text('Downloaded Chapter'), findsOneWidget);
-    expect(find.text('Bookmarked Chapter'), findsOneWidget);
-    expect(find.text('Plain Chapter'), findsNothing);
-
-    await tester.tap(find.text('Done'));
-    await tester.pumpAndSettle();
-    expect(find.text('Downloaded'), findsNothing);
-
-    await tester.tap(find.text('Clear'));
-    await tester.pumpAndSettle();
-    expect(find.text('4 chapters'), findsOneWidget);
-    expect(find.text('Plain Chapter'), findsOneWidget);
-    expect(find.byTooltip('Filter chapters'), findsOneWidget);
-    await _settleAndClose(tester, db);
-  });
-
-  testWidgets('the chapter header fits a 360dp phone with a filter active', (
-    tester,
-  ) async {
-    // 360dp is the common low end (see mobile_density_test). Two rows are
-    // squeezed here: the chapter header (count, an active Filter label, Clear
-    // and Sort on one line) and the library/source actions beside the cover,
-    // which used to overflow this width by 9.5px once the status label ran
-    // long. Wrap catches it; nothing may paint a red overflow bar.
-    tester.view.physicalSize = const Size(360, 800) * 3;
-    tester.view.devicePixelRatio = 3;
-    addTearDown(tester.view.reset);
-
-    await _pumpDetail(tester, db, prefs);
-    await tester.ensureVisible(find.byKey(const ValueKey('chapter-filter')));
-    await tester.pumpAndSettle();
-
-    await openFilter(tester);
-    await tester.tap(find.text('Downloaded'));
-    await tester.tap(find.text('Bookmarked'));
-    await tester.pumpAndSettle();
-    await tester.tap(find.text('Done'));
-    await tester.pumpAndSettle();
-
-    expect(tester.takeException(), isNull);
-    expect(find.text('2 of 4 chapters'), findsOneWidget);
-    expect(find.byTooltip('Filter chapters (2)'), findsOneWidget);
-    expect(find.text('Clear'), findsOneWidget);
-    expect(find.byKey(const ValueKey('novel-overflow')), findsOneWidget);
-
     await _settleAndClose(tester, db);
   });
 
@@ -403,7 +401,7 @@ void main() {
     // Seeded provider order: Plain, Downloaded, Read, Bookmarked.
     expect(firstChapterTitle(tester), 'Plain Chapter');
 
-    await tester.tap(find.byKey(const ValueKey('chapter-sort')));
+    await tester.tap(find.byIcon(Icons.sort));
     await tester.pumpAndSettle();
     for (final label in ['Normal', 'Chapter number', 'Latest first']) {
       expect(find.text(label), findsOneWidget);
@@ -418,24 +416,62 @@ void main() {
   });
 
   group('header actions', () {
-    testWidgets('library and source are labelled pills beside the cover', (
+    testWidgets('library, Mark all read and WebView sit in their own row', (
       tester,
     ) async {
       await _pumpDetail(tester, db, prefs);
 
-      // Icon + label, not a bare glyph: a lone filled heart reads as a status
-      // badge and never says what pressing it does.
+      // Restored to the original full-width action row (spaceAround, vertical
+      // icon-over-label), not the later inline header pills. "Library" shows
+      // the tracked status once set; the label is "Add to library" until then.
       expect(find.text('Add to library'), findsOneWidget);
-      expect(find.text('Web View'), findsOneWidget);
-      expect(find.byTooltip('Add to library'), findsOneWidget);
-      expect(find.byTooltip('Open source page in Web View'), findsOneWidget);
-      expect(find.byIcon(Icons.favorite_border), findsOneWidget);
-      expect(find.byIcon(Icons.public), findsOneWidget);
+      expect(find.text('Mark all read'), findsOneWidget);
+      expect(find.text('WebView'), findsOneWidget);
+      expect(find.byIcon(Icons.favorite), findsOneWidget);
+      expect(find.byIcon(Icons.done_all), findsOneWidget);
+      expect(find.byIcon(Icons.language), findsOneWidget);
 
-      // "Soon" was a dead button whose onTap was `() {}` — it looked
-      // actionable and did nothing.
+      // The dead "Soon" button is gone for good.
       expect(find.text('Soon'), findsNothing);
       expect(find.byIcon(Icons.hourglass_empty), findsNothing);
+
+      // The inline pill labels are gone with the pill layout.
+      expect(find.text('Library'), findsNothing);
+      expect(find.text('Source'), findsNothing);
+
+      await _settleAndClose(tester, db);
+    });
+
+    testWidgets('Mark all read marks every unread chapter', (tester) async {
+      await _pumpDetail(tester, db, prefs);
+
+      await tester.tap(find.text('Mark all read'));
+      await tester.pumpAndSettle();
+
+      final chapters = await db.chapterDao.getChaptersForNovel(1);
+      expect(chapters.where((c) => c.read).length, 4);
+
+      // Second press has nothing left to do, and says so rather than
+      // claiming a success it did not perform.
+      await tester.tap(find.text('Mark all read'));
+      await tester.pumpAndSettle();
+      expect(find.text('Every chapter is already read'), findsOneWidget);
+
+      await _settleAndClose(tester, db);
+    });
+
+    testWidgets('the library button opens the status picker', (tester) async {
+      await _pumpDetail(tester, db, prefs);
+
+      await tester.tap(find.text('Add to library'));
+      await tester.pumpAndSettle();
+
+      // The sheet the original row opened, with its own heading.
+      expect(find.text('Add to library'), findsWidgets);
+      expect(find.byType(StatusPickerSheet), findsOneWidget);
+
+      await tester.tapAt(const Offset(10, 10));
+      await tester.pumpAndSettle();
 
       await _settleAndClose(tester, db);
     });
@@ -445,7 +481,7 @@ void main() {
     ) async {
       await _pumpDetail(tester, db, prefs);
 
-      await tester.tap(find.byKey(const ValueKey('novel-overflow')));
+      await tester.tap(find.byIcon(Icons.more_vert));
       await tester.pumpAndSettle();
 
       expect(find.text('Select chapters'), findsOneWidget);
@@ -462,77 +498,40 @@ void main() {
 
   group('chapter selection', () {
     Future<void> enterSelection(WidgetTester tester) async {
-      await tester.tap(find.byKey(const ValueKey('novel-overflow')));
+      await tester.tap(find.byIcon(Icons.more_vert));
       await tester.pumpAndSettle();
       await tester.tap(find.text('Select chapters'));
       await tester.pumpAndSettle();
     }
 
-    Future<void> openBulkMenu(WidgetTester tester) async {
-      await tester.tap(find.byKey(const ValueKey('bulk-actions')));
-      await tester.pumpAndSettle();
-    }
+    testWidgets('selection arms with zero picks and shows bulk actions', (
+      tester,
+    ) async {
+      await _pumpDetail(tester, db, prefs);
+      await enterSelection(tester);
 
-    const bulkVerbs = [
-      'Select all',
-      'Download',
-      'Bookmark',
-      'Unmark',
-      'Mark read',
-      'Mark unread',
-    ];
+      expect(find.text('0 selected'), findsOneWidget);
+      // Bulk actions live in a bottom bar, thumb-reachable, not the app bar.
+      for (final label in [
+        'Cancel',
+        'Select all',
+        'Download',
+        'Bookmark',
+        'Unmark',
+        'Mark read',
+        'Mark unread',
+      ]) {
+        expect(find.text(label), findsOneWidget, reason: '$label missing');
+      }
 
-    testWidgets(
-      'selection arms with zero picks and keeps the bar to two controls',
-      (tester) async {
-        await _pumpDetail(tester, db, prefs);
-        await enterSelection(tester);
-
-        expect(find.text('0 selected'), findsOneWidget);
-        // The bottom bar is Cancel + a way to the verbs. The verbs themselves
-        // are not spread across it — six of them never fit a phone-width row.
-        expect(find.text('Cancel'), findsOneWidget);
-        expect(find.byKey(const ValueKey('bulk-actions')), findsOneWidget);
-        for (final label in bulkVerbs) {
-          expect(find.text(label), findsNothing, reason: '$label on the bar');
-        }
-
-        await openBulkMenu(tester);
-        for (final label in bulkVerbs) {
-          expect(find.text(label), findsOneWidget, reason: '$label missing');
-        }
-
-        // Nothing is picked yet, so the verbs that act on picks are inert —
-        // their row has no handler rather than silently doing nothing.
-        final downloadRow = tester.widget<InkWell>(
-          find
-              .ancestor(
-                of: find.text('Download'),
-                matching: find.byType(InkWell),
-              )
-              .first,
-        );
-        expect(downloadRow.onTap, isNull);
-        // Select all needs no picks, so it stays live.
-        final selectAllRow = tester.widget<InkWell>(
-          find
-              .ancestor(
-                of: find.text('Select all'),
-                matching: find.byType(InkWell),
-              )
-              .first,
-        );
-        expect(selectAllRow.onTap, isNotNull);
-
-        await _settleAndClose(tester, db);
-      },
-    );
+      await _settleAndClose(tester, db);
+    });
 
     testWidgets('opening the overflow menu does not overflow', (tester) async {
       await _pumpDetail(tester, db, prefs);
       // The popup items used to be Row[Icon, Text] with no flexible child,
       // so the menu overflowed its clamped route by ~150px at every width.
-      await tester.tap(find.byKey(const ValueKey('novel-overflow')));
+      await tester.tap(find.byIcon(Icons.more_vert));
       await tester.pumpAndSettle();
       expect(tester.takeException(), isNull);
       expect(find.text('Verify Cloudflare challenge'), findsOneWidget);
@@ -556,13 +555,11 @@ void main() {
       await tester.pumpAndSettle();
       expect(find.text('1 selected'), findsOneWidget);
 
-      await openBulkMenu(tester);
       await tester.tap(find.text('Select all'));
       await tester.pumpAndSettle();
       expect(find.text('4 selected'), findsOneWidget);
 
       // Once everything is picked the affordance flips to a clear action.
-      await openBulkMenu(tester);
       expect(find.text('Select none'), findsOneWidget);
       await tester.tap(find.text('Select none'));
       await tester.pumpAndSettle();
@@ -576,11 +573,9 @@ void main() {
     ) async {
       await _pumpDetail(tester, db, prefs);
       await enterSelection(tester);
-      await openBulkMenu(tester);
       await tester.tap(find.text('Select all'));
       await tester.pumpAndSettle();
 
-      await openBulkMenu(tester);
       await tester.tap(find.text('Mark read'));
       await tester.pumpAndSettle();
       await tester.pump(const Duration(milliseconds: 300));
@@ -590,13 +585,11 @@ void main() {
 
       // Bulk actions leave selection mode behind them.
       expect(find.text('0 selected'), findsNothing);
-      expect(find.byKey(const ValueKey('bulk-actions')), findsNothing);
+      expect(find.text('Bookmark'), findsNothing);
 
       await enterSelection(tester);
-      await openBulkMenu(tester);
       await tester.tap(find.text('Select all'));
       await tester.pumpAndSettle();
-      await openBulkMenu(tester);
       await tester.tap(find.text('Mark unread'));
       await tester.pumpAndSettle();
       await tester.pump(const Duration(milliseconds: 300));
@@ -610,11 +603,9 @@ void main() {
     testWidgets('bulk bookmark round-trips', (tester) async {
       await _pumpDetail(tester, db, prefs);
       await enterSelection(tester);
-      await openBulkMenu(tester);
       await tester.tap(find.text('Select all'));
       await tester.pumpAndSettle();
 
-      await openBulkMenu(tester);
       await tester.tap(find.text('Bookmark'));
       await tester.pumpAndSettle();
       await tester.pump(const Duration(milliseconds: 300));
@@ -622,10 +613,8 @@ void main() {
       expect(chapters.where((c) => c.bookmarked).length, 4);
 
       await enterSelection(tester);
-      await openBulkMenu(tester);
       await tester.tap(find.text('Select all'));
       await tester.pumpAndSettle();
-      await openBulkMenu(tester);
       await tester.tap(find.text('Unmark'));
       await tester.pumpAndSettle();
       await tester.pump(const Duration(milliseconds: 300));
@@ -658,9 +647,8 @@ void main() {
 
       expect(find.text('0 selected'), findsNothing);
       expect(find.text('Bookmark'), findsNothing);
-      // The novel-level overflow is back, and the bulk menu is gone.
-      expect(find.byKey(const ValueKey('novel-overflow')), findsOneWidget);
-      expect(find.byKey(const ValueKey('bulk-actions')), findsNothing);
+      // The novel-level overflow is back.
+      expect(find.byIcon(Icons.more_vert), findsOneWidget);
 
       await _settleAndClose(tester, db);
     });
@@ -674,36 +662,52 @@ void main() {
       expect(find.text('Mark earlier as read'), findsOneWidget);
       expect(find.text('Select from here down'), findsOneWidget);
       expect(find.text('Bookmark'), findsOneWidget);
+      // Download is reachable from the long-press menu as a real verb.
+      // Scoped to the sheet: "Downloaded" also names a filter chip behind it.
+      expect(
+        find.descendant(
+          of: find.byType(BottomSheet),
+          matching: find.text('Download chapter'),
+        ),
+        findsOneWidget,
+      );
       // Long press no longer jumps straight into selection mode.
       expect(find.text('selected'), findsNothing);
 
       await _settleAndClose(tester, db);
     });
 
-    testWidgets('download for one chapter lives in the row menu', (
+    testWidgets('long press offers download for a chapter already on disk', (
       tester,
     ) async {
       await _pumpDetail(tester, db, prefs);
 
-      // The per-row download button is gone: a hundred rows meant a hundred
-      // near-identical glyphs, almost all of them saying "not downloaded".
-      expect(find.byTooltip('Download chapter'), findsNothing);
-
-      // Still reachable for a single chapter.
-      await tester.longPress(find.text('Plain Chapter'));
-      await tester.pumpAndSettle();
-      expect(find.text('Download chapter'), findsOneWidget);
-
-      // A chapter already on disk reports state instead of offering a second
-      // download of the same file.
-      await tester.tapAt(const Offset(10, 10));
-      await tester.pumpAndSettle();
       await tester.longPress(find.text('Downloaded Chapter'));
       await tester.pumpAndSettle();
-      final doneTile = tester.widget<ListTile>(
-        find.widgetWithText(ListTile, 'Downloaded'),
+
+      final sheet = find.byType(BottomSheet);
+      // Already on disk: the entry is a state readout, not a tappable verb,
+      // so it must not queue the same file twice.
+      expect(
+        find.descendant(of: sheet, matching: find.text('Downloaded')),
+        findsOneWidget,
       );
-      expect(doneTile.enabled, isFalse);
+      expect(
+        find.descendant(of: sheet, matching: find.text('Download chapter')),
+        findsNothing,
+      );
+      // And the readout is not pressable.
+      expect(
+        tester
+            .widget<ListTile>(
+              find.descendant(
+                of: sheet,
+                matching: find.widgetWithText(ListTile, 'Downloaded'),
+              ),
+            )
+            .onTap,
+        isNull,
+      );
 
       await _settleAndClose(tester, db);
     });
@@ -714,7 +718,11 @@ void main() {
       await _pumpDetail(tester, db, prefs);
 
       // The cross-provider resume case: 3 chapters already read, the reader
-      // restarts on the 4th in a source that carries more.
+      // restarts on the 4th in a source that carries more. Scroll it into
+      // view first: the restored action row pushes the last chapter past the
+      // bottom of a short test viewport.
+      await tester.ensureVisible(find.text('Bookmarked Chapter'));
+      await tester.pumpAndSettle();
       await tester.longPress(find.text('Bookmarked Chapter'));
       await tester.pumpAndSettle();
       await tester.tap(find.text('Mark earlier as read'));

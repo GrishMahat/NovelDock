@@ -98,6 +98,18 @@ class ChapterDao extends DatabaseAccessor<AppDatabase> with _$ChapterDaoMixin {
     );
   }
 
+  /// Marks every unread chapter of a novel read, in one statement.
+  ///
+  /// The detail screen's "Mark all read" cannot be built from per-row calls
+  /// without a round trip per chapter, and the row loop is what made it feel
+  /// slow on a long novel. Returns the number of rows changed so the caller
+  /// can report "nothing to do" instead of silently claiming success.
+  Future<int> markAllChaptersAsRead(int novelId) {
+    return (update(chapters)
+          ..where((t) => t.novelId.equals(novelId) & t.read.equals(false)))
+        .write(ChaptersCompanion(read: const Value(true)));
+  }
+
   /// Clears the read flag. Paired with [markChapterAsRead] so bulk
   /// "mark unread" from the novel detail screen exists as a real operation
   /// rather than a UI-only fiction.

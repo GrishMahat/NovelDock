@@ -34,85 +34,93 @@ class _StatusPickerSheetState extends State<StatusPickerSheet> {
   @override
   Widget build(BuildContext context) {
     final scheme = Theme.of(context).colorScheme;
-    final appColors = Theme.of(context).extension<AppColors>()!;
+    // Null-safe like LibraryGridItem's status chip: the extension is absent
+    // under a bare MaterialApp (tests, previews), and a force-unwrap there
+    // crashed the sheet instead of falling back to theme colours.
+    final appColors = Theme.of(context).extension<AppColors>();
     Color? optionColor(String status) => switch (status.toLowerCase()) {
-      'reading' => appColors.ongoing,
-      'on hold' => appColors.onHold,
-      'completed' => appColors.completed,
-      'dropped' => appColors.dropped,
+      'reading' => appColors?.ongoing ?? scheme.primary,
+      'on hold' => appColors?.onHold ?? scheme.primary,
+      'completed' => appColors?.completed ?? scheme.primary,
+      'dropped' => appColors?.dropped ?? scheme.primary,
       _ => scheme.onSurfaceVariant,
     };
 
     return SafeArea(
-      child: Column(
-        mainAxisSize: MainAxisSize.min,
-        crossAxisAlignment: CrossAxisAlignment.stretch,
-        children: [
-          Padding(
-            padding: const EdgeInsets.fromLTRB(
-              Insets.xl,
-              Insets.xs,
-              Insets.xl,
-              Insets.sm,
+      // Scrollable: the option list plus the action row is taller than a
+      // short window (or a landscape phone), and a bare Column overflowed
+      // with the Save/Cancel buttons cut off.
+      child: SingleChildScrollView(
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            Padding(
+              padding: const EdgeInsets.fromLTRB(
+                Insets.xl,
+                Insets.xs,
+                Insets.xl,
+                Insets.sm,
+              ),
+              child: Text(
+                widget.title,
+                style: Theme.of(context).textTheme.titleMedium,
+              ),
             ),
-            child: Text(
-              widget.title,
-              style: Theme.of(context).textTheme.titleMedium,
-            ),
-          ),
-          for (final (status, icon) in _options)
+            for (final (status, icon) in _options)
+              ListTile(
+                leading: Icon(icon, color: optionColor(status)),
+                title: Text(status),
+                selected: !_removeRequested && _selected == status,
+                trailing: !_removeRequested && _selected == status
+                    ? const Icon(Icons.check, size: 20)
+                    : null,
+                onTap: () => setState(() {
+                  _selected = status;
+                  _removeRequested = false;
+                }),
+              ),
             ListTile(
-              leading: Icon(icon, color: optionColor(status)),
-              title: Text(status),
-              selected: !_removeRequested && _selected == status,
-              trailing: !_removeRequested && _selected == status
+              leading: Icon(Icons.delete_outline, color: scheme.error),
+              title: Text(
+                'Remove from library',
+                style: TextStyle(color: scheme.error),
+              ),
+              trailing: _removeRequested
                   ? const Icon(Icons.check, size: 20)
                   : null,
-              onTap: () => setState(() {
-                _selected = status;
-                _removeRequested = false;
-              }),
+              onTap: () => setState(() => _removeRequested = true),
             ),
-          ListTile(
-            leading: Icon(Icons.delete_outline, color: scheme.error),
-            title: Text(
-              'Remove from library',
-              style: TextStyle(color: scheme.error),
-            ),
-            trailing: _removeRequested
-                ? const Icon(Icons.check, size: 20)
-                : null,
-            onTap: () => setState(() => _removeRequested = true),
-          ),
-          Padding(
-            padding: EdgeInsets.only(
-              left: Insets.lg,
-              right: Insets.lg,
-              top: Insets.sm,
-              bottom: MediaQuery.paddingOf(context).bottom + Insets.lg,
-            ),
-            child: Row(
-              children: [
-                Expanded(
-                  child: OutlinedButton(
-                    onPressed: () => Navigator.pop(context),
-                    child: const Text('Cancel'),
-                  ),
-                ),
-                const SizedBox(width: Insets.md),
-                Expanded(
-                  child: FilledButton(
-                    onPressed: () => Navigator.pop(
-                      context,
-                      _removeRequested ? 'None' : _selected,
+            Padding(
+              padding: EdgeInsets.only(
+                left: Insets.lg,
+                right: Insets.lg,
+                top: Insets.sm,
+                bottom: MediaQuery.paddingOf(context).bottom + Insets.lg,
+              ),
+              child: Row(
+                children: [
+                  Expanded(
+                    child: OutlinedButton(
+                      onPressed: () => Navigator.pop(context),
+                      child: const Text('Cancel'),
                     ),
-                    child: const Text('Save'),
                   ),
-                ),
-              ],
+                  const SizedBox(width: Insets.md),
+                  Expanded(
+                    child: FilledButton(
+                      onPressed: () => Navigator.pop(
+                        context,
+                        _removeRequested ? 'None' : _selected,
+                      ),
+                      child: const Text('Save'),
+                    ),
+                  ),
+                ],
+              ),
             ),
-          ),
-        ],
+          ],
+        ),
       ),
     );
   }
