@@ -35,8 +35,8 @@ flutter test
 ```
 
 Codegen (Drift tables/DAOs in `lib/core/database/database.dart`, Riverpod providers
-anywhere in `lib/`): `dart run build_runner build --delete-conflicting-outputs`
-(config in `build.yaml`). Generated `*.g.dart` files are excluded from the analyzer
+anywhere in `lib/`): `dart run build_runner build --delete-conflicting-outputs`.
+Generated `*.g.dart` files are excluded from the analyzer
 — never hand-edit them. Riverpod `part` files use the same `*.g.dart` naming.
 riverpod_lint is not installed: every custom_lint release caps at analyzer ^8 while
 drift_dev needs analyzer >=10, so the combination doesn't resolve yet — revisit when
