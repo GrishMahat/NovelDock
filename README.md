@@ -131,7 +131,7 @@ git tag -a vX.Y.Z-beta -m "..."
 git push origin vX.Y.Z-beta
 ```
 
-The release workflow signs the APK with a keystore stored in GitHub secrets and publishes it under Releases with generated notes. To build locally you need `android/key.properties` pointing at your own keystore; without it, local release builds fall back to debug signing.
+The release workflow signs the APK with a keystore stored in GitHub secrets and publishes it under Releases, taking the release notes from the matching `CHANGELOG.md` section (`tool/release_notes.sh`) and falling back to generated notes when the tagged version has no entry. To build locally you need `android/key.properties` pointing at your own keystore; without it, local release builds fall back to debug signing.
 
 ## Docs
 

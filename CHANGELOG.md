@@ -5,11 +5,13 @@ The format follows [Keep a Changelog](https://keepachangelog.com); versions aim 
 
 ## Unreleased
 
+## 0.1.6-beta - 2026-10-06
+
 ### Developer note
 
 I built this because Linux still lacks a good novel reader. It is decent enough that I use it constantly on desktop. Mobile is different: there are already many good readers, and mine is not one of them yet. I still use it every day, but I often have to fight the app instead of simply reading. **0.2.x is about closing that gap.**
 
-**0.1.x-beta ends here.** 0.2.x adds no new features. It is focused entirely on fixing and improving what already exists. they come after 0.3.x.
+**0.1.x-beta ends here.** 0.2.x adds no new features. It is focused entirely on fixing and improving what already exists. New features come after 0.3.x.
 
 Three things 0.2.x is about:
 
