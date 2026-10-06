@@ -65,26 +65,13 @@ class NetworkFailure implements Exception {
       case DioExceptionType.cancel:
         return const NetworkFailure('Cancelled', null);
       case DioExceptionType.unknown:
-        final text = [
-          e.message,
-          e.error?.toString(),
-          e.toString(),
-        ].whereType<String>().join(' ');
-        if (text.contains('SocketException') ||
-            text.contains('Failed host lookup') ||
-            text.contains('Network is unreachable')) {
-          return const NetworkFailure(
-            'No connection',
-            'The server could not be reached. Connect and retry.',
-          );
-        }
-        if (text.contains('TimeoutException') || text.contains('timed out')) {
-          return const NetworkFailure(
-            'The source is taking too long',
-            'The request timed out. Retry in a moment.',
-          );
-        }
-        return NetworkFailure('Failed to load', _shortCause(text));
+        return from(
+          [
+            e.message,
+            e.error?.toString(),
+            e.toString(),
+          ].whereType<String>().join(' '),
+        );
       case DioExceptionType.badResponse:
         final status = e.response?.statusCode;
         if (status == 404) {

@@ -106,21 +106,23 @@ async function stepLatest(provider, page, filters) {
 
 // POST a {url, headers, body|fields} config and parse the response.
 // Mirrors postNovelList() in search_providers.dart (binary + form bodies,
-// redirect handling).
-async function stepPostConfig(provider, stepName, config, label) {
+// redirect handling). Returns the parsed SearchResults (null when the
+// response was not parseable) so callers can fall through when empty.
+async function stepPostConfig(provider, stepName, config, label, query = '') {
   const headers = Object.fromEntries(
     Object.entries(config.headers || {}).map(([k, v]) => [k, String(v)]),
   );
   const isBinary = Array.isArray(config.body);
+  const body = isBinary
+    ? Buffer.from(config.body)
+    : Object.entries({ ...(config.fields || {}), keyboard: query })
+        .map(([k, v]) => `${encodeURIComponent(k)}=${encodeURIComponent(v)}`)
+        .join('&');
   console.log(label);
   const res = await client.request({
     url: config.url,
     method: 'POST',
-    body: isBinary
-      ? Buffer.from(config.body)
-      : Object.entries({ ...(config.fields || {}), keyboard: config._query || '' })
-          .map(([k, v]) => `${encodeURIComponent(k)}=${encodeURIComponent(v)}`)
-          .join('&'),
+    body,
     extraHeaders: isBinary
       ? headers
       : { ...headers, 'Content-Type': 'application/x-www-form-urlencoded' },
@@ -130,9 +132,9 @@ async function stepPostConfig(provider, stepName, config, label) {
   if (res.status === 200) {
     const data = isBinary ? Array.from(res.body) : res.html;
     const parsed = call(provider, 'parseSearchResults', [data]);
-    session.addStep({ step: stepName, request: { method: 'POST', url: config.url, headers: res.headers, body: isBinary ? `binary(${res.bytes}B)` : 'form' }, response: res, parsed });
+    session.addStep({ step: stepName, request: { method: 'POST', url: config.url, headers: res.headers, body: isBinary ? `binary(${res.bytes}B)` : body }, response: res, parsed });
     logResult(res, parsed);
-    return;
+    return parsed;
   }
   if ([301, 302, 303, 307, 308].includes(res.status) && res.headers.location) {
     const resultUrl = new URL(res.headers.location, config.url).toString();
@@ -141,9 +143,10 @@ async function stepPostConfig(provider, stepName, config, label) {
     const parsed = call(provider, 'parseSearchResults', [res2.html]);
     session.addStep({ step: `${stepName}Redirect`, request: { method: 'GET', url: resultUrl, headers: {} }, response: res2, parsed });
     logResult(res2, parsed);
-    return;
+    return parsed;
   }
   logResult(res, null);
+  return null;
 }
 
 // Mirror of searchProviderOnce() in search_providers.dart:
@@ -157,48 +160,8 @@ async function stepSearch(provider, query, page) {
   if (hasFunction(provider, 'getSearchConfig')) {
     const config = call(provider, 'getSearchConfig', [query, page]);
     if (config && typeof config === 'object' && config.url) {
-      const isBinary = Array.isArray(config.body);
-      const headers = Object.fromEntries(
-        Object.entries(config.headers || {}).map(([k, v]) => [k, String(v)]),
-      );
-      const formBody = isBinary
-        ? null
-        : Object.entries({ ...(config.fields || {}), keyboard: query })
-            .map(([k, v]) => `${encodeURIComponent(k)}=${encodeURIComponent(v)}`)
-            .join('&');
-      console.log(`POST ${config.url}`);
-      const res = await client.request({
-        url: config.url,
-        method: 'POST',
-        body: isBinary ? Buffer.from(config.body) : formBody,
-        extraHeaders: isBinary
-          ? headers
-          : {
-              ...headers,
-              'Content-Type': 'application/x-www-form-urlencoded',
-            },
-        followRedirects: false,
-      });
-
-      if (res.status === 200) {
-        const data = isBinary ? Array.from(res.body) : res.html;
-        const parsed = call(provider, 'parseSearchResults', [data]);
-        session.addStep({ step: 'searchPost', request: { method: 'POST', url: config.url, headers: res.headers, body: isBinary ? `binary(${res.bytes}B)` : formBody }, response: res, parsed });
-        if (parsed && parsed.results && parsed.results.length > 0) {
-          logResult(res, parsed);
-          return;
-        }
-      } else if ([301, 302, 303, 307, 308].includes(res.status) && res.headers.location) {
-        const resultUrl = new URL(res.headers.location, config.url).toString();
-        console.log(`Redirect → GET ${resultUrl}`);
-        const res2 = await client.request({ url: resultUrl });
-        const parsed = call(provider, 'parseSearchResults', [res2.html]);
-        session.addStep({ step: 'searchPostRedirect', request: { method: 'GET', url: resultUrl, headers: {} }, response: res2, parsed });
-        if (parsed && parsed.results && parsed.results.length > 0) {
-          logResult(res2, parsed);
-          return;
-        }
-      }
+      const parsed = await stepPostConfig(provider, 'searchPost', config, `POST ${config.url}`, query);
+      if (parsed && parsed.results && parsed.results.length > 0) return;
       console.log('POST search yielded nothing, falling through…');
     }
   }

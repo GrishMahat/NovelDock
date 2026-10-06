@@ -18,8 +18,7 @@ val hasReleaseKeystore = keystoreProperties.isNotEmpty()
 
 android {
     namespace = "dev.grish.noveldock"
-    // permission_handler_android requires compileSdk 37; Flutter's default is 36.
-    compileSdk = 37
+    compileSdk = 36
     ndkVersion = flutter.ndkVersion
 
     compileOptions {

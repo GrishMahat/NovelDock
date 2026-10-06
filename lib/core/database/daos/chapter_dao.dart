@@ -38,29 +38,8 @@ class ChapterDao extends DatabaseAccessor<AppDatabase> with _$ChapterDaoMixin {
     return existing.id;
   }
 
-  /// Partially updates a chapter (only columns present in [chapter] are set).
-  Future<int> updateChapter(ChaptersCompanion chapter) {
-    return (update(
-      chapters,
-    )..where((t) => t.id.equals(chapter.id.value))).write(chapter);
-  }
-
-  Future<int> deleteChapter(int id) {
-    return (delete(chapters)..where((t) => t.id.equals(id))).go();
-  }
-
-  Future<int> deleteChaptersForNovel(int novelId) {
-    return (delete(chapters)..where((t) => t.novelId.equals(novelId))).go();
-  }
-
   Future<Chapter?> getChapterById(int id) {
     return (select(chapters)..where((t) => t.id.equals(id))).getSingleOrNull();
-  }
-
-  Future<Chapter?> getChapterByUrl(String url) {
-    return (select(
-      chapters,
-    )..where((t) => t.url.equals(url))).getSingleOrNull();
   }
 
   /// Scoped lookup used by backup restore: chapter URLs are unique per

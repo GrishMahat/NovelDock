@@ -26,12 +26,10 @@ class UpdateInfo {
 class AppUpdater {
   /// Returns the latest release when it is newer than the installed build,
   /// null when up to date or when the check fails. Never throws.
-  static Future<UpdateInfo?> checkForUpdate({http.Client? client}) async {
-    final owned = client == null;
-    client ??= http.Client();
+  static Future<UpdateInfo?> checkForUpdate() async {
     try {
       final current = (await PackageInfo.fromPlatform()).version;
-      final res = await client
+      final res = await http
           .get(
             Uri.parse(_releasesUrl),
             headers: {'Accept': 'application/vnd.github+json'},
@@ -49,8 +47,6 @@ class AppUpdater {
     } catch (e) {
       Log.w(_tag, 'Update check failed: $e');
       return null;
-    } finally {
-      if (owned) client.close();
     }
   }
 
@@ -61,9 +57,8 @@ class AppUpdater {
   static Future<void> checkAndPrompt({
     BuildContext? context,
     bool quiet = true,
-    http.Client? client,
   }) async {
-    final info = await checkForUpdate(client: client);
+    final info = await checkForUpdate();
     final ctx = context ?? rootNavigatorKey.currentContext;
     if (ctx == null || !ctx.mounted) return;
     if (info != null) {

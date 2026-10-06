@@ -249,19 +249,6 @@ class EnabledProvidersNotifier extends _$EnabledProvidersNotifier {
     }
   }
 
-  void toggle(String providerId) {
-    final newSet = Set<String>.from(state);
-    if (newSet.contains(providerId)) {
-      newSet.remove(providerId);
-      Log.i(_tag, 'Disabled provider: $providerId');
-    } else {
-      newSet.add(providerId);
-      Log.i(_tag, 'Enabled provider: $providerId');
-    }
-    state = newSet;
-    _saveToDb();
-  }
-
   void setEnabled(String providerId, bool enabled) {
     final newSet = Set<String>.from(state);
     if (enabled) {
@@ -568,11 +555,6 @@ Future<void> removeRegistry(String registryId, ProviderContainer ref) async {
   ref.read(registriesProvider.notifier).remove(registryId);
   ref.invalidate(providerInstanceProvider);
   Log.i(_tag, 'Removed registry: $registryId');
-}
-
-/// Toggle a provider's enabled state (convenience wrapper).
-void toggleProvider(String providerId, ProviderContainer ref) {
-  ref.read(enabledProvidersProvider.notifier).toggle(providerId);
 }
 
 /// Set a provider's enabled state explicitly (convenience wrapper).

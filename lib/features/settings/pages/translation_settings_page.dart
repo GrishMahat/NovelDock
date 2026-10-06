@@ -3,6 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:riverpod_annotation/riverpod_annotation.dart';
 
 import '../../../core/config/app_prefs.dart';
+import 'reader_helpers.dart';
 
 part 'translation_settings_page.g.dart';
 
@@ -43,7 +44,7 @@ class TranslationSettingsNotifier extends _$TranslationSettingsNotifier {
     return TranslationSettings(
       fromLanguage: p.getString('translation_from') ?? 'auto',
       toLanguage: p.getString('translation_to') ?? 'en',
-      useOnlineTranslation: p.getBool('translation_online') ?? false,
+      useOnlineTranslation: p.getBool('translation_online') ?? true,
       autoTranslate: p.getBool('translation_auto') ?? false,
     );
   }
@@ -105,7 +106,7 @@ class TranslationSettingsPage extends ConsumerWidget {
       body: ListView(
         padding: const EdgeInsets.all(16),
         children: [
-          _buildSection(context, 'Language'),
+          section(context, 'Language'),
           ListTile(
             dense: true,
             contentPadding: EdgeInsets.zero,
@@ -124,12 +125,15 @@ class TranslationSettingsPage extends ConsumerWidget {
           ),
 
           const SizedBox(height: 16),
-          _buildSection(context, 'Mode'),
+          section(context, 'Mode'),
           SwitchListTile(
             dense: true,
             contentPadding: EdgeInsets.zero,
             title: const Text('Online Translation'),
-            subtitle: const Text('Use Google Translate (requires internet)'),
+            subtitle: const Text(
+              'Send text to MyMemory (requires internet). '
+              'Off = offline mode, local cache only',
+            ),
             value: settings.useOnlineTranslation,
             onChanged: (_) => notifier.toggleOnlineTranslation(),
           ),
@@ -145,7 +149,7 @@ class TranslationSettingsPage extends ConsumerWidget {
           ),
 
           const SizedBox(height: 16),
-          _buildSection(context, 'About'),
+          section(context, 'About'),
           Card(
             child: Padding(
               padding: EdgeInsets.all(16),
@@ -158,9 +162,10 @@ class TranslationSettingsPage extends ConsumerWidget {
                   ),
                   SizedBox(height: 8),
                   Text(
-                    'Offline mode uses Google ML Kit for on-device translation. '
-                    'Online mode uses Google Translate API (no key required). '
-                    'Offline translations are cached locally.',
+                    'Online mode sends text to the MyMemory API (free, no key '
+                    'required). Offline mode reads the local cache only, so '
+                    'chapters you have already translated stay readable '
+                    'without a connection. Translations are cached on disk.',
                     style: Theme.of(context).textTheme.bodyMedium?.copyWith(
                       color: Theme.of(context).colorScheme.onSurfaceVariant,
                     ),
@@ -179,18 +184,6 @@ class TranslationSettingsPage extends ConsumerWidget {
       if (c == code) return name;
     }
     return code;
-  }
-
-  Widget _buildSection(BuildContext context, String title) {
-    return Padding(
-      padding: const EdgeInsets.only(bottom: 8),
-      child: Text(
-        title,
-        style: Theme.of(context).textTheme.labelLarge?.copyWith(
-          color: Theme.of(context).colorScheme.primary,
-        ),
-      ),
-    );
   }
 
   void _showLanguagePicker(BuildContext context, WidgetRef ref, bool isSource) {

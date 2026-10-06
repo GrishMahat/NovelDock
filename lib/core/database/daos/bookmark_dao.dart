@@ -34,32 +34,11 @@ class BookmarkDao extends DatabaseAccessor<AppDatabase>
     await (delete(bookmarks)..where((t) => t.id.equals(id))).go();
   }
 
-  Future<void> removeBookmarkForPosition(
-    int novelId,
-    int chapterId,
-    String position,
-  ) async {
-    await (delete(bookmarks)..where(
-          (t) =>
-              t.novelId.equals(novelId) &
-              t.chapterId.equals(chapterId) &
-              t.position.equals(position),
-        ))
-        .go();
-  }
-
   Future<List<Bookmark>> getBookmarksForNovel(int novelId) {
     return (select(bookmarks)
           ..where((t) => t.novelId.equals(novelId))
           ..orderBy([(t) => OrderingTerm.desc(t.createdAt)]))
         .get();
-  }
-
-  Stream<List<Bookmark>> watchBookmarksForNovel(int novelId) {
-    return (select(bookmarks)
-          ..where((t) => t.novelId.equals(novelId))
-          ..orderBy([(t) => OrderingTerm.desc(t.createdAt)]))
-        .watch();
   }
 
   Future<List<Bookmark>> getBookmarksForChapter(int chapterId) {
@@ -72,17 +51,5 @@ class BookmarkDao extends DatabaseAccessor<AppDatabase>
     return (select(
       bookmarks,
     )..orderBy([(t) => OrderingTerm.desc(t.createdAt)])).get();
-  }
-
-  Future<bool> hasBookmark(int novelId, int chapterId, String position) async {
-    final result =
-        await (select(bookmarks)..where(
-              (t) =>
-                  t.novelId.equals(novelId) &
-                  t.chapterId.equals(chapterId) &
-                  t.position.equals(position),
-            ))
-            .getSingleOrNull();
-    return result != null;
   }
 }

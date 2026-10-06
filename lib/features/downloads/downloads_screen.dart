@@ -6,6 +6,7 @@ import '../../core/providers/database_providers.dart';
 import '../../core/utils/platform.dart';
 import '../../theme/app_theme.dart';
 import '../../theme/tokens.dart';
+import '../../widgets/empty_state.dart';
 import '../../widgets/max_width_box.dart';
 import '../../widgets/shimmer_list.dart';
 import '../settings/pages/download_settings_page.dart';
@@ -149,34 +150,12 @@ class _DownloadsScreenState extends ConsumerState<DownloadsScreen> {
                       ),
                       trailing: const Icon(Icons.edit, size: 18),
                       onTap: () async {
-                        final controller = TextEditingController(
-                          text: dlSettings.downloadPath,
+                        final path = await promptDownloadPath(
+                          context,
+                          dlSettings.downloadPath,
                         );
-                        final result = await showDialog<String>(
-                          context: context,
-                          builder: (ctx) => AlertDialog(
-                            title: const Text('Download Path'),
-                            content: TextField(
-                              controller: controller,
-                              decoration: const InputDecoration(
-                                border: OutlineInputBorder(),
-                              ),
-                            ),
-                            actions: [
-                              TextButton(
-                                onPressed: () => Navigator.pop(ctx),
-                                child: const Text('Cancel'),
-                              ),
-                              FilledButton(
-                                onPressed: () =>
-                                    Navigator.pop(ctx, controller.text),
-                                child: const Text('Save'),
-                              ),
-                            ],
-                          ),
-                        );
-                        if (result != null && result.isNotEmpty) {
-                          dlNotifier.updateDownloadPath(result);
+                        if (path != null) {
+                          dlNotifier.updateDownloadPath(path);
                         }
                       },
                     ),
@@ -229,33 +208,10 @@ class _DownloadsScreenState extends ConsumerState<DownloadsScreen> {
                 }
 
                 if (downloads.isEmpty) {
-                  return Center(
-                    child: Column(
-                      mainAxisAlignment: MainAxisAlignment.center,
-                      children: [
-                        Icon(
-                          Icons.download,
-                          size: 64,
-                          color: Theme.of(
-                            context,
-                          ).colorScheme.onSurfaceVariant.withValues(alpha: 0.5),
-                        ),
-                        const SizedBox(height: 16),
-                        Text(
-                          'No downloads yet',
-                          style: Theme.of(context).textTheme.titleMedium,
-                        ),
-                        const SizedBox(height: 8),
-                        Text(
-                          'Download novels from their detail page.',
-                          style: TextStyle(
-                            color: Theme.of(
-                              context,
-                            ).colorScheme.onSurfaceVariant,
-                          ),
-                        ),
-                      ],
-                    ),
+                  return const EmptyState(
+                    icon: Icons.download,
+                    title: 'No downloads yet',
+                    subtitle: 'Download novels from their detail page.',
                   );
                 }
 

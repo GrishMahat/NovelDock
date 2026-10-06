@@ -31,12 +31,6 @@ abstract final class Motion {
   static const Duration base = Duration(
     milliseconds: 250,
   ); // in-place UI transitions
-  static const Duration enter = Duration(
-    milliseconds: 400,
-  ); // container/sheet enters (decelerate)
-  static const Duration exit = Duration(
-    milliseconds: 250,
-  ); // exits: 50-75% of enter (accelerate)
 }
 
 /// Breakpoints for adaptive layout (compact / medium / expanded).

@@ -4,6 +4,7 @@ import 'package:package_info_plus/package_info_plus.dart';
 import 'package:url_launcher/url_launcher.dart';
 
 import '../../../core/utils/app_updater.dart';
+import 'reader_helpers.dart';
 
 class AboutPage extends StatelessWidget {
   const AboutPage({super.key});
@@ -48,7 +49,7 @@ class AboutPage extends StatelessWidget {
           ),
           const SizedBox(height: 32),
 
-          _buildSection(context, 'Links'),
+          section(context, 'Links'),
           ListTile(
             leading: const Icon(Icons.code),
             title: const Text('Source Code'),
@@ -74,7 +75,7 @@ class AboutPage extends StatelessWidget {
           ),
 
           const SizedBox(height: 16),
-          _buildSection(context, 'Credits'),
+          section(context, 'Credits'),
           Card(
             child: Padding(
               padding: EdgeInsets.all(16),
@@ -114,7 +115,7 @@ class AboutPage extends StatelessWidget {
           ),
 
           const SizedBox(height: 16),
-          _buildSection(context, 'License'),
+          section(context, 'License'),
           Card(
             child: Padding(
               padding: EdgeInsets.all(16),
@@ -132,18 +133,6 @@ class AboutPage extends StatelessWidget {
             ),
           ),
         ],
-      ),
-    );
-  }
-
-  Widget _buildSection(BuildContext context, String title) {
-    return Padding(
-      padding: const EdgeInsets.only(bottom: 8),
-      child: Text(
-        title,
-        style: Theme.of(context).textTheme.labelLarge?.copyWith(
-          color: Theme.of(context).colorScheme.primary,
-        ),
       ),
     );
   }

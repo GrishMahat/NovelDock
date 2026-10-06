@@ -144,7 +144,7 @@ final class EnabledProvidersNotifierProvider
 }
 
 String _$enabledProvidersNotifierHash() =>
-    r'2f31c5419c639042160d10d8ca40f50f12ace82a';
+    r'0b2a56db7b78f4db37fa11d275a06fb670459140';
 
 /// Set of enabled provider IDs — persisted to settings table.
 

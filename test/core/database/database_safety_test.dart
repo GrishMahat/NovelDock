@@ -294,6 +294,8 @@ void main() {
               .get();
           expect(tables, contains('novel_progress'));
           expect(tables, contains('annotations'));
+          // v6 dropped the never-written provider cache.
+          expect(tables, isNot(contains('provider_cache')));
 
           final indexes = await appDb
               .customSelect(
@@ -321,7 +323,7 @@ void main() {
               .customSelect('PRAGMA user_version')
               .map((row) => row.read<int>('user_version'))
               .getSingle();
-          expect(version, 5);
+          expect(version, 6);
 
           // v5 added the browse result cache; it must exist and be usable on
           // an upgraded database, not just fresh installs.

@@ -571,18 +571,6 @@ class RegistryManager {
     return null;
   }
 
-  /// Check if a provider's JS file is cached locally.
-  Future<bool> isProviderCached(
-    String providerId, {
-    List<String>? preferRegistryOrder,
-  }) async {
-    final js = await loadCachedProviderJs(
-      providerId,
-      preferRegistryOrder: preferRegistryOrder,
-    );
-    return js != null;
-  }
-
   // ─── URL resolution helpers ────────────────────────────────
 
   /// Resolve a path relative to a raw GitHub URL.

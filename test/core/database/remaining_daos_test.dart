@@ -244,29 +244,4 @@ void main() {
       expect(progress?.lastReadChapterId, ch);
     });
   });
-
-  group('ProviderCacheDao', () {
-    test('insert/get/enabled/delete round-trip', () async {
-      await db.providerCacheDao.insertOrUpdateProvider(
-        ProviderCacheCompanion.insert(
-          id: 'wuxiabox',
-          name: 'WuxiaBox',
-          version: '1.0.0',
-          jsSource: 'code',
-          lastUpdated: 1,
-        ),
-      );
-      expect(
-        (await db.providerCacheDao.getProviderById('wuxiabox'))?.name,
-        'WuxiaBox',
-      );
-      expect(await db.providerCacheDao.getEnabledProviders(), isEmpty);
-
-      await db.providerCacheDao.updateProvider('wuxiabox', enabled: true);
-      expect(await db.providerCacheDao.getEnabledProviders(), hasLength(1));
-
-      await db.providerCacheDao.deleteProvider('wuxiabox');
-      expect(await db.providerCacheDao.getAllProviders(), isEmpty);
-    });
-  });
 }

@@ -1,5 +1,5 @@
 name: noveldock
-description: "NovelDock - Multi-platform novel reader and downloader"
+description: 'NovelDock - Multi-platform novel reader and downloader'
 publish_to: 'none'
 version: 0.1.6+6
 
@@ -29,10 +29,6 @@ dependencies:
   dio_cookie_manager: ^3.1.2
   connectivity_plus: ^7.3.1
 
-  # Models & Codegen
-  freezed_annotation: ^3.1.0
-  json_annotation: ^4.12.0
-
   # JS Engine
   flutter_js:
     git:
@@ -40,9 +36,7 @@ dependencies:
       ref: v0.9.0
 
   # Content Rendering
-  flutter_widget_from_html: ^0.17.2
   epubx_kuebiko: ^4.2.1
-  scrollable_positioned_list: ^0.3.8
 
   # UI Components
   # Needed directly: the packages below build on it, and lib/app.dart and
@@ -50,11 +44,7 @@ dependencies:
   material_ui: ^1.5.0
   shimmer: ^4.0.0
   infinite_scroll_pagination: ^5.1.1
-  flutter_slidable: ^4.0.3
   flex_color_scheme: ^9.0.0
-  flutter_animate: ^4.5.2
-  cached_network_image: ^4.0.4
-  flutter_staggered_grid_view: ^0.7.0
 
   # Platform Features
   flutter_edge_tts:
@@ -63,9 +53,7 @@ dependencies:
       ref: v0.3.0
   anni_mpris_service: ^0.1.0
   webview_all: ^1.4.1
-  google_mlkit_translation: ^0.15.1
   flutter_local_notifications: ^22.1.0
-  permission_handler: ^13.0.1
   file_picker: ^13.1.0
   shared_preferences: ^2.3.4
   share_plus: ^13.3.0
@@ -78,23 +66,16 @@ dependencies:
   html: ^0.15.6
 
   # Utilities
-  collection: ^1.19.1
-  intl: ^0.20.3
   path: ^1.9.1
   http: ^1.2.0
-
-  # Cupertino icons
-  cupertino_icons: ^1.0.8
   just_audio: ^0.10.6
   just_audio_media_kit:
     git:
       url: https://github.com/GrishMahat/just_audio_media_kit.git
       ref: e4465de568a80222264218ffbcc18a1269a6a531
-  media_kit: ^1.2.6
   media_kit_native_event_loop: ^1.0.9
   media_kit_libs_linux: ^1.2.1
   audio_service: ^0.18.19
-  audio_session: ^0.2.4
 
   dio_http2_adapter: ^2.9.0
   window_manager: ^0.5.2
@@ -115,8 +96,6 @@ dev_dependencies:
   # riverpod_generator's (>=13 <15). Verify: flutter pub deps | grep analyzer
   drift_dev: 2.35.1
   riverpod_generator: ^4.0.9
-  freezed: ^4.0.1
-  json_serializable: ^6.14.0
   flutter_launcher_icons: ^0.14.4
 
 flutter_launcher_icons:
@@ -125,19 +104,19 @@ flutter_launcher_icons:
   # this repo (Android + Linux only) and enabling them crashes generation.
   # Re-enable if/when the platforms are scaffolded.
   ios: false
-  image_path: "assets/images/logo.png"
-  adaptive_icon_background: "#F5F7FA"
-  adaptive_icon_foreground: "assets/images/android-foreground.png"
+  image_path: 'assets/images/logo.png'
+  adaptive_icon_background: '#F5F7FA'
+  adaptive_icon_foreground: 'assets/images/android-foreground.png'
   adaptive_icon_foreground_inset: 8
-  adaptive_icon_monochrome: "assets/images/android-monochrome.png"
+  adaptive_icon_monochrome: 'assets/images/android-monochrome.png'
   min_sdk_android: 21
   windows:
     generate: false
-    image_path: "assets/images/logo.png"
+    image_path: 'assets/images/logo.png'
     icon_size: 48
   macos:
     generate: false
-    image_path: "assets/images/logo.png"
+    image_path: 'assets/images/logo.png'
 
 flutter:
   uses-material-design: true
@@ -158,4 +137,3 @@ flutter:
         - asset: assets/fonts/Literata-BoldItalic.ttf
           weight: 700
           style: italic
-

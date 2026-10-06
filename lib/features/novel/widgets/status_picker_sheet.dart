@@ -1,7 +1,7 @@
 import 'package:material_ui/material_ui.dart';
 
 import '../../../theme/app_theme.dart';
-import '../../../theme/tokens.dart';
+import '../../../widgets/sheet_scaffold.dart';
 
 /// Unified sheet for picking a library status. Returns the chosen status
 /// string, 'None' to remove from library, or null if dismissed.
@@ -46,82 +46,38 @@ class _StatusPickerSheetState extends State<StatusPickerSheet> {
       _ => scheme.onSurfaceVariant,
     };
 
-    return SafeArea(
-      // Scrollable: the option list plus the action row is taller than a
-      // short window (or a landscape phone), and a bare Column overflowed
-      // with the Save/Cancel buttons cut off.
-      child: SingleChildScrollView(
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          crossAxisAlignment: CrossAxisAlignment.stretch,
-          children: [
-            Padding(
-              padding: const EdgeInsets.fromLTRB(
-                Insets.xl,
-                Insets.xs,
-                Insets.xl,
-                Insets.sm,
-              ),
-              child: Text(
-                widget.title,
-                style: Theme.of(context).textTheme.titleMedium,
-              ),
-            ),
-            for (final (status, icon) in _options)
-              ListTile(
-                leading: Icon(icon, color: optionColor(status)),
-                title: Text(status),
-                selected: !_removeRequested && _selected == status,
-                trailing: !_removeRequested && _selected == status
-                    ? const Icon(Icons.check, size: 20)
-                    : null,
-                onTap: () => setState(() {
-                  _selected = status;
-                  _removeRequested = false;
-                }),
-              ),
-            ListTile(
-              leading: Icon(Icons.delete_outline, color: scheme.error),
-              title: Text(
-                'Remove from library',
-                style: TextStyle(color: scheme.error),
-              ),
-              trailing: _removeRequested
-                  ? const Icon(Icons.check, size: 20)
-                  : null,
-              onTap: () => setState(() => _removeRequested = true),
-            ),
-            Padding(
-              padding: EdgeInsets.only(
-                left: Insets.lg,
-                right: Insets.lg,
-                top: Insets.sm,
-                bottom: MediaQuery.paddingOf(context).bottom + Insets.lg,
-              ),
-              child: Row(
-                children: [
-                  Expanded(
-                    child: OutlinedButton(
-                      onPressed: () => Navigator.pop(context),
-                      child: const Text('Cancel'),
-                    ),
-                  ),
-                  const SizedBox(width: Insets.md),
-                  Expanded(
-                    child: FilledButton(
-                      onPressed: () => Navigator.pop(
-                        context,
-                        _removeRequested ? 'None' : _selected,
-                      ),
-                      child: const Text('Save'),
-                    ),
-                  ),
-                ],
-              ),
-            ),
-          ],
-        ),
+    return sheetScaffold(
+      context,
+      title: widget.title,
+      primary: FilledButton(
+        onPressed: () =>
+            Navigator.pop(context, _removeRequested ? 'None' : _selected),
+        child: const Text('Save'),
       ),
+      children: [
+        for (final (status, icon) in _options)
+          ListTile(
+            leading: Icon(icon, color: optionColor(status)),
+            title: Text(status),
+            selected: !_removeRequested && _selected == status,
+            trailing: !_removeRequested && _selected == status
+                ? const Icon(Icons.check, size: 20)
+                : null,
+            onTap: () => setState(() {
+              _selected = status;
+              _removeRequested = false;
+            }),
+          ),
+        ListTile(
+          leading: Icon(Icons.delete_outline, color: scheme.error),
+          title: Text(
+            'Remove from library',
+            style: TextStyle(color: scheme.error),
+          ),
+          trailing: _removeRequested ? const Icon(Icons.check, size: 20) : null,
+          onTap: () => setState(() => _removeRequested = true),
+        ),
+      ],
     );
   }
 }

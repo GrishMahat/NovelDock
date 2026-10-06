@@ -1,6 +1,7 @@
 import 'package:material_ui/material_ui.dart';
 
 import '../../../theme/tokens.dart';
+import '../../../widgets/sheet_scaffold.dart';
 
 class DownloadRangeSheet extends StatefulWidget {
   final int totalChapters;
@@ -37,85 +38,50 @@ class _DownloadRangeSheetState extends State<DownloadRangeSheet> {
 
   @override
   Widget build(BuildContext context) {
-    return SafeArea(
-      child: Column(
-        mainAxisSize: MainAxisSize.min,
-        crossAxisAlignment: CrossAxisAlignment.stretch,
-        children: [
-          Padding(
-            padding: const EdgeInsets.fromLTRB(
-              Insets.xl,
-              Insets.xs,
-              Insets.xl,
-              Insets.sm,
-            ),
-            child: Text(
-              'Download Chapters',
-              style: Theme.of(context).textTheme.titleMedium,
-            ),
+    return sheetScaffold(
+      context,
+      title: 'Download Chapters',
+      primary: FilledButton(
+        onPressed: _useRange
+            ? () => widget.onDownloadRange(_range.start, _range.end)
+            : widget.onDownloadAll,
+        child: Text(_useRange ? 'Download range' : 'Download all'),
+      ),
+      children: [
+        SwitchListTile(
+          title: const Text('Limit to a chapter range'),
+          subtitle: Text(
+            'Chapters ${widget.minChapter.round()} to ${widget.maxChapter.round()} (${widget.totalChapters} total)',
           ),
-          SwitchListTile(
-            title: const Text('Limit to a chapter range'),
-            subtitle: Text(
-              'Chapters ${widget.minChapter.round()} to ${widget.maxChapter.round()} (${widget.totalChapters} total)',
-            ),
-            value: _useRange,
-            onChanged: (v) => setState(() => _useRange = v),
-          ),
-          if (_useRange)
-            Padding(
-              padding: const EdgeInsets.symmetric(horizontal: Insets.lg),
-              child: Column(
-                children: [
-                  Text(
-                    'Chapters ${_range.start.round()} to ${_range.end.round()}',
-                    style: Theme.of(context).textTheme.titleSmall,
-                  ),
-                  RangeSlider(
-                    values: _range,
-                    min: widget.minChapter.toDouble(),
-                    max: widget.maxChapter.toDouble(),
-                    divisions: (widget.maxChapter - widget.minChapter)
-                        .toInt()
-                        .clamp(1, 100),
-                    labels: RangeLabels(
-                      '${_range.start.round()}',
-                      '${_range.end.round()}',
-                    ),
-                    onChanged: (v) => setState(() => _range = v),
-                  ),
-                ],
-              ),
-            ),
+          value: _useRange,
+          onChanged: (v) => setState(() => _useRange = v),
+        ),
+        if (_useRange)
           Padding(
-            padding: EdgeInsets.only(
-              left: Insets.lg,
-              right: Insets.lg,
-              top: Insets.sm,
-              bottom: MediaQuery.paddingOf(context).bottom + Insets.lg,
-            ),
-            child: Row(
+            padding: const EdgeInsets.symmetric(horizontal: Insets.lg),
+            child: Column(
               children: [
-                Expanded(
-                  child: OutlinedButton(
-                    onPressed: () => Navigator.pop(context),
-                    child: const Text('Cancel'),
-                  ),
+                Text(
+                  'Chapters ${_range.start.round()} to ${_range.end.round()}',
+                  style: Theme.of(context).textTheme.titleSmall,
                 ),
-                const SizedBox(width: Insets.md),
-                Expanded(
-                  child: FilledButton(
-                    onPressed: _useRange
-                        ? () => widget.onDownloadRange(_range.start, _range.end)
-                        : widget.onDownloadAll,
-                    child: Text(_useRange ? 'Download range' : 'Download all'),
+                RangeSlider(
+                  values: _range,
+                  min: widget.minChapter.toDouble(),
+                  max: widget.maxChapter.toDouble(),
+                  divisions: (widget.maxChapter - widget.minChapter)
+                      .toInt()
+                      .clamp(1, 100),
+                  labels: RangeLabels(
+                    '${_range.start.round()}',
+                    '${_range.end.round()}',
                   ),
+                  onChanged: (v) => setState(() => _range = v),
                 ),
               ],
             ),
           ),
-        ],
-      ),
+      ],
     );
   }
 }

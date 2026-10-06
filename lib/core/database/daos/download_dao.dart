@@ -137,13 +137,6 @@ class DownloadDao extends DatabaseAccessor<AppDatabase>
         .get();
   }
 
-  Stream<List<DownloadsQueueData>> watchPendingDownloads() {
-    return (select(downloadsQueue)..where(
-          (t) => t.status.equals('queued') | t.status.equals('downloading'),
-        ))
-        .watch();
-  }
-
   Future<List<DownloadsQueueData>> getCompletedDownloads() {
     return (select(downloadsQueue)
           ..where((t) => t.status.equals('done'))

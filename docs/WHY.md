@@ -29,8 +29,7 @@ several "escape markdown special chars in html2md" fixes. I accepted that. One
 content model the whole app can trust beats three fragile ones. A WebView was
 never a real option since it can't even see paragraph boundaries for
 highlighting, and plain text would throw away the italics and bold that matter
-in novels. The old `html_chapter_view.dart` still sits in the repo
-unreferenced, a leftover from the HTML days.
+in novels.
 
 ## Why are providers JavaScript instead of built into the app?
 
@@ -64,14 +63,15 @@ by hand. The thing I regret is Drift's migrations. Adding one field to
 bookmarks hurt enough that I cursed the choice that day. Not enough to migrate
 away, but if you're adding your first schema change, budget time for it.
 
-## Why Riverpod with manual providers instead of codegen?
+## Why Riverpod?
 
-Momentum. Another project of mine used manual Riverpod, so I carried the
-patterns over, and I genuinely forgot codegen existed while building. I don't
-hate generated code; if something big enough comes up, switching is on the
-table. Until then, one small thing I like is that the provider rules, like
-"hold a provider-level Ref, never a widget-scoped one", are visible in the
-source instead of hidden behind a generator.
+Momentum, then codegen. Another project of mine used manual Riverpod, so I
+carried the patterns over and forgot codegen existed while building — which is
+why early sections of this document talk about providers as if nothing had been
+generated. The tree has since moved: 22 files carry a `@Riverpod` annotation
+and `riverpod_generator` does the work. What I still hold is that the provider
+rules, like "hold a provider-level Ref, never a widget-scoped one", belong in
+writing (AGENTS.md) instead of living only in the shape of the generated code.
 
 ## Why do chapter rows act as identity?
 

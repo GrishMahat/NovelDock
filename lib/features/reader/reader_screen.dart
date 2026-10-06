@@ -14,6 +14,7 @@ import '../../core/content/markdown/md_ast.dart';
 import '../../core/content/markdown/md_parser.dart';
 import '../../core/content/providers/content_provider.dart';
 import '../../core/content/providers/navigation_provider.dart';
+import '../../core/content/providers/translation_provider.dart';
 import '../../core/database/database.dart';
 import '../../core/providers/database_providers.dart';
 import '../../core/tts/tts_manager.dart';
@@ -23,6 +24,7 @@ import '../../theme/app_theme.dart';
 import '../../theme/tokens.dart';
 import '../../widgets/max_width_box.dart';
 import '../settings/pages/reader/reader_settings_state.dart';
+import '../settings/pages/translation_settings_page.dart';
 import 'widgets/bookmark_sheet.dart';
 import 'widgets/annotation_sheet.dart';
 import 'widgets/chapter_sidebar.dart';
@@ -92,6 +94,21 @@ class _ReaderScreenState extends ConsumerState<ReaderScreen> {
   /// Android only — other platforms never deliver volume keys to the app.
   ProviderSubscription<bool>? _volumeSubscription;
   bool _autoAdvancingTts = false;
+
+  /// null = follow the Auto-translate pref; set once the reader's Translate
+  /// button is tapped.
+  bool? _translateOverride;
+
+  /// Chapters already translated this session, kept so scrolling away from a
+  /// chapter does not flip it back to the original under the reader.
+  final Map<int, String> _translatedChapters = {};
+
+  void _toggleTranslate() {
+    setState(() {
+      final auto = ref.read(translationSettingsProvider).autoTranslate;
+      _translateOverride = !(_translateOverride ?? auto);
+    });
+  }
 
   @override
   void initState() {
@@ -1064,6 +1081,12 @@ class _ReaderScreenState extends ConsumerState<ReaderScreen> {
     final ttsActive = ttsState.isSpeaking || ttsState.isPaused;
     final contentState = ref.watch(contentProvider);
 
+    final translationSettings = ref.watch(translationSettingsProvider);
+    final translateOn = _translateOverride ?? translationSettings.autoTranslate;
+    // TTS speaks the loaded chapters: while it runs, keep the text on screen
+    // in sync with what is being read instead of showing a translation.
+    final showTranslation = translateOn && !ttsActive;
+
     final currentChapter = nav.currentChapter;
     _currentChapterId = currentChapter?.id;
 
@@ -1076,6 +1099,21 @@ class _ReaderScreenState extends ConsumerState<ReaderScreen> {
         Platform.isLinux || Platform.isWindows || Platform.isMacOS;
 
     final contentCache = _buildContentMap(contentState);
+    if (showTranslation && currentChapter != null) {
+      final chapterId = currentChapter.id;
+      final pending = ref.watch(chapterTranslationProvider(chapterId)).value;
+      if (pending != null) _translatedChapters[chapterId] = pending;
+      for (final entry in _translatedChapters.entries) {
+        final original = contentCache[entry.key];
+        if (original == null || original.isPdf) continue;
+        contentCache[entry.key] = ChapterContent(
+          format: original.format,
+          data: entry.value,
+          chapterId: original.chapterId,
+          imageHeaders: original.imageHeaders,
+        );
+      }
+    }
     final errorCache = _buildErrorMap(contentState);
 
     // Reader highlights, grouped per chapter for the renderer. Rebuilt on
@@ -1168,6 +1206,8 @@ class _ReaderScreenState extends ConsumerState<ReaderScreen> {
                             nav.chapters.isEmpty
                                 ? null
                                 : '${nav.currentIndex + 1} / ${nav.chapters.length}',
+                            translateOn: showTranslation,
+                            onToggleTranslate: _toggleTranslate,
                           ),
                         ],
                       ),
@@ -1235,6 +1275,8 @@ class _ReaderScreenState extends ConsumerState<ReaderScreen> {
                     nav.chapters.isEmpty
                         ? null
                         : '${nav.currentIndex + 1} / ${nav.chapters.length}',
+                    translateOn: showTranslation,
+                    onToggleTranslate: _toggleTranslate,
                   ),
                 ],
               ),
@@ -1247,8 +1289,10 @@ class _ReaderScreenState extends ConsumerState<ReaderScreen> {
     TtsManagerState ttsState,
     bool ttsActive,
     Chapter? currentChapter,
-    String? positionLabel,
-  ) {
+    String? positionLabel, {
+    required bool translateOn,
+    required VoidCallback onToggleTranslate,
+  }) {
     return [
       if (_showControls && !ttsActive)
         buildReaderTopBar(
@@ -1268,6 +1312,8 @@ class _ReaderScreenState extends ConsumerState<ReaderScreen> {
           onToggleTts: _toggleTts,
           onShowChapterList: _showChapterList,
           onSettings: _showSettingsDialog,
+          onToggleTranslate: onToggleTranslate,
+          translateOn: translateOn,
         ),
       if (_showControls && !ttsActive)
         buildReaderProgressBar(_scrollProgress, settings),

@@ -356,6 +356,44 @@ class _ProviderScreenState extends ConsumerState<ProviderScreen>
     _setMode(_ListMode.search);
   }
 
+  /// Inline search field, shown in place of the title while searching.
+  /// Shared by the AppBar and the desktop header row.
+  Widget _searchField() => TextField(
+    controller: _searchController,
+    autofocus: true,
+    textInputAction: TextInputAction.search,
+    decoration: const InputDecoration(
+      hintText: 'Search in this source...',
+      border: InputBorder.none,
+    ),
+    onSubmitted: _submitSearch,
+  );
+
+  /// Search ⇄ close toggle for both header variants.
+  Widget _searchToggle() => !_isSearching
+      ? IconButton(
+          icon: const Icon(Icons.search),
+          tooltip: 'Search in this source',
+          onPressed: () => setState(() => _isSearching = true),
+        )
+      : IconButton(
+          icon: const Icon(Icons.close),
+          tooltip: 'Close search',
+          onPressed: () => setState(() => _isSearching = false),
+        );
+
+  /// Grid ⇄ list display toggle for both header variants.
+  Widget _viewModeToggle() => IconButton(
+    icon: Icon(_isGridView ? Icons.view_list : Icons.grid_view),
+    tooltip: 'Display mode',
+    iconSize: 26,
+    padding: const EdgeInsets.all(10),
+    constraints: const BoxConstraints(minWidth: 48, minHeight: 48),
+    onPressed: () => ref
+        .read(generalSettingsProvider.notifier)
+        .setBrowseGridView(!_isGridView),
+  );
+
   Future<void> _openFilterSheet() async {
     final instance = await _ensureLoaded();
     if (instance == null || !instance.flags.hasFilters) {
@@ -407,45 +445,8 @@ class _ProviderScreenState extends ConsumerState<ProviderScreen>
       appBar: isDesktop
           ? null
           : AppBar(
-              title: _isSearching
-                  ? TextField(
-                      controller: _searchController,
-                      autofocus: true,
-                      textInputAction: TextInputAction.search,
-                      decoration: const InputDecoration(
-                        hintText: 'Search in this source...',
-                        border: InputBorder.none,
-                      ),
-                      onSubmitted: _submitSearch,
-                    )
-                  : Text(title),
-              actions: [
-                if (!_isSearching)
-                  IconButton(
-                    icon: const Icon(Icons.search),
-                    tooltip: 'Search in this source',
-                    onPressed: () => setState(() => _isSearching = true),
-                  )
-                else
-                  IconButton(
-                    icon: const Icon(Icons.close),
-                    tooltip: 'Close search',
-                    onPressed: () => setState(() => _isSearching = false),
-                  ),
-                IconButton(
-                  icon: Icon(_isGridView ? Icons.view_list : Icons.grid_view),
-                  tooltip: 'Display mode',
-                  iconSize: 26,
-                  padding: const EdgeInsets.all(10),
-                  constraints: const BoxConstraints(
-                    minWidth: 48,
-                    minHeight: 48,
-                  ),
-                  onPressed: () => ref
-                      .read(generalSettingsProvider.notifier)
-                      .setBrowseGridView(!_isGridView),
-                ),
-              ],
+              title: _isSearching ? _searchField() : Text(title),
+              actions: [_searchToggle(), _viewModeToggle()],
             ),
       body: Column(
         children: [
@@ -467,16 +468,7 @@ class _ProviderScreenState extends ConsumerState<ProviderScreen>
                   const SizedBox(width: Insets.xs),
                   Expanded(
                     child: _isSearching
-                        ? TextField(
-                            controller: _searchController,
-                            autofocus: true,
-                            textInputAction: TextInputAction.search,
-                            decoration: const InputDecoration(
-                              hintText: 'Search in this source...',
-                              border: InputBorder.none,
-                            ),
-                            onSubmitted: _submitSearch,
-                          )
+                        ? _searchField()
                         : Text(
                             title,
                             style: Theme.of(context).textTheme.titleLarge,
@@ -484,31 +476,8 @@ class _ProviderScreenState extends ConsumerState<ProviderScreen>
                             overflow: TextOverflow.ellipsis,
                           ),
                   ),
-                  if (!_isSearching)
-                    IconButton(
-                      icon: const Icon(Icons.search),
-                      tooltip: 'Search in this source',
-                      onPressed: () => setState(() => _isSearching = true),
-                    )
-                  else
-                    IconButton(
-                      icon: const Icon(Icons.close),
-                      tooltip: 'Close search',
-                      onPressed: () => setState(() => _isSearching = false),
-                    ),
-                  IconButton(
-                    icon: Icon(_isGridView ? Icons.view_list : Icons.grid_view),
-                    tooltip: 'Display mode',
-                    iconSize: 26,
-                    padding: const EdgeInsets.all(10),
-                    constraints: const BoxConstraints(
-                      minWidth: 48,
-                      minHeight: 48,
-                    ),
-                    onPressed: () => ref
-                        .read(generalSettingsProvider.notifier)
-                        .setBrowseGridView(!_isGridView),
-                  ),
+                  _searchToggle(),
+                  _viewModeToggle(),
                 ],
               ),
             ),

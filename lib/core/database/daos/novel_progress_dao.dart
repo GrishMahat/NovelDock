@@ -74,12 +74,6 @@ class NovelProgressDao extends DatabaseAccessor<AppDatabase>
     )..where((t) => t.novelId.equals(novelId))).getSingleOrNull();
   }
 
-  Stream<NovelProgressData?> watchProgress(int novelId) {
-    return (select(
-      novelProgress,
-    )..where((t) => t.novelId.equals(novelId))).watchSingleOrNull();
-  }
-
   Future<List<NovelProgressData>> getAllProgress() {
     return select(novelProgress).get();
   }
@@ -105,28 +99,6 @@ class NovelProgressDao extends DatabaseAccessor<AppDatabase>
       totalChapters: total,
       readChapters: existing.readChapters + 1,
       lastReadChapterId: chapterId,
-    );
-  }
-
-  Future<void> incrementTtsReadChapters(int novelId, int chapterId) async {
-    final chapter = await db.chapterDao.getChapterById(chapterId);
-    if (chapter == null) return;
-    final existing = await getProgress(novelId);
-    if (existing == null) return;
-    final total = await db.chapterDao.getChapterCount(novelId);
-    if (chapter.ttsRead) {
-      await updateProgress(
-        novelId: novelId,
-        totalChapters: total,
-        lastTtsChapterId: chapterId,
-      );
-      return;
-    }
-    await updateProgress(
-      novelId: novelId,
-      totalChapters: total,
-      ttsReadChapters: existing.ttsReadChapters + 1,
-      lastTtsChapterId: chapterId,
     );
   }
 

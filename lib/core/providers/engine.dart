@@ -344,11 +344,6 @@ class ProviderInstance {
     }
   }
 
-  Future<String?> getImageUrl(String imgUrl) async {
-    final result = await call('getImageUrl', [imgUrl]);
-    return result?.toString();
-  }
-
   // ─── Main Page / Category / Tag Browsing ─────────────────
 
   /// POST-based browse config (getBrowseConfig): returns {url, headers, body}
@@ -396,74 +391,6 @@ class ProviderInstance {
       Log.d(_tag, 'getFilters() not available: $e');
     }
     return const [];
-  }
-
-  /// Load the main/explore page for this provider.
-  /// Returns a list of novel items featured on the main page.
-  Future<SearchResults?> loadMainPage({
-    int page = 1,
-    String? category,
-    String? orderBy,
-    String? tag,
-  }) async {
-    try {
-      final result = await call('loadMainPage', [page, category, orderBy, tag]);
-      if (result != null && result is Map<String, dynamic>) {
-        return SearchResults.fromJson(result);
-      }
-    } catch (e) {
-      Log.d(_tag, 'loadMainPage() not available: $e');
-    }
-    return null;
-  }
-
-  /// Get available categories for browsing.
-  Future<List<String>?> getCategories() async {
-    try {
-      final result = await call('getCategories', []);
-      if (result != null && result is List) {
-        return result.cast<String>();
-      }
-    } catch (e) {
-      Log.d(_tag, 'getCategories() not available: $e');
-    }
-    return null;
-  }
-
-  /// Get available sort order options.
-  Future<List<Map<String, String>>?> getOrderBys() async {
-    try {
-      final result = await call('getOrderBys', []);
-      if (result != null && result is List) {
-        // Maps arrive from JS as Map<String, dynamic>: a direct
-        // cast<Map<String, String>>() throws, so normalize entry by entry.
-        return result
-            .whereType<Map>()
-            .map(
-              (e) => {
-                for (final entry in e.entries)
-                  entry.key.toString(): entry.value.toString(),
-              },
-            )
-            .toList();
-      }
-    } catch (e) {
-      Log.d(_tag, 'getOrderBys() not available: $e');
-    }
-    return null;
-  }
-
-  /// Get available tags for filtering.
-  Future<List<String>?> getTags() async {
-    try {
-      final result = await call('getTags', []);
-      if (result != null && result is List) {
-        return result.cast<String>();
-      }
-    } catch (e) {
-      Log.d(_tag, 'getTags() not available: $e');
-    }
-    return null;
   }
 }
 

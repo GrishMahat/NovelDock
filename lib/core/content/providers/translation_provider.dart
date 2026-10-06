@@ -27,14 +27,22 @@ Future<String?> chapterTranslation(Ref ref, int chapterId) async {
 
   final service = ref.read(translationServiceProvider);
   final translated = <String>[];
+  var changed = false;
   for (final para in paragraphs) {
     final result = await service.translate(
       para,
       sourceLang: settings.fromLanguage,
       targetLang: settings.toLanguage,
+      // Online Translation off = offline mode: cache lookups only.
+      allowNetwork: settings.useOnlineTranslation,
     );
+    if (result != para) changed = true;
     translated.add(result);
   }
+
+  // Nothing came back translated (offline + cache miss): let the reader keep
+  // the original chapter instead of re-rendering flattened plain text.
+  if (!changed) return null;
 
   return translated.join('\n\n');
 }

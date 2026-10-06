@@ -116,7 +116,6 @@ class BackupRestorePage extends ConsumerWidget {
       final annotationDao = ref.read(annotationDaoProvider);
       final downloadDao = ref.read(downloadDaoProvider);
       final settingsDao = ref.read(settingsDaoProvider);
-      final providerCacheDao = ref.read(providerCacheDaoProvider);
       final libraryDao = ref.read(libraryDaoProvider);
       final db = ref.read(appDatabaseProvider);
       final progressDao = db.novelProgressDao;
@@ -128,7 +127,6 @@ class BackupRestorePage extends ConsumerWidget {
       final allBookmarks = await bookmarkDao.getAllBookmarks();
       final downloadEntries = await downloadDao.getAllDownloads();
       final settingsMap = await settingsDao.getAllSettings();
-      final providerCache = await providerCacheDao.getAllProviders();
       // URL-keyed rows: integer row ids are meaningless in another database,
       // so history/bookmarks/downloads carry the novel + chapter URLs needed
       // to remap them on import. Rows whose targets no longer resolve are
@@ -251,17 +249,6 @@ class BackupRestorePage extends ConsumerWidget {
         'annotations': annotationRows,
         'downloads': downloadRows,
         'settings': settingsMap,
-        'providerCache': providerCache
-            .map(
-              (p) => {
-                'id': p.id,
-                'name': p.name,
-                'version': p.version,
-                'enabled': p.enabled,
-                'lastUpdated': p.lastUpdated,
-              },
-            )
-            .toList(),
       };
 
       final jsonStr = const JsonEncoder.withIndent('  ').convert(backup);

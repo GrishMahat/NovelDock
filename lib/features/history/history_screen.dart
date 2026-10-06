@@ -9,6 +9,7 @@ import '../../core/utils/platform.dart';
 import '../../core/utils/text_utils.dart';
 import '../../theme/tokens.dart';
 import '../../widgets/cover_image.dart';
+import '../../widgets/empty_state.dart';
 import '../../widgets/header_search_field.dart';
 import '../../widgets/max_width_box.dart';
 import '../../widgets/page_header.dart';
@@ -81,37 +82,14 @@ class _HistoryScreenState extends ConsumerState<HistoryScreen> {
             }
 
             if (entries.isEmpty) {
-              final filtered = query.isNotEmpty;
-              return Center(
-                child: Column(
-                  mainAxisAlignment: MainAxisAlignment.center,
-                  children: [
-                    Icon(
-                      Icons.history,
-                      size: 64,
-                      color: Theme.of(
-                        context,
-                      ).colorScheme.onSurfaceVariant.withValues(alpha: 0.5),
-                    ),
-                    const SizedBox(height: Insets.lg),
-                    Text(
-                      filtered
-                          ? 'No results for "$_searchQuery"'
-                          : 'No reading history',
-                      style: Theme.of(context).textTheme.titleMedium,
-                    ),
-                    const SizedBox(height: Insets.sm),
-                    Text(
-                      filtered
-                          ? 'Try a different title or author.'
-                          : 'Start reading novels to build\nyour history.',
-                      textAlign: TextAlign.center,
-                      style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                        color: Theme.of(context).colorScheme.onSurfaceVariant,
-                      ),
-                    ),
-                  ],
-                ),
+              return EmptyState(
+                icon: Icons.history,
+                title: query.isNotEmpty
+                    ? 'No results for "$_searchQuery"'
+                    : 'No reading history',
+                subtitle: query.isNotEmpty
+                    ? 'Try a different title or author.'
+                    : 'Start reading novels to build\nyour history.',
               );
             }
 

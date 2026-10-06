@@ -5,6 +5,15 @@ The format follows [Keep a Changelog](https://keepachangelog.com); versions aim 
 
 ## Unreleased
 
+### Added
+
+- Reader: a "Translate chapter" button in the reader controls translates the open chapter in place (MyMemory, cached to disk), and both toggles in Settings → Translation now do something: "Auto-translate" starts it for every chapter, and turning "Online Translation" off switches translation to the local cache only — uncached text stays untranslated. The About card no longer claims ML Kit, which is not a dependency
+
+### Changed
+
+- Codebase cleanup: roughly 3,000 lines of dead code and duplicated UI removed — unused widgets, helpers, tool scripts, an obsolete build config — and 17 unused packages dropped from `pubspec.yaml`. Everything built twice (reader settings, the novel-detail sheets, the browse header, the download-path dialog, the provider test bench) now shares one implementation. Screen text and behaviour are unchanged except where a toggle previously did nothing
+- The unused `provider_cache` table is dropped on upgrade (schema 5 → 6), and Android builds against `compileSdk 36` again — only `permission_handler_android` asked for 37 and nothing needed it
+
 ## 0.1.6-beta - 2026-10-06
 
 ### Developer note

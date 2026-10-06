@@ -26,4 +26,22 @@ void main() {
       isNot(equals(TranslationService.cacheKey('same text', 'en', 'fr'))),
     );
   });
+
+  // Offline mode (Online Translation off): with no cache entry the service
+  // must hand the text straight back — a missing gate would call MyMemory and
+  // return a translation here.
+  test(
+    'offline translate passes text through untouched on a cache miss',
+    () async {
+      final service = TranslationService();
+      const text = 'the gate must never reach the network offline';
+      final result = await service.translate(
+        text,
+        sourceLang: 'en',
+        targetLang: 'ru',
+        allowNetwork: false,
+      );
+      expect(result, text);
+    },
+  );
 }

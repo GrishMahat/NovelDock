@@ -97,15 +97,6 @@ function hasFunction(provider, name) {
   return typeof provider.module[name] === 'function';
 }
 
-// Mirror of ProviderInstance.search() (engine.dart): calls the provider's
-// direct search() if exported, else null.
-function directSearch(provider, query, page) {
-  if (!hasFunction(provider, 'search')) return null;
-  const result = call(provider, 'search', [query, page]);
-  if (result && typeof result === 'object') return result;
-  return null;
-}
-
 module.exports = {
   REPO_ROOT,
   loadRegistry,
@@ -114,5 +105,4 @@ module.exports = {
   loadProvider,
   call,
   hasFunction,
-  directSearch,
 };

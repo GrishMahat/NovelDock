@@ -4,7 +4,6 @@ import 'package:riverpod_annotation/riverpod_annotation.dart';
 import '../../../core/database/database.dart';
 import '../../../core/providers/database_providers.dart';
 import '../../../core/utils/logger.dart';
-import '../../../core/utils/lru_cache.dart';
 import '../content_model.dart';
 import '../loaders/content_loader.dart';
 import '../loaders/downloaded_loader.dart';
@@ -13,35 +12,21 @@ import '../loaders/loader_selector.dart';
 part 'content_provider.g.dart';
 
 const _tag = 'ContentProvider';
-const _maxCache = 20;
 
 class ContentState {
   final Map<int, AsyncValue<ChapterContent>> chapters;
-  final bool isLoading;
-  final String? error;
 
   const ContentState({
     this.chapters = const <int, AsyncValue<ChapterContent>>{},
-    this.isLoading = false,
-    this.error,
   });
 
-  ContentState copyWith({
-    Map<int, AsyncValue<ChapterContent>>? chapters,
-    bool? isLoading,
-    Object? error,
-  }) {
-    return ContentState(
-      chapters: chapters ?? this.chapters,
-      isLoading: isLoading ?? this.isLoading,
-      error: error is String? ? error : this.error,
-    );
+  ContentState copyWith({Map<int, AsyncValue<ChapterContent>>? chapters}) {
+    return ContentState(chapters: chapters ?? this.chapters);
   }
 }
 
 @Riverpod(keepAlive: true)
 class ContentNotifier extends _$ContentNotifier {
-  final LruCache<int, ChapterContent> _cache = LruCache(_maxCache);
   final Set<int> _loading = {};
   final LoaderSelector _selector = LoaderSelector();
 
@@ -82,8 +67,6 @@ class ContentNotifier extends _$ContentNotifier {
         content = await loader.load(healed, ref);
       }
 
-      _cache[chapterId] = content;
-
       state = state.copyWith(
         chapters: {...state.chapters, chapterId: AsyncValue.data(content)},
       );
@@ -91,7 +74,6 @@ class ContentNotifier extends _$ContentNotifier {
       Log.e(_tag, 'Failed to load chapter $chapterId', e);
       state = state.copyWith(
         chapters: {...state.chapters, chapterId: AsyncValue.error(e, st)},
-        error: e.toString(),
       );
     } finally {
       _loading.remove(chapterId);
@@ -128,7 +110,6 @@ class ContentNotifier extends _$ContentNotifier {
   }
 
   void clearCache() {
-    _cache.clear();
     state = state.copyWith(chapters: {});
   }
 }

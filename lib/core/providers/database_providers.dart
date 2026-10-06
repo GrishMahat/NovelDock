@@ -73,11 +73,6 @@ SettingsDao settingsDao(Ref ref) {
 }
 
 @Riverpod(keepAlive: true)
-ProviderCacheDao providerCacheDao(Ref ref) {
-  return ProviderCacheDao(ref.watch(appDatabaseProvider));
-}
-
-@Riverpod(keepAlive: true)
 NovelProgressDao novelProgressDao(Ref ref) {
   return NovelProgressDao(ref.watch(appDatabaseProvider));
 }

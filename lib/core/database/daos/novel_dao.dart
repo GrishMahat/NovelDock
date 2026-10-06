@@ -8,10 +8,6 @@ part 'novel_dao.g.dart';
 class NovelDao extends DatabaseAccessor<AppDatabase> with _$NovelDaoMixin {
   NovelDao(super.db);
 
-  Future<int> insertNovel(NovelsCompanion novel) {
-    return into(novels).insert(novel, mode: InsertMode.insertOrReplace);
-  }
-
   Future<int> updateNovel(NovelsCompanion novel) {
     // Constrain to the companion's primary key: drift's write() alone
     // updates every row, which collides on the id column.
@@ -100,9 +96,5 @@ class NovelDao extends DatabaseAccessor<AppDatabase> with _$NovelDaoMixin {
 
   Future<List<Novel>> searchNovels(String query) {
     return (select(novels)..where((t) => t.title.like('%$query%'))).get();
-  }
-
-  Future<int> deleteAllNovels() {
-    return delete(novels).go();
   }
 }

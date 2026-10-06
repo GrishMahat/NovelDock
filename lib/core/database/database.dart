@@ -14,7 +14,6 @@ import 'daos/download_dao.dart';
 import 'daos/bookmark_dao.dart';
 import 'daos/annotation_dao.dart';
 import 'daos/settings_dao.dart';
-import 'daos/provider_cache_dao.dart';
 import 'daos/browse_cache_dao.dart';
 import 'daos/novel_progress_dao.dart';
 
@@ -27,7 +26,6 @@ export 'daos/download_dao.dart';
 export 'daos/bookmark_dao.dart';
 export 'daos/annotation_dao.dart';
 export 'daos/settings_dao.dart';
-export 'daos/provider_cache_dao.dart';
 export 'daos/browse_cache_dao.dart';
 export 'daos/novel_progress_dao.dart';
 
@@ -43,7 +41,6 @@ part 'database.g.dart';
     Bookmarks,
     Annotations,
     Settings,
-    ProviderCache,
     NovelProgress,
     BrowseCache,
   ],
@@ -56,7 +53,6 @@ part 'database.g.dart';
     BookmarkDao,
     AnnotationDao,
     SettingsDao,
-    ProviderCacheDao,
     NovelProgressDao,
     BrowseCacheDao,
   ],
@@ -68,7 +64,7 @@ class AppDatabase extends _$AppDatabase {
   AppDatabase.withExecutor(super.e);
 
   @override
-  int get schemaVersion => 5;
+  int get schemaVersion => 6;
   @override
   MigrationStrategy get migration => MigrationStrategy(
     onCreate: (m) async {
@@ -167,6 +163,22 @@ class AppDatabase extends _$AppDatabase {
           } catch (e) {
             Log.e('DB', 'Migration v4->v5 step failed: $indexSql', e);
           }
+        }
+      }
+      if (from < 6) {
+        // v6: provider_cache dropped. Nothing ever wrote the table (the
+        // registry owns provider state), so the drop loses nothing a read
+        // path could have used.
+        try {
+          await m.database.customStatement(
+            'DROP TABLE IF EXISTS provider_cache',
+          );
+        } catch (e) {
+          Log.e(
+            'DB',
+            'Migration v5->v6 step failed: dropTable provider_cache',
+            e,
+          );
         }
       }
     },

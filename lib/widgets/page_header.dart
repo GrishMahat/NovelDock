@@ -10,7 +10,6 @@ import '../theme/tokens.dart';
 /// and an optional tab strip underneath.
 class PageHeader extends StatelessWidget {
   final String title;
-  final String? subtitle;
   final Widget? leading;
   final Widget? search;
   final List<Widget> actions;
@@ -21,7 +20,6 @@ class PageHeader extends StatelessWidget {
   const PageHeader({
     super.key,
     required this.title,
-    this.subtitle,
     this.leading,
     this.search,
     this.actions = const [],
@@ -56,20 +54,7 @@ class PageHeader extends StatelessWidget {
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   mainAxisSize: MainAxisSize.min,
-                  children: [
-                    Text(title, style: text.titleLarge),
-                    if (subtitle != null) ...[
-                      const SizedBox(height: 2),
-                      Text(
-                        subtitle!,
-                        style: text.bodySmall?.copyWith(
-                          color: scheme.onSurfaceVariant,
-                        ),
-                        maxLines: 1,
-                        overflow: TextOverflow.ellipsis,
-                      ),
-                    ],
-                  ],
+                  children: [Text(title, style: text.titleLarge)],
                 ),
               ),
               if (search != null) ...[

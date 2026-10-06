@@ -41,7 +41,7 @@ When a decision changes, update this file in the same commit.
 
 - Spacing: `Insets` (4pt scale) — the only paddings/gaps that exist.
 - Radii: one soft family via `Radii` (8/12/16, sheets 24). Bottom sheets always take their shape + drag handle from `bottomSheetTheme`; never draw manual handles or pass explicit shapes to `showModalBottomSheet`.
-- Motion: `Motion.fast/base/enter/exit`. Exits faster than enters.
+- Motion: `Motion.fast/base`. Exits faster than enters.
 - Breakpoints: `Breakpoints.compact/medium/expanded`; desktop constants in `Desktop`.
 
 ## Layout

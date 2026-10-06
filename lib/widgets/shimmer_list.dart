@@ -4,44 +4,33 @@ import 'package:shimmer/shimmer.dart';
 import '../theme/tokens.dart';
 
 class ShimmerGrid extends StatelessWidget {
-  final int itemCount;
-  final int crossAxisCount;
-  final double aspectRatio;
-  const ShimmerGrid({
-    super.key,
-    this.itemCount = 6,
-    this.crossAxisCount = 3,
-    this.aspectRatio = 0.68,
-  });
+  const ShimmerGrid({super.key});
 
   @override
   Widget build(BuildContext context) {
     return GridView.builder(
       padding: const EdgeInsets.all(8),
-      gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
-        crossAxisCount: crossAxisCount,
-        childAspectRatio: aspectRatio,
+      gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
+        crossAxisCount: 3,
+        childAspectRatio: 0.68,
         crossAxisSpacing: 8,
         mainAxisSpacing: 8,
       ),
-      itemCount: itemCount,
-      itemBuilder: (_, index) => _ShimmerCard(
-        key: ValueKey('shimmer_card_$index'),
-        aspectRatio: aspectRatio,
-      ),
+      itemCount: 6,
+      itemBuilder: (_, index) =>
+          _ShimmerCard(key: ValueKey('shimmer_card_$index')),
       physics: const NeverScrollableScrollPhysics(),
     );
   }
 }
 
 class ShimmerList extends StatelessWidget {
-  final int itemCount;
-  const ShimmerList({super.key, this.itemCount = 6});
+  const ShimmerList({super.key});
 
   @override
   Widget build(BuildContext context) {
     return ListView.builder(
-      itemCount: itemCount,
+      itemCount: 6,
       itemBuilder: (context, index) =>
           _ShimmerTile(key: ValueKey('shimmer_tile_$index')),
       physics: const NeverScrollableScrollPhysics(),
@@ -86,8 +75,7 @@ class ShimmerBlock extends StatelessWidget {
 }
 
 class _ShimmerCard extends StatelessWidget {
-  final double aspectRatio;
-  const _ShimmerCard({super.key, this.aspectRatio = 0.68});
+  const _ShimmerCard({super.key});
 
   @override
   Widget build(BuildContext context) {

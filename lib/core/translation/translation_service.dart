@@ -81,10 +81,15 @@ class TranslationService {
 
   /// Translate text from [sourceLang] to [targetLang].
   /// [sourceLang] can be 'auto' for auto-detection.
+  ///
+  /// [allowNetwork] false is offline mode: the disk cache is the only source,
+  /// so text that has never been translated comes back unchanged instead of
+  /// being sent over the network.
   Future<String> translate(
     String text, {
     required String sourceLang,
     required String targetLang,
+    bool allowNetwork = true,
   }) async {
     if (text.trim().isEmpty) return text;
     if (sourceLang == targetLang) return text;
@@ -96,6 +101,14 @@ class TranslationService {
     if (_cache.containsKey(key)) {
       Log.d(_tag, 'Cache hit (${text.length} chars)');
       return _cache[key]!;
+    }
+
+    if (!allowNetwork) {
+      Log.d(
+        _tag,
+        'Offline: no cache for ${text.length} chars, passing through',
+      );
+      return text;
     }
 
     // MyMemory API has a ~500 char limit on the q parameter
@@ -161,24 +174,6 @@ class TranslationService {
 
     return text;
   }
-
-  /// Clear the translation cache. Runs behind queued saves so a stale
-  /// in-flight write cannot resurrect entries after the clear.
-  Future<void> clearCache() {
-    _saveQueued = _saveQueued.then((_) async {
-      _cache.clear();
-      try {
-        final dir = await getApplicationSupportDirectory();
-        final file = File(p.join(dir.path, 'translation_cache.json'));
-        if (await file.exists()) await file.delete();
-      } catch (_) {}
-      Log.i(_tag, 'Translation cache cleared');
-    });
-    return _saveQueued;
-  }
-
-  /// Get cache size.
-  int get cacheSize => _cache.length;
 }
 
 @Riverpod(keepAlive: true)

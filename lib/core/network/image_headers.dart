@@ -8,10 +8,10 @@ const _tag = 'ImageHeaders';
 
 /// Request headers for chapter body images.
 ///
-/// `Image.network` (and `CachedNetworkImage`) don't go through dio, so they
-/// miss the scraper cookie jar — images on Cloudflare-protected hosts fail
-/// with a challenge page instead of pixels. This replays the jar's cookies
-/// for the image host as a plain `Cookie` header.
+/// `Image.network` doesn't go through dio, so it misses the scraper cookie
+/// jar — images on Cloudflare-protected hosts fail with a challenge page
+/// instead of pixels. This replays the jar's cookies for the image host as a
+/// plain `Cookie` header.
 ///
 /// Only cookies are sent: no User-Agent spoofing, no Referer (both have been
 /// observed to attract Cloudflare challenges rather than deflect them — see

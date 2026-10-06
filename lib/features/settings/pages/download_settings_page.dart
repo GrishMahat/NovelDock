@@ -5,9 +5,9 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:riverpod_annotation/riverpod_annotation.dart';
 
-import '../../../theme/tokens.dart';
 import '../../../core/config/app_prefs.dart';
 import '../../../core/utils/logger.dart';
+import 'reader_helpers.dart';
 
 part 'download_settings_page.g.dart';
 
@@ -93,6 +93,38 @@ class DownloadSettingsNotifier extends _$DownloadSettingsNotifier {
       _update((s) => s.copyWith(autoDownloadCount: v));
 }
 
+/// Edit-a-path prompt, shared by the settings page and the downloads screen
+/// (whose tiles differ, but open the same dialog). Returns null on cancel or
+/// an empty path.
+Future<String?> promptDownloadPath(
+  BuildContext context,
+  String currentPath,
+) async {
+  final controller = TextEditingController(text: currentPath);
+  final result = await showDialog<String>(
+    context: context,
+    builder: (ctx) => AlertDialog(
+      title: const Text('Download Path'),
+      content: TextField(
+        controller: controller,
+        decoration: const InputDecoration(border: OutlineInputBorder()),
+      ),
+      actions: [
+        TextButton(
+          onPressed: () => Navigator.pop(ctx),
+          child: const Text('Cancel'),
+        ),
+        FilledButton(
+          onPressed: () => Navigator.pop(ctx, controller.text),
+          child: const Text('Save'),
+        ),
+      ],
+    ),
+  );
+  controller.dispose();
+  return (result != null && result.isNotEmpty) ? result : null;
+}
+
 class DownloadSettingsPage extends ConsumerWidget {
   const DownloadSettingsPage({super.key});
 
@@ -106,7 +138,7 @@ class DownloadSettingsPage extends ConsumerWidget {
       body: ListView(
         padding: const EdgeInsets.all(16),
         children: [
-          _section(context, 'Storage'),
+          section(context, 'Storage'),
           ListTile(
             dense: true,
             contentPadding: EdgeInsets.zero,
@@ -118,38 +150,15 @@ class DownloadSettingsPage extends ConsumerWidget {
             trailing: const Icon(Icons.chevron_right),
             onTap: () async {
               // On Linux, show path in a dialog since file_picker doesn't support directory picking well
-              final controller = TextEditingController(
-                text: settings.downloadPath,
+              final path = await promptDownloadPath(
+                context,
+                settings.downloadPath,
               );
-              final result = await showDialog<String>(
-                context: context,
-                builder: (ctx) => AlertDialog(
-                  title: const Text('Download Path'),
-                  content: TextField(
-                    controller: controller,
-                    decoration: const InputDecoration(
-                      border: OutlineInputBorder(),
-                    ),
-                  ),
-                  actions: [
-                    TextButton(
-                      onPressed: () => Navigator.pop(ctx),
-                      child: const Text('Cancel'),
-                    ),
-                    FilledButton(
-                      onPressed: () => Navigator.pop(ctx, controller.text),
-                      child: const Text('Save'),
-                    ),
-                  ],
-                ),
-              );
-              if (result != null && result.isNotEmpty) {
-                notifier.updateDownloadPath(result);
-              }
+              if (path != null) notifier.updateDownloadPath(path);
             },
           ),
           const SizedBox(height: 16),
-          _section(context, 'Behavior'),
+          section(context, 'Behavior'),
           SwitchListTile(
             dense: true,
             contentPadding: EdgeInsets.zero,
@@ -167,7 +176,7 @@ class DownloadSettingsPage extends ConsumerWidget {
             onChanged: (_) => notifier.toggleAutoDeleteRead(),
           ),
           const SizedBox(height: 16),
-          _section(context, 'Auto-download on Wi-Fi'),
+          section(context, 'Auto-download on Wi-Fi'),
           Padding(
             padding: const EdgeInsets.symmetric(vertical: 4),
             child: Row(
@@ -198,10 +207,10 @@ class DownloadSettingsPage extends ConsumerWidget {
             ),
           ),
           const SizedBox(height: 16),
-          _section(context, 'Parallel Downloads'),
+          section(context, 'Parallel Downloads'),
           _parallelDropdown(settings.parallelDownloads, notifier),
           const SizedBox(height: 16),
-          _section(context, 'Queue'),
+          section(context, 'Queue'),
           SizedBox(
             width: double.infinity,
             child: FilledButton.icon(
@@ -211,7 +220,7 @@ class DownloadSettingsPage extends ConsumerWidget {
             ),
           ),
           const SizedBox(height: 24),
-          _section(context, 'Storage Info'),
+          section(context, 'Storage Info'),
           _StorageInfoCard(downloadPath: settings.downloadPath),
         ],
       ),
@@ -238,18 +247,6 @@ class DownloadSettingsPage extends ConsumerWidget {
             ),
           ),
         ],
-      ),
-    );
-  }
-
-  Widget _section(BuildContext context, String title) {
-    return Padding(
-      padding: const EdgeInsets.only(bottom: Insets.sm),
-      child: Text(
-        title,
-        style: Theme.of(context).textTheme.labelLarge?.copyWith(
-          color: Theme.of(context).colorScheme.primary,
-        ),
       ),
     );
   }

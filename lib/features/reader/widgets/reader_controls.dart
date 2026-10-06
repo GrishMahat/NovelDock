@@ -173,6 +173,8 @@ Widget buildReaderBottomBar({
   required VoidCallback onToggleTts,
   required VoidCallback onShowChapterList,
   required VoidCallback onSettings,
+  required VoidCallback onToggleTranslate,
+  required bool translateOn,
 }) {
   return Positioned(
     bottom: Insets.sm,
@@ -207,6 +209,13 @@ Widget buildReaderBottomBar({
                       icon: const Icon(Icons.record_voice_over),
                       tooltip: 'Read aloud',
                       onPressed: onToggleTts,
+                    ),
+                    IconButton(
+                      icon: const Icon(Icons.translate),
+                      tooltip: translateOn
+                          ? 'Show original text'
+                          : 'Translate chapter',
+                      onPressed: onToggleTranslate,
                     ),
                     IconButton(
                       icon: const Icon(Icons.list),

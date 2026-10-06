@@ -115,16 +115,6 @@ class NovelProgress extends Table {
   Set<Column> get primaryKey => {novelId};
 }
 
-// ─── provider_cache ───────────────────────────────────────
-class ProviderCache extends Table {
-  TextColumn get id => text()();
-  TextColumn get name => text()();
-  TextColumn get version => text()();
-  TextColumn get jsSource => text()();
-  BoolColumn get enabled => boolean().withDefault(const Constant(false))();
-  IntColumn get lastUpdated => integer()();
-}
-
 // ─── browse_cache ─────────────────────────────────────────
 // Cached browse/search result pages. Every visit to a source used to be a cold
 // network fetch plus HTML parse, which is what made "Popular" feel slow on a

@@ -37,14 +37,6 @@ class LibraryDao extends DatabaseAccessor<AppDatabase> with _$LibraryDaoMixin {
     );
   }
 
-  Future<void> updateLastRead(int novelId) {
-    return (update(library)..where((t) => t.novelId.equals(novelId))).write(
-      LibraryCompanion(
-        lastReadAt: Value(DateTime.now().millisecondsSinceEpoch),
-      ),
-    );
-  }
-
   Future<bool> removeFromLibrary(int novelId) async {
     final count = await (delete(
       library,
@@ -57,12 +49,6 @@ class LibraryDao extends DatabaseAccessor<AppDatabase> with _$LibraryDaoMixin {
       library,
     )..where((t) => t.novelId.equals(novelId))).getSingleOrNull();
     return result != null;
-  }
-
-  Future<void> updateOrder(int novelId, int order) {
-    return (update(library)..where((t) => t.novelId.equals(novelId))).write(
-      LibraryCompanion(order: Value(order)),
-    );
   }
 
   Future<LibraryData?> getLibraryEntry(int novelId) {

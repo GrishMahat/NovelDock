@@ -387,52 +387,6 @@ final class SettingsDaoProvider
 
 String _$settingsDaoHash() => r'b30250ebab9c676c06089cfa66a65ae8e24456db';
 
-@ProviderFor(providerCacheDao)
-final providerCacheDaoProvider = ProviderCacheDaoProvider._();
-
-final class ProviderCacheDaoProvider
-    extends
-        $FunctionalProvider<
-          ProviderCacheDao,
-          ProviderCacheDao,
-          ProviderCacheDao
-        >
-    with $Provider<ProviderCacheDao> {
-  ProviderCacheDaoProvider._()
-    : super(
-        from: null,
-        argument: null,
-        retry: null,
-        name: r'providerCacheDaoProvider',
-        isAutoDispose: false,
-        dependencies: null,
-        $allTransitiveDependencies: null,
-      );
-
-  @override
-  String debugGetCreateSourceHash() => _$providerCacheDaoHash();
-
-  @$internal
-  @override
-  $ProviderElement<ProviderCacheDao> $createElement($ProviderPointer pointer) =>
-      $ProviderElement(pointer);
-
-  @override
-  ProviderCacheDao create(Ref ref) {
-    return providerCacheDao(ref);
-  }
-
-  /// {@macro riverpod.override_with_value}
-  Override overrideWithValue(ProviderCacheDao value) {
-    return $ProviderOverride(
-      origin: this,
-      providerOverride: $SyncValueProvider<ProviderCacheDao>(value),
-    );
-  }
-}
-
-String _$providerCacheDaoHash() => r'0d384042f83fc24c0dcdd7cf98bde2df3e089fdc';
-
 @ProviderFor(novelProgressDao)
 final novelProgressDaoProvider = NovelProgressDaoProvider._();
 

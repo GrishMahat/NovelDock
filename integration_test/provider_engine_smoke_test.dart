@@ -3,7 +3,7 @@ import 'package:integration_test/integration_test.dart';
 
 import 'package:noveldock/core/providers/engine.dart';
 
-/// On-device smoke for the caged provider runtime (see AUDIT.md P0-3).
+/// On-device smoke for the caged provider runtime.
 /// The host `flutter test` runner cannot load libquickjs, so this runs here:
 /// it exercises the exact construction used by ProviderEngine.loadProvider
 /// (no fetch/XHR, promise handling) plus load/dispose lifecycle on a

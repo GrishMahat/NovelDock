@@ -39,10 +39,4 @@ class SettingsDao extends DatabaseAccessor<AppDatabase>
     final all = await select(settings).get();
     return {for (final s in all) s.key: s.value};
   }
-
-  Stream<Map<String, String>> watchAllSettings() {
-    return select(settings).watch().map((entries) {
-      return {for (final s in entries) s.key: s.value};
-    });
-  }
 }
