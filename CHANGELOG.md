@@ -58,7 +58,7 @@ If something in 0.1.x is broken, awkward, or frustrating to use, report it. **Th
 - Browse "Installed" sources are reachable below the fold on phones; the grid was a non-scrolling shrinkWrap column inside a bounded viewport
 - Large system font sizes no longer overflow the fixed-height grids and pills; text scale is clamped app-wide to 1.3x
 - The novel detail overflow menu no longer overflows by ~150px at any width (popup items had no flexible child to ellipsize)
-- Linux builds no longer fail on `-Wunused-but-set-global`; the warning is suppressed for Clang only, which is the only compiler that knows it
+- Linux builds no longer fail on `-Wunused-but-set-global` (G_DEFINE_TYPE's parent-class pointer in plugin shims, flagged by clang under `-Werror`): the suppression is probed with `check_cxx_compiler_flag` and passed only to Clang versions that actually know the warning. Older Clang — the one release CI builds with — rejects the `-Wno-` spelling as an unknown warning option, which `-Werror` turns into a hard failure; GCC has neither the warning nor the flag
 - GitHub release notes now come from `CHANGELOG.md` instead of being generated from commit messages. A tag with no matching changelog section warns in the run log rather than publishing an empty body
 
 ## 0.1.5-beta - 2026-09-30

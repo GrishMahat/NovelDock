@@ -39,14 +39,25 @@ endif()
 # Be cautious about adding new options here, as plugins use this function by
 # default. In most cases, you should add new options to specific targets instead
 # of modifying this function.
+# Whether the Clang in use knows -Wunused-but-set-global, and therefore its
+# -Wno- spelling. Recent clang flags G_DEFINE_TYPE's parent-class pointer in
+# plugin shims under -Werror and needs the suppression applied below; older
+# clang — the one release CI builds with — has no such warning and rejects the
+# -Wno- option as unknown, which -Werror turns into a hard build failure. GCC
+# has neither the warning nor the flag (and errors on the positive spelling).
+# A compiler probe is the one check that is right for every version.
+if(CMAKE_CXX_COMPILER_ID MATCHES "Clang")
+  include(CheckCXXCompilerFlag)
+  check_cxx_compiler_flag("-Wno-unused-but-set-global"
+                          CLANG_HAS_WNO_UNUSED_BUT_SET_GLOBAL)
+endif()
+
 function(APPLY_STANDARD_SETTINGS TARGET)
   target_compile_features(${TARGET} PUBLIC cxx_std_14)
   target_compile_options(${TARGET} PRIVATE -Wall -Werror)
-  # G_DEFINE_TYPE stores a parent-class pointer that plugin shims with empty
-  # class_init hooks never read; clang flags it under -Werror. GCC has no such
-  # warning (and rejects the flag), so scope it to clang.
-  target_compile_options(${TARGET} PRIVATE
-    "$<$<CXX_COMPILER_ID:Clang>:-Wno-unused-but-set-global>")
+  if(CLANG_HAS_WNO_UNUSED_BUT_SET_GLOBAL)
+    target_compile_options(${TARGET} PRIVATE -Wno-unused-but-set-global)
+  endif()
   target_compile_options(${TARGET} PRIVATE "$<$<NOT:$<CONFIG:Debug>>:-O3>")
   target_compile_definitions(${TARGET} PRIVATE "$<$<NOT:$<CONFIG:Debug>>:NDEBUG>")
 endfunction()
