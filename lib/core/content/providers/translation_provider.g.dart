@@ -59,7 +59,7 @@ final class ChapterTranslationProvider
 }
 
 String _$chapterTranslationHash() =>
-    r'86f0dfe8ed76b7da18c7a48a9c3aadefbb5e4db7';
+    r'e69b4d0724f04038eefa346680005f63d625b0fc';
 
 final class ChapterTranslationFamily extends $Family
     with $FunctionalFamilyOverride<FutureOr<String?>, int> {

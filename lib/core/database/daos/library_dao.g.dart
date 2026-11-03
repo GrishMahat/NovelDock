@@ -7,7 +7,6 @@ mixin _$LibraryDaoMixin on DatabaseAccessor<AppDatabase> {
   $NovelsTable get novels => attachedDatabase.novels;
   $ChaptersTable get chapters => attachedDatabase.chapters;
   $LibraryTable get library => attachedDatabase.library;
-  $ReadingHistoryTable get readingHistory => attachedDatabase.readingHistory;
   LibraryDaoManager get managers => LibraryDaoManager(this);
 }
 
@@ -20,9 +19,4 @@ class LibraryDaoManager {
       $$ChaptersTableTableManager(_db.attachedDatabase, _db.chapters);
   $$LibraryTableTableManager get library =>
       $$LibraryTableTableManager(_db.attachedDatabase, _db.library);
-  $$ReadingHistoryTableTableManager get readingHistory =>
-      $$ReadingHistoryTableTableManager(
-        _db.attachedDatabase,
-        _db.readingHistory,
-      );
 }

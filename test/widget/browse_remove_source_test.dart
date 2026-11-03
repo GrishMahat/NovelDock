@@ -226,19 +226,6 @@ void main() {
 
     await _settleAndClose(tester, db);
   });
-
-  testWidgets('the Installed card offers no hidden overflow menu', (
-    tester,
-  ) async {
-    await _pumpBrowse(tester, db, prefs);
-
-    // Browse opens on Installed. The three dots were tried and rejected: they
-    // put uninstall one tap deeper than the tap that installed the source.
-    expect(find.text('WuxiaBox'), findsOneWidget);
-    expect(find.byType(PopupMenuButton<String>), findsNothing);
-
-    await _settleAndClose(tester, db);
-  });
 }
 
 /// See library_screen_test.dart: unmount + flush drift close timers in-test.

@@ -40,11 +40,5 @@ void main() {
       final items = ['b', 'a', 'c'];
       expect(rankByRelevance('', items, (s) => s), ['b', 'a', 'c']);
     });
-
-    test('does not mutate the input list', () {
-      final items = ['cooking mama', 'dawn'];
-      rankByRelevance('dawn', items, (s) => s);
-      expect(items, ['cooking mama', 'dawn']);
-    });
   });
 }

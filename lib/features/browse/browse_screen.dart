@@ -3,7 +3,6 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
 import '../../core/providers/models.dart';
-import '../../core/utils/platform.dart';
 import '../../theme/tokens.dart';
 import '../../widgets/add_default_providers_button.dart';
 import '../../widgets/empty_state.dart';
@@ -74,7 +73,7 @@ class _BrowseScreenState extends ConsumerState<BrowseScreen>
 
   @override
   Widget build(BuildContext context) {
-    if (isDesktop) {
+    if (screenSizeOf(context).isExpanded) {
       return Scaffold(
         body: Column(
           children: [
@@ -197,7 +196,7 @@ class _BrowseScreenState extends ConsumerState<BrowseScreen>
                       ),
                       decoration: BoxDecoration(
                         color: Theme.of(context).colorScheme.primary,
-                        borderRadius: BorderRadius.circular(10),
+                        borderRadius: Radii.pill,
                       ),
                       child: Text(
                         '$installed',

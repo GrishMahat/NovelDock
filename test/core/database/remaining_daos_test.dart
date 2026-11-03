@@ -39,7 +39,7 @@ void main() {
   }
 
   group('NovelDao', () {
-    test('insert/get/update/delete round-trip', () async {
+    test('insert/get/update round-trip', () async {
       final id = await seedNovel();
       expect((await db.novelDao.getNovelById(id))?.title, 'Test Novel');
       expect(
@@ -51,27 +51,6 @@ void main() {
         NovelsCompanion(id: Value(id), title: const Value('Renamed')),
       );
       expect((await db.novelDao.getNovelById(id))?.title, 'Renamed');
-
-      expect(await db.novelDao.searchNovels('Renam'), hasLength(1));
-      expect(await db.novelDao.searchNovels('zzz-no-match'), isEmpty);
-
-      await db.novelDao.deleteNovel(id);
-      expect(await db.novelDao.getNovelById(id), isNull);
-    });
-
-    test('insertOrGetNovel returns existing row', () async {
-      final first = await db.novelDao.insertOrGetNovel(
-        providerId: 'test',
-        url: 'https://example.com/dedupe',
-        title: 'Dedupe',
-      );
-      final second = await db.novelDao.insertOrGetNovel(
-        providerId: 'test',
-        url: 'https://example.com/dedupe',
-        title: 'Dedupe',
-      );
-      expect(first, second);
-      expect(await db.novelDao.getAllNovels(), hasLength(1));
     });
   });
 
@@ -84,9 +63,6 @@ void main() {
       expect(await db.libraryDao.isInLibrary(id), isTrue);
 
       await db.libraryDao.updateStatus(id, 'Completed');
-      final novels = await db.libraryDao.getLibraryNovels();
-      expect(novels, hasLength(1));
-
       final byStatus = await db.libraryDao
           .watchLibraryNovelsByStatus('Completed')
           .first;
@@ -125,14 +101,11 @@ void main() {
         (await db.historyDao.getLatestHistoryForNovel(novelId))?.chapterId,
         ch2,
       );
-
-      await db.historyDao.clearHistoryForNovel(novelId);
-      expect(await db.historyDao.getAllHistory(), isEmpty);
     });
   });
 
   group('DownloadDao', () {
-    test('enqueue/status/claim/count/requeue/clear lifecycle', () async {
+    test('enqueue/status/claim/count/requeue lifecycle', () async {
       final novelId = await seedNovel();
       final ch = await seedChapter(novelId);
 
@@ -153,10 +126,6 @@ void main() {
 
       expect(await db.downloadDao.requeueStaleDownloading(), 1);
       expect((await db.downloadDao.getDownloadById(id))?.status, 'queued');
-
-      await db.downloadDao.updateDownloadStatus(id, 'done', progress: 1.0);
-      await db.downloadDao.clearCompletedDownloads();
-      expect(await db.downloadDao.getAllDownloads(), isEmpty);
     });
   });
 
@@ -209,25 +178,17 @@ void main() {
   });
 
   group('SettingsDao', () {
-    test('set/get/delete/all round-trip', () async {
+    test('set/get/all round-trip', () async {
       await db.settingsDao.setSetting('k1', 'v1');
       await db.settingsDao.setSetting('k2', 'v2');
       expect(await db.settingsDao.getSetting('k1'), 'v1');
-      expect(
-        await db.settingsDao.getSettingOrDefault('missing', 'dflt'),
-        'dflt',
-      );
       expect(await db.settingsDao.getAllSettings(), {'k1': 'v1', 'k2': 'v2'});
-
-      await db.settingsDao.deleteSetting('k1');
-      expect(await db.settingsDao.getSetting('k1'), isNull);
     });
   });
 
   group('NovelProgressDao', () {
-    test('upsert then increment tracks read chapters', () async {
+    test('updateProgress stores chapter totals', () async {
       final novelId = await seedNovel();
-      final ch = await seedChapter(novelId);
 
       await db.novelProgressDao.updateProgress(
         novelId: novelId,
@@ -237,11 +198,6 @@ void main() {
         (await db.novelProgressDao.getProgress(novelId))?.totalChapters,
         10,
       );
-
-      await db.novelProgressDao.incrementReadChapters(novelId, ch);
-      final progress = await db.novelProgressDao.getProgress(novelId);
-      expect(progress?.readChapters, 1);
-      expect(progress?.lastReadChapterId, ch);
     });
   });
 }

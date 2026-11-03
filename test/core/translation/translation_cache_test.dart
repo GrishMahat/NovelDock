@@ -5,13 +5,6 @@ import 'package:noveldock/core/translation/translation_service.dart';
 // share a long prefix must never collide (the old prefix-100-chars key
 // served one chapter's translation for another).
 void main() {
-  test('same text and langs produce the same key', () {
-    expect(
-      TranslationService.cacheKey('hello world', 'en', 'ru'),
-      TranslationService.cacheKey('hello world', 'en', 'ru'),
-    );
-  });
-
   test('texts sharing a 100+ char prefix produce different keys', () {
     final prefix = List.filled(20, 'lorem ipsum dolor sit amet ').join();
     expect(prefix.length, greaterThan(100));

@@ -43,7 +43,7 @@ final class TranslationSettingsNotifierProvider
 }
 
 String _$translationSettingsNotifierHash() =>
-    r'167fae5351acb01a549b8d8caea665796936bfc9';
+    r'32828a9f72cb9f02eebc94f8c855839a3d281fad';
 
 abstract class _$TranslationSettingsNotifier
     extends $Notifier<TranslationSettings> {

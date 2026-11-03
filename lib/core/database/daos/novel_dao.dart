@@ -16,10 +16,6 @@ class NovelDao extends DatabaseAccessor<AppDatabase> with _$NovelDaoMixin {
     )..where((t) => t.id.equals(novel.id.value))).write(novel);
   }
 
-  Future<int> deleteNovel(int id) {
-    return (delete(novels)..where((t) => t.id.equals(id))).go();
-  }
-
   Future<Novel?> getNovelById(int id) {
     return (select(novels)..where((t) => t.id.equals(id))).getSingleOrNull();
   }
@@ -92,9 +88,5 @@ class NovelDao extends DatabaseAccessor<AppDatabase> with _$NovelDaoMixin {
 
   Future<List<Novel>> getAllNovels() {
     return select(novels).get();
-  }
-
-  Future<List<Novel>> searchNovels(String query) {
-    return (select(novels)..where((t) => t.title.like('%$query%'))).get();
   }
 }

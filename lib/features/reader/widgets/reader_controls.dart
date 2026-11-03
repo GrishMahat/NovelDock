@@ -188,7 +188,7 @@ Widget buildReaderBottomBar({
           child: Material(
             color: _readerSurface(settings),
             shape: RoundedRectangleBorder(
-              borderRadius: BorderRadius.circular(28),
+              borderRadius: Radii.pill,
               side: _readerHairline(settings),
             ),
             clipBehavior: Clip.antiAlias,
@@ -274,7 +274,7 @@ Widget buildTtsFloatingPlayer({
           child: Material(
             color: _readerSurface(settings),
             shape: RoundedRectangleBorder(
-              borderRadius: BorderRadius.circular(28),
+              borderRadius: Radii.pill,
               side: _readerHairline(settings),
             ),
             clipBehavior: Clip.antiAlias,
@@ -355,7 +355,7 @@ Widget buildTtsFloatingPlayer({
                       Insets.xs,
                     ),
                     child: ClipRRect(
-                      borderRadius: BorderRadius.circular(2),
+                      borderRadius: Radii.pill,
                       child: LinearProgressIndicator(
                         value: progress,
                         backgroundColor: tint.withValues(alpha: 0.15),

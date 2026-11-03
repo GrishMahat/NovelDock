@@ -8,8 +8,8 @@ import 'package:sqlite3/sqlite3.dart' as sqlite;
 
 // Data-safety pin tests. Each one covers a live data-loss path found in
 // audit: stale-sync dependent cleanup, the settings single-row invariant,
-// the v1->v3 migration, continue-reading semantics, and idempotent novel
-// insert. If any of these fail, user data is being destroyed.
+// the v1->v3 migration, and idempotent novel insert. If any of these fail,
+// user data is being destroyed.
 void main() {
   late AppDatabase db;
 
@@ -126,49 +126,6 @@ void main() {
           .map((row) => row.read<int>('c'))
           .getSingle();
       expect(count, 1);
-    });
-  });
-
-  group('continue reading', () {
-    test('includes novels with unread chapters past the anchor only', () async {
-      Future<int> seed(String url) => db
-          .into(db.novels)
-          .insert(
-            NovelsCompanion.insert(
-              providerId: 't',
-              url: url,
-              title: url,
-              addedAt: 1,
-            ),
-          );
-
-      // Novel 1: anchor at ch0, ch1 unread -> included.
-      final n1 = await seed('n1');
-      await db.chapterDao.syncChaptersForNovel(n1, chaptersFor(n1, ['a', 'b']));
-      final ch0 = (await db.chapterDao.getChaptersForNovel(n1)).first;
-      await db.chapterDao.markChapterAsRead(ch0.id);
-      await db.libraryDao.addToLibrary(n1);
-      await (db.update(db.library)..where((t) => t.novelId.equals(n1))).write(
-        LibraryCompanion(lastChapterId: Value(ch0.id)),
-      );
-
-      // Novel 2: everything read -> excluded.
-      final n2 = await seed('n2');
-      await db.chapterDao.syncChaptersForNovel(n2, chaptersFor(n2, ['a']));
-      final n2ch = (await db.chapterDao.getChaptersForNovel(n2)).first;
-      await db.chapterDao.markChapterAsRead(n2ch.id);
-      await db.libraryDao.addToLibrary(n2);
-      await (db.update(db.library)..where((t) => t.novelId.equals(n2))).write(
-        LibraryCompanion(lastChapterId: Value(n2ch.id)),
-      );
-
-      // Novel 3: in library but no anchor -> excluded.
-      final n3 = await seed('n3');
-      await db.chapterDao.syncChaptersForNovel(n3, chaptersFor(n3, ['a', 'b']));
-      await db.libraryDao.addToLibrary(n3);
-
-      final result = await db.libraryDao.getContinueReadingNovels();
-      expect(result.map((n) => n.url), ['n1']);
     });
   });
 

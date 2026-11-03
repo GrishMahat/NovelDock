@@ -27,14 +27,6 @@ class SettingsDao extends DatabaseAccessor<AppDatabase>
     return results.first.value;
   }
 
-  Future<String> getSettingOrDefault(String key, String defaultValue) async {
-    return await getSetting(key) ?? defaultValue;
-  }
-
-  Future<void> deleteSetting(String key) async {
-    await (delete(settings)..where((t) => t.key.equals(key))).go();
-  }
-
   Future<Map<String, String>> getAllSettings() async {
     final all = await select(settings).get();
     return {for (final s in all) s.key: s.value};

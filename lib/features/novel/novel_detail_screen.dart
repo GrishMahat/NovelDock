@@ -15,7 +15,6 @@ import '../../core/providers/database_providers.dart';
 import '../../core/providers/novel_fetch_state.dart';
 import '../../core/providers/novel_opener.dart';
 import '../../core/utils/logger.dart';
-import '../../core/utils/platform.dart';
 import '../../theme/tokens.dart';
 import '../../widgets/cover_image.dart';
 import '../../widgets/max_width_box.dart';
@@ -480,7 +479,7 @@ class _NovelDetailScreenState extends ConsumerState<NovelDetailScreen> {
 
     if (_novelLoaded && novel == null) {
       return Scaffold(
-        appBar: isDesktop ? null : AppBar(),
+        appBar: screenSizeOf(context).isExpanded ? null : AppBar(),
         body: Center(
           child: Column(
             mainAxisAlignment: MainAxisAlignment.center,
@@ -509,13 +508,13 @@ class _NovelDetailScreenState extends ConsumerState<NovelDetailScreen> {
     }
 
     return Scaffold(
-      appBar: isDesktop
+      appBar: screenSizeOf(context).isExpanded
           ? null
           : AppBar(
               title: _headerTitle == null ? null : Text(_headerTitle!),
               actions: _buildActions(context),
             ),
-      body: isDesktop
+      body: screenSizeOf(context).isExpanded
           ? Column(
               children: [
                 PageHeader(
@@ -705,7 +704,9 @@ class _NovelDetailScreenState extends ConsumerState<NovelDetailScreen> {
             horizontal: Insets.sm,
             vertical: Insets.xs,
           ),
-          child: Row(
+          child: Wrap(
+            alignment: WrapAlignment.spaceBetween,
+            runSpacing: Insets.xs,
             children: [
               _BarAction(
                 icon: Icons.close,
@@ -719,7 +720,6 @@ class _NovelDetailScreenState extends ConsumerState<NovelDetailScreen> {
                     ? () => setState(_selectedChapterIds.clear)
                     : () => _selectAllVisible(_lastVisibleChapters),
               ),
-              const Spacer(),
               _BarAction(
                 icon: Icons.download_outlined,
                 label: 'Download',
@@ -1084,7 +1084,7 @@ class _NovelDetailScreenState extends ConsumerState<NovelDetailScreen> {
                           child: Column(
                             crossAxisAlignment: CrossAxisAlignment.start,
                             children: [
-                              if (!isDesktop) ...[
+                              if (!screenSizeOf(context).isExpanded) ...[
                                 Text(
                                   novel?.title ?? 'Loading...',
                                   style: Theme.of(
@@ -1461,7 +1461,7 @@ class _NovelDetailScreenState extends ConsumerState<NovelDetailScreen> {
                   height: compact ? 20 : 24,
                   decoration: BoxDecoration(
                     color: read ? scheme.outlineVariant : scheme.primary,
-                    borderRadius: BorderRadius.circular(2),
+                    borderRadius: Radii.pill,
                   ),
                 ),
               const SizedBox(width: Insets.md),
@@ -1538,7 +1538,7 @@ class _BarAction extends StatelessWidget {
                 label,
                 style: Theme.of(
                   context,
-                ).textTheme.labelSmall?.copyWith(color: color, fontSize: 10),
+                ).textTheme.labelSmall?.copyWith(color: color),
               ),
             ],
           ),

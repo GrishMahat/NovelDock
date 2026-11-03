@@ -1,5 +1,7 @@
 import 'package:material_ui/material_ui.dart';
 
+import '../theme/tokens.dart';
+
 /// Compact search field for [PageHeader] action rows. Mirrors the global
 /// top-bar search styling (pill radius, filled surface) at header scale.
 class HeaderSearchField extends StatefulWidget {
@@ -59,7 +61,7 @@ class _HeaderSearchFieldState extends State<HeaderSearchField> {
           filled: true,
           fillColor: scheme.surfaceContainerHighest.withValues(alpha: 0.6),
           border: OutlineInputBorder(
-            borderRadius: BorderRadius.circular(20),
+            borderRadius: Radii.pill,
             borderSide: BorderSide.none,
           ),
         ),

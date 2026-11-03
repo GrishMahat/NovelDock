@@ -64,13 +64,6 @@ class ChapterDao extends DatabaseAccessor<AppDatabase> with _$ChapterDaoMixin {
         .get();
   }
 
-  Future<List<Chapter>> getUnreadChapters(int novelId) {
-    return (select(chapters)
-          ..where((t) => t.novelId.equals(novelId) & t.read.equals(false))
-          ..orderBy([(t) => OrderingTerm.asc(t.index)]))
-        .get();
-  }
-
   Future<void> markChapterAsRead(int chapterId) {
     return (update(chapters)..where((t) => t.id.equals(chapterId))).write(
       ChaptersCompanion(read: const Value(true)),

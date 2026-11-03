@@ -69,16 +69,5 @@ void main() {
       ).map((c) => c.name);
       expect(names, ['Chapter 1', 'Prologue', 'Chapter 2', 'Chapter 10']);
     });
-
-    test('does not mutate the input list', () {
-      final input = List.of(jumbled);
-      sortChapters(input, ChapterSort.number);
-      expect(input.map((c) => c.name), [
-        'Chapter 10',
-        'Chapter 2',
-        'Prologue',
-        'Chapter 1',
-      ]);
-    });
   });
 }

@@ -21,6 +21,15 @@ abstract final class Radii {
   static const BorderRadius sheet = BorderRadius.vertical(
     top: Radius.circular(24),
   );
+
+  /// Stadium/pill shape. The radius intentionally exceeds every pill
+  /// height: it clamps to height/2 at paint time, so a floating 56dp bar,
+  /// a search field, a status tag and a 3dp hairline bar are all full
+  /// rounds without hand-matching a radius to each height.
+  static const BorderRadius pill = BorderRadius.all(Radius.circular(999));
+
+  /// Sports-stadium shape for borders/painters that take a single [Radius].
+  static const Radius pillSingle = Radius.circular(999);
 }
 
 /// Motion tokens, M3-aligned. Durations/curves live here.
@@ -56,6 +65,11 @@ enum ScreenSize {
 
   /// True when the tier is phone-sized or a narrow window.
   bool get isCompact => this == ScreenSize.compact;
+
+  /// True when the tier is wide enough for desktop layouts (rail, screen
+  /// -owned headers): desktop windows are enforced ≥960, so they always
+  /// land here.
+  bool get isExpanded => this == ScreenSize.expanded;
 }
 
 /// Tier for a width in logical pixels.

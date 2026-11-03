@@ -16,7 +16,9 @@ void main() {
   });
 
   group('CoverImage widget', () {
-    testWidgets('null url shows the book-icon placeholder', (tester) async {
+    testWidgets('null or empty url shows the book-icon placeholder', (
+      tester,
+    ) async {
       await tester.pumpWidget(
         const MaterialApp(
           home: Scaffold(body: CoverImage(width: 40, height: 56)),
@@ -24,9 +26,7 @@ void main() {
       );
       expect(find.byIcon(Icons.book), findsOneWidget);
       expect(find.byType(RawImage), findsNothing);
-    });
 
-    testWidgets('empty url shows the book-icon placeholder', (tester) async {
       await tester.pumpWidget(
         const MaterialApp(
           home: Scaffold(body: CoverImage(imageUrl: '', width: 40, height: 56)),

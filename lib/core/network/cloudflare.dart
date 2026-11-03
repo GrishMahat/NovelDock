@@ -48,9 +48,6 @@ class CloudflareHandler {
     return false;
   }
 
-  /// Check if raw page HTML looks like a Cloudflare challenge.
-  static bool looksLikeChallengeHtml(String html) => _looksLikeChallenge(html);
-
   static bool _looksLikeChallenge(String body) {
     for (final marker in _challengeMarkers) {
       if (body.contains(marker)) return true;

@@ -155,7 +155,7 @@ class _ChapterSidebarState extends State<ChapterSidebar> {
                     filled: true,
                     fillColor: s.textColor.withValues(alpha: 0.06),
                     border: OutlineInputBorder(
-                      borderRadius: BorderRadius.circular(20),
+                      borderRadius: Radii.pill,
                       borderSide: BorderSide.none,
                     ),
                   ),

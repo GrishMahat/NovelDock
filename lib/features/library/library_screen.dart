@@ -9,7 +9,6 @@ import '../../core/display_mode.dart';
 import '../../core/providers/database_providers.dart';
 import '../../core/providers/novel_opener.dart';
 import '../../core/utils/logger.dart';
-import '../../core/utils/platform.dart';
 
 import '../../theme/tokens.dart';
 import '../../widgets/cover_image.dart';
@@ -150,7 +149,7 @@ class _LibraryScreenState extends ConsumerState<LibraryScreen>
 
   @override
   Widget build(BuildContext context) {
-    if (isDesktop) {
+    if (screenSizeOf(context).isExpanded) {
       return Scaffold(
         body: Column(
           children: [

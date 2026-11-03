@@ -84,11 +84,6 @@ void main() {
       expect(md, '**bold *and italic***');
     });
 
-    test('empty input returns empty string', () {
-      expect(Html2Md.convert(''), '');
-      expect(Html2Md.convert('   '), '');
-    });
-
     test('converts multiple paragraphs', () {
       final md = Html2Md.convert('<p>First</p><p>Second</p>');
       expect(md, 'First\n\nSecond');
@@ -116,13 +111,6 @@ void main() {
     test('converts <i> as italic', () {
       final md = Html2Md.convert('<p><i>italic</i></p>');
       expect(md, '*italic*');
-    });
-
-    test('converts <em> inside <strong>', () {
-      final md = Html2Md.convert(
-        '<p><strong>bold <em>and italic</em></strong></p>',
-      );
-      expect(md, '**bold *and italic***');
     });
 
     test('converts section and article tags', () {

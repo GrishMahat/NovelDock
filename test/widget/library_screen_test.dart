@@ -22,6 +22,12 @@ Future<void> _pumpLibrary(
   AppDatabase db,
   SharedPreferences prefs,
 ) async {
+  // Desktop header (PageHeader search field) resolves at the expanded tier:
+  // pump at a desktop-sized window, mirroring mobile_density_test.
+  tester.view.physicalSize = const Size(1280, 800) * 3;
+  tester.view.devicePixelRatio = 3;
+  addTearDown(tester.view.reset);
+
   final router = GoRouter(
     initialLocation: '/',
     routes: [

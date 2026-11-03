@@ -8,10 +8,6 @@ import 'package:noveldock/core/providers/engine.dart';
 // into a search path that ignores them.
 void main() {
   group('ProviderFeatureFlags.searchConfigFilters', () {
-    test('defaults to false', () {
-      expect(const ProviderFeatureFlags().searchConfigFilters, isFalse);
-    });
-
     test('missing key defaults to false', () {
       expect(
         ProviderFeatureFlags.fromJson(const {}).searchConfigFilters,

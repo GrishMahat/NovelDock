@@ -143,8 +143,4 @@ class DownloadDao extends DatabaseAccessor<AppDatabase>
           ..orderBy([(t) => OrderingTerm.desc(t.id)]))
         .get();
   }
-
-  Future<void> clearCompletedDownloads() async {
-    await (delete(downloadsQueue)..where((t) => t.status.equals('done'))).go();
-  }
 }

@@ -5,8 +5,8 @@ import 'package:go_router/go_router.dart';
 import '../../core/database/database.dart';
 import '../../core/providers/database_providers.dart';
 import '../../core/utils/logger.dart';
-import '../../core/utils/platform.dart';
 import '../../core/utils/text_utils.dart';
+import '../../core/utils/time_format.dart';
 import '../../theme/tokens.dart';
 import '../../widgets/cover_image.dart';
 import '../../widgets/empty_state.dart';
@@ -109,7 +109,7 @@ class _HistoryScreenState extends ConsumerState<HistoryScreen> {
       },
     );
 
-    if (isDesktop) {
+    if (screenSizeOf(context).isExpanded) {
       return Scaffold(
         body: Column(
           children: [
@@ -328,16 +328,12 @@ class _HistoryTile extends ConsumerWidget {
           builder: (context, chapterSnapshot) {
             final chapter = chapterSnapshot.data;
             final chapterName = chapter?.name ?? 'Chapter #${entry.chapterId}';
-            final time = DateTime.fromMillisecondsSinceEpoch(
-              entry.readAt,
-            ).toLocal().toString().split(' ')[1].substring(0, 5);
-            final date = DateTime.fromMillisecondsSinceEpoch(
-              entry.readAt,
-            ).toLocal().toString().split(' ')[0];
+            final time = formatTimeOfDay(entry.readAt);
+            final date = formatDate(entry.readAt);
 
             return ListTile(
               leading: ClipRRect(
-                borderRadius: BorderRadius.circular(4),
+                borderRadius: BorderRadius.all(Radii.sm),
                 child: CoverImage(
                   imageUrl: novel?.coverUrl,
                   title: title,

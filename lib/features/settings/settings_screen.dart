@@ -1,5 +1,3 @@
-import 'dart:io';
-
 import 'package:material_ui/material_ui.dart';
 import 'package:go_router/go_router.dart';
 import 'package:package_info_plus/package_info_plus.dart';
@@ -44,9 +42,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
 
   @override
   Widget build(BuildContext context) {
-    final isDesktop =
-        Platform.isLinux || Platform.isWindows || Platform.isMacOS;
-    if (!isDesktop) return _buildMobile(context);
+    if (!screenSizeOf(context).isExpanded) return _buildMobile(context);
     return _buildDesktop(context);
   }
 

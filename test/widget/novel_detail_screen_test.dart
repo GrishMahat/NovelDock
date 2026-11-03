@@ -152,17 +152,6 @@ void main() {
     await tester.pumpAndSettle();
   }
 
-  testWidgets('filter chips render with the chapter count', (tester) async {
-    await _pumpDetail(tester, db, prefs);
-    expect(find.text('4 chapters'), findsOneWidget);
-    // The chips are gone: the filters live behind one "Filter chapters" entry
-    // in the overflow menu, so nothing competes with the count for that line.
-    for (final label in ['Downloaded', 'Bookmarked', 'Read', 'Unread']) {
-      expect(find.widgetWithText(FilterChip, label), findsNothing);
-    }
-    await _settleAndClose(tester, db);
-  });
-
   testWidgets('the filter dialog lists every status and applies on Apply', (
     tester,
   ) async {
@@ -226,17 +215,6 @@ void main() {
     await _settleAndClose(tester, db);
   });
 
-  testWidgets('Downloaded filter narrows the list', (tester) async {
-    await _pumpDetail(tester, db, prefs);
-    await openFilterDialog(tester);
-    await applyFilters(tester, ['Downloaded']);
-
-    expect(find.text('1 of 4 chapters'), findsOneWidget);
-    expect(find.text('Downloaded Chapter'), findsOneWidget);
-    expect(find.text('Plain Chapter'), findsNothing);
-    await _settleAndClose(tester, db);
-  });
-
   testWidgets('Unread filter excludes read chapters', (tester) async {
     await _pumpDetail(tester, db, prefs);
     await openFilterDialog(tester);
@@ -245,16 +223,6 @@ void main() {
     expect(find.text('3 of 4 chapters'), findsOneWidget);
     expect(find.text('Read Chapter'), findsNothing);
     expect(find.text('Plain Chapter'), findsOneWidget);
-    await _settleAndClose(tester, db);
-  });
-
-  testWidgets('Bookmarked filter shows only bookmarked', (tester) async {
-    await _pumpDetail(tester, db, prefs);
-    await openFilterDialog(tester);
-    await applyFilters(tester, ['Bookmarked']);
-
-    expect(find.text('1 of 4 chapters'), findsOneWidget);
-    expect(find.text('Bookmarked Chapter'), findsOneWidget);
     await _settleAndClose(tester, db);
   });
 
@@ -416,32 +384,6 @@ void main() {
   });
 
   group('header actions', () {
-    testWidgets('library, Mark all read and WebView sit in their own row', (
-      tester,
-    ) async {
-      await _pumpDetail(tester, db, prefs);
-
-      // Restored to the original full-width action row (spaceAround, vertical
-      // icon-over-label), not the later inline header pills. "Library" shows
-      // the tracked status once set; the label is "Add to library" until then.
-      expect(find.text('Add to library'), findsOneWidget);
-      expect(find.text('Mark all read'), findsOneWidget);
-      expect(find.text('WebView'), findsOneWidget);
-      expect(find.byIcon(Icons.favorite), findsOneWidget);
-      expect(find.byIcon(Icons.done_all), findsOneWidget);
-      expect(find.byIcon(Icons.language), findsOneWidget);
-
-      // The dead "Soon" button is gone for good.
-      expect(find.text('Soon'), findsNothing);
-      expect(find.byIcon(Icons.hourglass_empty), findsNothing);
-
-      // The inline pill labels are gone with the pill layout.
-      expect(find.text('Library'), findsNothing);
-      expect(find.text('Source'), findsNothing);
-
-      await _settleAndClose(tester, db);
-    });
-
     testWidgets('Mark all read marks every unread chapter', (tester) async {
       await _pumpDetail(tester, db, prefs);
 

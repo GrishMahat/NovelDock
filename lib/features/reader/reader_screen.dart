@@ -1,5 +1,4 @@
 import 'dart:async';
-import 'dart:io';
 
 import 'package:drift/drift.dart' show Value;
 import 'package:material_ui/material_ui.dart';
@@ -54,6 +53,10 @@ class _ReaderScreenState extends ConsumerState<ReaderScreen> {
 
   /// When pinned (Ctrl+L) the panel stays open regardless of mouse leave.
   bool _sliderPinned = false;
+  // System-level "reduce motion" (accessibility). Cached in
+  // didChangeDependencies so imperative scroll helpers can read it without
+  // touching MediaQuery from a callback.
+  bool _systemReduceAnimations = false;
   final ScrollController _scrollController = ScrollController();
   double _scrollProgress = 0.0;
   final Map<String, GlobalKey> _chunkKeys = {};
@@ -151,6 +154,12 @@ class _ReaderScreenState extends ConsumerState<ReaderScreen> {
         _announceChapter();
       },
     );
+  }
+
+  @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    _systemReduceAnimations = MediaQuery.disableAnimationsOf(context);
   }
 
   @override
@@ -476,21 +485,23 @@ class _ReaderScreenState extends ConsumerState<ReaderScreen> {
     WidgetsBinding.instance.addPostFrameCallback((_) => step());
   }
 
+  /// Duration for reader-internal scroll motion. Zero when the reader's own
+  /// reduce-motion setting (e-ink) or the system disableAnimations switch is
+  /// on, so both fire the same instant-jump paths instead of glides.
+  Duration _motion(Duration motion) =>
+      ref.read(readerSettingsProvider).reduceMotion || _systemReduceAnimations
+      ? Duration.zero
+      : motion;
+
   void _scrollByPages(double pages) {
     if (!_scrollController.hasClients) return;
     final target =
         (_scrollController.offset +
                 pages * _scrollController.position.viewportDimension * 0.85)
             .clamp(0.0, _scrollController.position.maxScrollExtent);
-    // E-ink: jumping avoids the full-screen refresh storm an animated glide
-    // causes on epaper panels.
-    if (ref.read(readerSettingsProvider).reduceMotion) {
-      _scrollController.jumpTo(target);
-      return;
-    }
     _scrollController.animateTo(
       target,
-      duration: const Duration(milliseconds: 220),
+      duration: _motion(Motion.base),
       curve: Curves.easeOutCubic,
     );
   }
@@ -535,7 +546,7 @@ class _ReaderScreenState extends ConsumerState<ReaderScreen> {
       if (context != null) {
         Scrollable.ensureVisible(
           context,
-          duration: const Duration(milliseconds: 300),
+          duration: _motion(Motion.base),
           curve: Curves.easeOut,
         );
       } else {
@@ -555,7 +566,7 @@ class _ReaderScreenState extends ConsumerState<ReaderScreen> {
       if (context != null) {
         Scrollable.ensureVisible(
           context,
-          duration: const Duration(milliseconds: 300),
+          duration: _motion(Motion.base),
           curve: Curves.easeOut,
         );
       } else {
@@ -575,7 +586,7 @@ class _ReaderScreenState extends ConsumerState<ReaderScreen> {
       if (context != null) {
         Scrollable.ensureVisible(
           context,
-          duration: const Duration(milliseconds: 300),
+          duration: _motion(Motion.base),
           curve: Curves.easeOut,
         );
       } else {
@@ -644,14 +655,12 @@ class _ReaderScreenState extends ConsumerState<ReaderScreen> {
     }
 
     _lastAutoScrolledParagraph = paragraph;
-    // E-ink (and reduced motion): instant jump instead of a 320ms glide.
-    final reduceMotion = ref.read(readerSettingsProvider).reduceMotion;
+    // E-ink and system reduced-motion: zero duration = instant jump instead
+    // of a glide (_motion collapses the ternary this used to be).
     _autoScrollFuture =
         Scrollable.ensureVisible(
           targetContext,
-          duration: reduceMotion
-              ? Duration.zero
-              : const Duration(milliseconds: 320),
+          duration: _motion(Motion.base),
           curve: Curves.easeOutCubic,
           alignment: 0.22,
         ).whenComplete(() {
@@ -664,19 +673,17 @@ class _ReaderScreenState extends ConsumerState<ReaderScreen> {
 
   void _restoreLockedTtsScroll(double ceiling) {
     if (_restoringTtsScroll || !_scrollController.hasClients) return;
-    if (ref.read(readerSettingsProvider).reduceMotion) {
-      _scrollController.jumpTo(
-        ceiling.clamp(0.0, _scrollController.position.maxScrollExtent),
-      );
+    final target = ceiling.clamp(
+      0.0,
+      _scrollController.position.maxScrollExtent,
+    );
+    if (_motion(Motion.fast) == Duration.zero) {
+      _scrollController.jumpTo(target);
       return;
     }
     _restoringTtsScroll = true;
     _autoScrollFuture = _scrollController
-        .animateTo(
-          ceiling.clamp(0.0, _scrollController.position.maxScrollExtent),
-          duration: const Duration(milliseconds: 180),
-          curve: Curves.easeOutCubic,
-        )
+        .animateTo(target, duration: Motion.fast, curve: Curves.easeOutCubic)
         .whenComplete(() {
           _restoringTtsScroll = false;
           _autoScrollFuture = null;
@@ -802,7 +809,7 @@ class _ReaderScreenState extends ConsumerState<ReaderScreen> {
       if (nextContext != null) {
         Scrollable.ensureVisible(
           nextContext,
-          duration: const Duration(milliseconds: 300),
+          duration: _motion(Motion.base),
           curve: Curves.easeOut,
         );
       } else {
@@ -1095,8 +1102,7 @@ class _ReaderScreenState extends ConsumerState<ReaderScreen> {
 
     _settingsVersion++;
 
-    final isDesktop =
-        Platform.isLinux || Platform.isWindows || Platform.isMacOS;
+    final desktopLayout = screenSizeOf(context).isExpanded;
 
     final contentCache = _buildContentMap(contentState);
     if (showTranslation && currentChapter != null) {
@@ -1150,7 +1156,7 @@ class _ReaderScreenState extends ConsumerState<ReaderScreen> {
 
     return Scaffold(
       backgroundColor: settings.bgColor,
-      body: isDesktop
+      body: desktopLayout
           ? CallbackShortcuts(
               bindings: {
                 SingleActivator(LogicalKeyboardKey.arrowLeft): () =>

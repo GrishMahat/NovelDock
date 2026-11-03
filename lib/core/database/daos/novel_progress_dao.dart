@@ -4,7 +4,7 @@ import '../database.dart';
 
 part 'novel_progress_dao.g.dart';
 
-@DriftAccessor(tables: [NovelProgress, Novels, Chapters])
+@DriftAccessor(tables: [NovelProgress])
 class NovelProgressDao extends DatabaseAccessor<AppDatabase>
     with _$NovelProgressDaoMixin {
   NovelProgressDao(super.db);
@@ -76,30 +76,6 @@ class NovelProgressDao extends DatabaseAccessor<AppDatabase>
 
   Future<List<NovelProgressData>> getAllProgress() {
     return select(novelProgress).get();
-  }
-
-  Future<void> incrementReadChapters(int novelId, int chapterId) async {
-    final chapter = await db.chapterDao.getChapterById(chapterId);
-    if (chapter == null) return;
-    final existing = await getProgress(novelId);
-    if (existing == null) return;
-    final total = await db.chapterDao.getChapterCount(novelId);
-    if (chapter.read) {
-      // Already counted (e.g. re-marked after a sync): refresh totals and
-      // the anchor without double-counting.
-      await updateProgress(
-        novelId: novelId,
-        totalChapters: total,
-        lastReadChapterId: chapterId,
-      );
-      return;
-    }
-    await updateProgress(
-      novelId: novelId,
-      totalChapters: total,
-      readChapters: existing.readChapters + 1,
-      lastReadChapterId: chapterId,
-    );
   }
 
   Future<void> syncProgress(int novelId) async {

@@ -275,7 +275,10 @@ class _MainShellState extends ConsumerState<MainShell> {
           _requestRefresh(context, currentIndex),
     };
 
-    if (isDesktop) {
+    // Desktop layout (rail, keyboard shell): width-tiered per the design
+    // contract — desktop windows are enforced ≥960, so they always resolve
+    // expanded, but so does any wide window.
+    if (screenSizeOf(context).isExpanded) {
       return guardExit(
         Scaffold(
           body: CallbackShortcuts(

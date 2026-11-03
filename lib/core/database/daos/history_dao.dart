@@ -42,12 +42,6 @@ class HistoryDao extends DatabaseAccessor<AppDatabase> with _$HistoryDaoMixin {
     return delete(readingHistory).go();
   }
 
-  Future<void> clearHistoryForNovel(int novelId) {
-    return (delete(
-      readingHistory,
-    )..where((t) => t.novelId.equals(novelId))).go();
-  }
-
   Future<List<ReadingHistoryData>> getHistoryForNovel(int novelId) {
     return (select(readingHistory)
           ..where((t) => t.novelId.equals(novelId))

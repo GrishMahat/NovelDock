@@ -6,7 +6,6 @@ import '../../core/providers/engine.dart';
 import '../../core/providers/models.dart';
 import '../../core/providers/novel_opener.dart';
 import '../../core/utils/logger.dart';
-import '../../core/utils/platform.dart';
 import '../../theme/tokens.dart';
 import '../../widgets/cover_image.dart';
 import '../../widgets/max_width_box.dart';
@@ -148,7 +147,7 @@ class _SearchResultsScreenState extends ConsumerState<SearchResultsScreen> {
         .toList(growable: false);
 
     return Scaffold(
-      appBar: isDesktop
+      appBar: screenSizeOf(context).isExpanded
           ? null
           : AppBar(
               titleSpacing: 0,
@@ -205,7 +204,7 @@ class _SearchResultsScreenState extends ConsumerState<SearchResultsScreen> {
             ),
       body: Column(
         children: [
-          if (isDesktop)
+          if (screenSizeOf(context).isExpanded)
             Padding(
               padding: const EdgeInsets.fromLTRB(
                 Insets.lg,

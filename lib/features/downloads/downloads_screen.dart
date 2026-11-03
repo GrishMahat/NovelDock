@@ -3,7 +3,6 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../core/database/database.dart';
 import '../../core/providers/database_providers.dart';
-import '../../core/utils/platform.dart';
 import '../../theme/app_theme.dart';
 import '../../theme/tokens.dart';
 import '../../widgets/empty_state.dart';
@@ -97,12 +96,12 @@ class _DownloadsScreenState extends ConsumerState<DownloadsScreen> {
     final text = Theme.of(context).textTheme;
 
     return Scaffold(
-      appBar: isDesktop
+      appBar: screenSizeOf(context).isExpanded
           ? null
           : AppBar(title: const Text('Downloads'), actions: [_clearActions()]),
       body: Column(
         children: [
-          if (isDesktop)
+          if (screenSizeOf(context).isExpanded)
             Padding(
               padding: const EdgeInsets.fromLTRB(
                 Insets.lg,

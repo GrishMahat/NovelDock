@@ -5,6 +5,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../../core/utils/log_buffer.dart';
 import '../../../core/utils/logger.dart';
 import '../../../theme/app_theme.dart';
+import '../../../theme/tokens.dart';
 
 class LogViewerPage extends ConsumerStatefulWidget {
   const LogViewerPage({super.key});
@@ -74,7 +75,7 @@ class _LogViewerPageState extends ConsumerState<LogViewerPage> {
         if (_scrollController.offset < max - 50) {
           _scrollController.animateTo(
             max,
-            duration: const Duration(milliseconds: 150),
+            duration: Motion.fast,
             curve: Curves.easeOut,
           );
         }

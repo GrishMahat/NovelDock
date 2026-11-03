@@ -159,7 +159,7 @@ class _ProviderManagementPageState
                                 color: _registryStatusColor(
                                   status,
                                 ).withValues(alpha: 0.2),
-                                borderRadius: BorderRadius.circular(3),
+                                borderRadius: Radii.pill,
                               ),
                               child: Text(
                                 status.toUpperCase(),
@@ -345,7 +345,7 @@ class _ProviderManagementPageState
                       padding: const EdgeInsets.all(Insets.sm),
                       decoration: BoxDecoration(
                         color: scheme.error.withValues(alpha: 0.1),
-                        borderRadius: BorderRadius.circular(6),
+                        borderRadius: BorderRadius.all(Radii.sm),
                         border: Border.all(
                           color: scheme.error.withValues(alpha: 0.3),
                         ),

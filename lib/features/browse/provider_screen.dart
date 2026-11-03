@@ -13,7 +13,6 @@ import '../../core/network/client.dart';
 import '../../core/network/errors.dart';
 import '../../core/providers/novel_opener.dart';
 import '../../core/utils/logger.dart';
-import '../../core/utils/platform.dart';
 import '../../theme/tokens.dart';
 import '../../widgets/error_view.dart';
 import '../../widgets/max_width_box.dart';
@@ -442,7 +441,7 @@ class _ProviderScreenState extends ConsumerState<ProviderScreen>
     final gridExtent = Grids.browseExtent(tier);
 
     return Scaffold(
-      appBar: isDesktop
+      appBar: screenSizeOf(context).isExpanded
           ? null
           : AppBar(
               title: _isSearching ? _searchField() : Text(title),
@@ -450,7 +449,7 @@ class _ProviderScreenState extends ConsumerState<ProviderScreen>
             ),
       body: Column(
         children: [
-          if (isDesktop)
+          if (screenSizeOf(context).isExpanded)
             Padding(
               padding: const EdgeInsets.fromLTRB(
                 Insets.lg,

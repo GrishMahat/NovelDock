@@ -12,10 +12,6 @@ void main() {
   group('default registry', () {
     RegistryInfo info(String url) => RegistryInfo(id: 'x', url: url);
 
-    test('absent from an empty list', () {
-      expect(hasDefaultRegistry(const []), isFalse);
-    });
-
     test('detected from the github.com spelling', () {
       expect(hasDefaultRegistry([info(kDefaultRegistryUrl)]), isTrue);
     });

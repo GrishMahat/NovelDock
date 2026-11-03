@@ -57,21 +57,6 @@ void main() {
       chapter = await dao.getChapterById(chapterId);
       expect(chapter?.read, isFalse);
     });
-
-    test('unread clears the unread query membership', () async {
-      final novelId = await seedNovel();
-      final chapterId = await seedChapter(novelId);
-      final dao = db.chapterDao;
-
-      await dao.markChapterAsRead(chapterId);
-      expect(await dao.getUnreadChapters(novelId), isEmpty);
-
-      await dao.markChapterAsUnread(chapterId);
-      expect(
-        (await dao.getUnreadChapters(novelId)).map((c) => c.id),
-        contains(chapterId),
-      );
-    });
   });
 
   group('download queue removal', () {
@@ -90,19 +75,6 @@ void main() {
           );
       return id;
     }
-
-    test('removeDownload drops the queue row', () async {
-      final novelId = await seedNovel();
-      final chapterId = await seedChapter(novelId);
-      final taskId = await seedDoneDownload(
-        novelId: novelId,
-        chapterId: chapterId,
-      );
-
-      await db.downloadDao.removeDownload(taskId);
-
-      expect(await db.downloadDao.getDownloadById(taskId), isNull);
-    });
 
     test('completed tasks are individually discoverable', () async {
       final novelId = await seedNovel();
