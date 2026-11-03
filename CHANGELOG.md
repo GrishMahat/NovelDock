@@ -7,12 +7,20 @@ The format follows [Keep a Changelog](https://keepachangelog.com); versions aim 
 
 ### Added
 
-- Reader: a "Translate chapter" button in the reader controls translates the open chapter in place (MyMemory, cached to disk), and both toggles in Settings → Translation now do something: "Auto-translate" starts it for every chapter, and turning "Online Translation" off switches translation to the local cache only — uncached text stays untranslated. The About card no longer claims ML Kit, which is not a dependency
+- System reduced-motion support in reader: the reader now respects the system "Reduce motion" accessibility setting, collapsing all scroll animations to instant jumps when enabled (both app-level and system settings are checked)
+- Pill-shaped border radius unified across UI: the `Radii.pill` constant (999 radius) and `Radii.pillSingle` (999 radius) introduced in theme tokens, replacing hardcoded radii in screens including the browse screen where list tiles now use the pill radius
+- Expanded screen size tier: added `ScreenSize.isExpanded` property to detect desktop/narrow-window layouts, replacing the previous `isDesktop` check in browse screen layout
 
 ### Changed
 
-- Codebase cleanup: roughly 3,000 lines of dead code and duplicated UI removed — unused widgets, helpers, tool scripts, an obsolete build config — and 17 unused packages dropped from `pubspec.yaml`. Everything built twice (reader settings, the novel-detail sheets, the browse header, the download-path dialog, the provider test bench) now shares one implementation. Screen text and behaviour are unchanged except where a toggle previously did nothing
-- The unused `provider_cache` table is dropped on upgrade (schema 5 → 6), and Android builds against `compileSdk 36` again — only `permission_handler_android` asked for 37 and nothing needed it
+- Theme tokens expanded: added `pill` and `pillSingle` BorderRadius constants and `ScreenSize.isExpanded` tier for more consistent rounded-corner styling across all screens
+- Reader scroll motion: scroll animations now dynamically respect both the app's `reduceMotion` setting and the system `disableAnimations` accessibility switch, with zero duration for instant jumps when either is enabled
+- Database DAO cleanup: removed now-unused methods `getLibraryNovels()`, `getContinueReadingNovels()`, `getUnreadChapters()`, and `clearCompletedDownloads()` from respective DAOs as part of schema simplification (schema 5 → 6 upgrade drops unused `provider_cache` table)
+- LibraryDao simplified: `ReadingHistory` table removed from Drift accelerator, reducing surface area for the library database layer
+- TTS sample player removed: `lib/core/tts/sample_player.dart` deleted as part of TTS pipeline consolidation
+- Browse screen layout update: changed dimension check from `isDesktop` to `screenSizeOf(context).isExpanded`, and list tile border radius from `BorderRadius.circular(10)` to `Radii.pill` for consistent pill-shaped corners
+- Downloads screen and library screen received minor widget adjustments as part of overall codebase cleanup
+
 
 ## 0.1.6-beta - 2026-10-06
 
@@ -29,6 +37,53 @@ Three things 0.2.x is about:
 * **Removing and simplifying.** Cutting things that do not earn their place and rewriting overly heavy parts for stability and simplicity. That includes the 300+ tests: many were AI-generated, and some test things that do not need testing. Fewer tests is not a loss if the remaining ones are better.
 
 This does not promise that 0.2.x will be perfect or fast. It means this is where the work is going.
+
+
+## 0.1.6.1-beta - 2026-11-03
+
+### Added
+
+- Provider TTS pinned to flutter_edge_tts v0.3.1 (Edge v2 Sec-MS-GEC fix)
+- Probe: added `-Wno-unused-but-set-global` flag instead of assuming Clang knows it
+
+### Changed
+
+- Refactor and clean up codebase: removed unused components, updated dependencies, and enhanced test coverage
+- Refactor dependencies in pubspec.yaml: removed unused packages and updated descriptions
+
+### Known issues
+
+- **Android may be a little bit buggy right now.** The Android build is an early preview: on-device TTS, background downloads/notifications, and cold-start provider loading have had the most churn in this cycle and haven't been shaken out across many devices yet. Expect rough edges on Android specifically; desktop builds are more settled. If you hit something broken on Android, it's probably us, not you — please report it with the device and Android version.
+
+
+## 0.1.0-beta - 2026-08-21
+
+First public beta. Android APK plus Linux desktop packages, built and signed automatically by CI on every release tag.
+
+### Added
+
+- Multi-source browsing through installable JavaScript provider extensions, with a catalog for installing and updating them
+- Library with status tabs (Reading, On Hold, Plan to Read, Completed, Dropped), grid/list/compact views, and per-tab filtering
+- Reader with continuous and paged modes, five themes (dark, light, sepia, green, blue), adjustable typography, bionic reading
+- Reading-position memory down to the content block, persisted while scrolling and restored on reopen
+- Chapter tracking that marks chapters read when you advance or scroll past them
+- Text-to-speech with paragraph highlighting, auto-advance across chapters, background playback, MPRIS media keys on Linux
+- Download queue for offline reading
+- Bookmarks and reading history
+- Local EPUB and PDF import
+- Backup and restore
+- Linux desktop build: portable tarball, .deb, and .rpm packages with desktop entry
+- CI: format check, analyzer, tests on every push; signed release builds on tags
+
+### Fixed
+
+- TTS chunker dropped separator whitespace when splitting long paragraphs, producing run-together words ("word wordword") and drifting highlight offsets
+- Chunk word offsets were computed against the chunk itself instead of the paragraph, always reporting zero
+
+### Changed
+
+- Desktop navigation rail hosts Downloads next to Settings; screens own their headers
+- Each screen renders a consistent header (title, search slot, contextual actions) with its tab strip underneath
 
 If something in 0.1.x is broken, awkward, or frustrating to use, report it. **That is exactly what 0.2.x is for.**
 
