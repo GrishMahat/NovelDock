@@ -479,11 +479,11 @@ packages:
     dependency: "direct main"
     description:
       path: "."
-      ref: "v0.3.0"
-      resolved-ref: "99ff557b6a8790a61eec33db638ae15bb4cd9081"
+      ref: "v0.3.1"
+      resolved-ref: "6eacc4fdc274e1c22cf96cf361f450bd348633c0"
       url: "https://github.com/GrishMahat/flutter_edge_tts.git"
     source: git
-    version: "0.3.0"
+    version: "0.3.1"
   flutter_js:
     dependency: "direct main"
     description:
